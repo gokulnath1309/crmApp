@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CRM Pro - Alex Thompson Profile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d3e4fe",
+                        "inverse-surface": "#213145",
+                        "on-background": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "primary": "#3525cd",
+                        "on-surface-variant": "#464555",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "surface-tint": "#4d44e3",
+                        "on-secondary-container": "#004666",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "outline": "#777587",
+                        "on-surface": "#0b1c30",
+                        "tertiary-fixed": "#ffdbcc",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#89ceff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#dce9ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface": "#f8f9ff",
+                        "on-tertiary-container": "#ffd2be",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#c9e6ff",
+                        "secondary": "#006591",
+                        "on-tertiary-fixed": "#351000",
+                        "secondary-container": "#39b8fd",
+                        "tertiary-container": "#a44100",
+                        "on-secondary-fixed": "#001e2f",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#eff4ff",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container": "#e5eeff",
+                        "primary-fixed": "#e2dfff",
+                        "error-container": "#ffdad6",
+                        "on-primary-container": "#dad7ff",
+                        "inverse-primary": "#c3c0ff",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "on-secondary-fixed-variant": "#004c6e",
+                        "error": "#ba1a1a",
+                        "tertiary": "#7e3000",
+                        "outline-variant": "#c7c4d8",
+                        "surface-container-lowest": "#ffffff",
+                        "background": "#f8f9ff",
+                        "primary-container": "#4f46e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "xs": "4px",
+                        "2xl": "48px",
+                        "margin-desktop": "32px",
+                        "3xl": "64px",
+                        "md": "16px",
+                        "margin-mobile": "16px",
+                        "base": "8px",
+                        "lg": "24px",
+                        "gutter": "24px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "code-sm": ["JetBrains Mono"],
+                        "body-lg": ["Inter"],
+                        "title-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "code-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-md": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #f8f9ff;
+            color: #0b1c30;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c7c4d8;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- Navigation Drawer (SideNav) -->
+<aside class="fixed left-0 top-0 h-full w-[280px] bg-white/90 dark:bg-inverse-surface/90 backdrop-blur-xl border-r border-outline-variant dark:border-outline shadow-2xl z-50 flex flex-col py-6 px-4 hidden md:flex">
+<div class="mb-8 flex items-center gap-3 px-2">
+<div class="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white shadow-lg">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">CRM Pro</span>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">filter_list</span>
+<span class="font-body-md text-body-md">Leads</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">contacts</span>
+<span class="font-body-md text-body-md">Contacts</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">handshake</span>
+<span class="font-body-md text-body-md">Deals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">task_alt</span>
+<span class="font-body-md text-body-md">Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">notifications</span>
+<span class="font-body-md text-body-md">Notifications</span>
+</a>
+<!-- Active State for Settings/Profile -->
+<a class="flex items-center gap-3 px-4 py-3 bg-surface-container dark:bg-primary-container text-primary dark:text-on-primary-container border-l-2 border-primary font-semibold rounded-r-full transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-outline-variant">
+<div class="flex items-center gap-3 px-2">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container shadow-inner">
+<img class="w-full h-full object-cover" data-alt="A professional studio headshot of a mid-40s male executive with a confident smile, wearing a charcoal grey tailored suit and a crisp white shirt. The lighting is soft and cinematic, with a clean, out-of-focus modern office background in shades of light blue and white to match the corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBC57c6BzhYekYcpyJRL35LPvP2DrvgMxp_ooKk8uuOo54b8w6cgukbmsUF-pRFvk8RdzI-xQyog2z3NXEh0ApDMwA7OX5CVwwniyvlRsP92gSTX0KEz7cNo_oSSARWv9PS4RkLX3KkyQZsge8JGcez2-jA9mS_iFV0GOxDvGgoBIyB3kVOs2mBC75osdy88p_tt0AA4EWWUohyDrAxPwJsFJXzQWSeYGFWbvEYUIp0-2qTm0xZZKMjgXI_5fHwFqqhdhFE-4HyQjQq"/>
+</div>
+<div>
+<p class="text-on-surface font-semibold text-body-md">Alex Thompson</p>
+<p class="text-on-surface-variant text-label-md">Enterprise Tier</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-[280px] min-h-screen flex flex-col relative">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 bg-white/80 dark:bg-inverse-surface/80 backdrop-blur-xl shadow-sm w-full h-16 flex items-center justify-between px-4 md:px-8">
+<div class="flex items-center gap-4">
+<button class="md:hidden p-2 hover:bg-surface-container-low rounded-full transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">Profile</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex items-center bg-surface-container-low rounded-full px-4 py-2 border border-outline-variant focus-within:border-primary focus-within:ring-4 focus-within:ring-primary-container/20 transition-all">
+<span class="material-symbols-outlined text-outline text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md w-48 lg:w-64" placeholder="Search data..." type="text"/>
+</div>
+<button class="bg-primary text-white font-label-md px-6 py-2.5 rounded-lg shadow-lg hover:shadow-primary-container/30 transition-all active:scale-95 duration-200">
+                    Quick Create
+                </button>
+</div>
+</header>
+<!-- Canvas Container -->
+<div class="p-6 md:p-8 max-w-7xl mx-auto w-full">
+<!-- Profile Header Card -->
+<div class="bg-white rounded-xl shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] border border-outline-variant overflow-hidden mb-8 relative">
+<!-- Cover Banner -->
+<div class="h-48 w-full bg-cover bg-center relative" data-alt="A sophisticated abstract geometric pattern of interconnected glass-like triangles and nodes in a cool spectrum of indigo, deep blue, and light azure. The design conveys structural integrity and modern data networking, featuring subtle light gradients and high-end digital texture." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAhjck7HWg-xTfzrZRDT4R34lc0zHDvS8OfX7oTPI85NZK9b-PTKOvyCGB7kvpsH3HTuOb3Du3yGedslfc5_6LyuYGc98CuvQJinvr9CeFMO0R8oqkSVXv8U1dCXlf8kYTw9gBqRvWQ3RHE2Za6g6TWKyzjaYPnTjcgh1o2LNqNwljs4wVpOFoEstDeeqO8ynzQ1e4NDFwwW-B35Wxg1_Pit_VXWolNELoo2WSOLjEa7dQgRYd41k6XkBewYyAwQKSQjjdvN0Mt9Me9')">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+</div>
+<!-- Profile Identity Row -->
+<div class="px-8 pb-8 flex flex-col md:flex-row items-end gap-6 -mt-12 relative z-10">
+<div class="w-32 h-32 rounded-2xl border-4 border-white bg-surface-container shadow-2xl overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close up of Alex Thompson, a high-level executive in his mid-40s. He has short, styled hair and a warm, approachable expression. He is wearing a professional light blue shirt. The image quality is crisp and high-definition, shot with a shallow depth of field in a bright, modern corporate environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPeSYIqUeofRseQ8o7CbLcZVwh6-scCWY4oryFdTsw17gaIbVJUZK5kmekPsfpDfghYA-Z7GGCEKRb2BFUMjJOU9FFxBirZPIgK3pwV9gdveNZiDi8TOWZwIiWXmG8QnjkMco0cKMZGqvvvk5z5AlRLv7_xJT2jBLqmiAdgpmS6Vb7qr9c1Sk_8mLcAthfnJ0yoOOkk0aCztmV7RdOa-Hz90OoEh2eQBlCcwDYkxtC3nVtrEnGDhbsG7q18wKCdCVLUbP4kT0ZyVVw"/>
+</div>
+<div class="flex-1 pb-2">
+<div class="flex items-center gap-3">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Alex Thompson</h2>
+<span class="bg-primary-container/10 text-primary px-3 py-1 rounded-full text-label-md font-bold uppercase tracking-wider">Executive</span>
+</div>
+<p class="text-on-surface-variant font-body-md mt-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+                            alex.thompson@crmpro.enterprise.com
+                        </p>
+</div>
+<div class="pb-2 flex gap-3">
+<button class="bg-white border border-outline-variant text-on-surface font-semibold px-6 py-2.5 rounded-lg hover:bg-surface-container-low transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+                            Edit Profile
+                        </button>
+<button class="bg-surface-container-low text-on-surface-variant p-2.5 rounded-lg border border-outline-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dashboard Style Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Column: Personal & Account Info (8 Columns) -->
+<div class="lg:col-span-8 space-y-8">
+<!-- Personal Information Bento Section -->
+<div class="bg-white rounded-xl border border-outline-variant shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] p-6">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-title-md text-title-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">person_outline</span>
+                                Personal Information
+                            </h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+<div>
+<label class="text-label-md text-on-surface-variant block mb-1">Full Name</label>
+<p class="font-body-lg text-body-lg text-on-surface font-medium">Alex Thompson</p>
+</div>
+<div>
+<label class="text-label-md text-on-surface-variant block mb-1">Phone Number</label>
+<p class="font-body-lg text-body-lg text-on-surface font-medium">+1 (555) 234-8901</p>
+</div>
+<div>
+<label class="text-label-md text-on-surface-variant block mb-1">Office Location</label>
+<p class="font-body-lg text-body-lg text-on-surface font-medium">New York Headquarters</p>
+</div>
+<div>
+<label class="text-label-md text-on-surface-variant block mb-1">Timezone</label>
+<p class="font-body-lg text-body-lg text-on-surface font-medium">Eastern Standard Time (GMT-5)</p>
+</div>
+<div class="md:col-span-2">
+<label class="text-label-md text-on-surface-variant block mb-1">Biography</label>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                                    Strategic sales leader with over 15 years of experience in enterprise CRM implementation and high-growth team management. Alex oversees the Global Accounts division, focusing on scalable partnership models and integrated workflow optimization.
+                                </p>
+</div>
+</div>
+</div>
+<!-- Account Information Section -->
+<div class="bg-white rounded-xl border border-outline-variant shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] p-6">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-title-md text-title-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">verified_user</span>
+                                Account Information
+                            </h3>
+<span class="text-primary font-label-md hover:underline cursor-pointer">Manage Subscription</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Subscription Card -->
+<div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+<p class="text-label-md text-on-surface-variant mb-1">Subscription Plan</p>
+<p class="font-title-md text-title-md text-primary font-bold">Enterprise Tier</p>
+<p class="text-label-md text-on-surface-variant mt-2">Next renewal: Oct 12, 2024</p>
+</div>
+<!-- Role Card -->
+<div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+<p class="text-label-md text-on-surface-variant mb-1">System Role</p>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">admin_panel_settings</span>
+<p class="font-title-md text-title-md text-on-surface font-bold">Workspace Admin</p>
+</div>
+</div>
+<!-- Security Card -->
+<div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+<p class="text-label-md text-on-surface-variant mb-1">Security Status</p>
+<div class="flex items-center gap-2 text-green-600">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<p class="font-title-md text-title-md font-bold">2FA Enabled</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Recent Activity (4 Columns) -->
+<aside class="lg:col-span-4 space-y-8">
+<div class="bg-white rounded-xl border border-outline-variant shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] p-6">
+<h3 class="font-title-md text-title-md text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                            Recent Activity
+                        </h3>
+<!-- Timeline -->
+<div class="space-y-8 relative before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant">
+<!-- Activity Item 1 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center z-10 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">handshake</span>
+</div>
+<div>
+<p class="text-body-md font-semibold text-on-surface">Closed the "Global Logistics" Deal</p>
+<p class="text-body-md text-on-surface-variant">$2.4M ARR Agreement finalized.</p>
+<p class="text-label-md text-outline mt-1 italic">2 hours ago</p>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container text-primary flex items-center justify-center z-10 shadow-sm border border-outline-variant">
+<span class="material-symbols-outlined text-[16px]">edit_note</span>
+</div>
+<div>
+<p class="text-body-md font-semibold text-on-surface">Updated Profile Information</p>
+<p class="text-body-md text-on-surface-variant">Changed phone number and bio.</p>
+<p class="text-label-md text-outline mt-1 italic">5 hours ago</p>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container text-primary flex items-center justify-center z-10 shadow-sm border border-outline-variant">
+<span class="material-symbols-outlined text-[16px]">group_add</span>
+</div>
+<div>
+<p class="text-body-md font-semibold text-on-surface">Added 3 New Leads</p>
+<p class="text-body-md text-on-surface-variant">Assigned to "North America" territory.</p>
+<p class="text-label-md text-outline mt-1 italic">Yesterday</p>
+</div>
+</div>
+<!-- Activity Item 4 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center z-10 shadow-sm border border-green-200">
+<span class="material-symbols-outlined text-[16px]">login</span>
+</div>
+<div>
+<p class="text-body-md font-semibold text-on-surface">Logged in from new device</p>
+<p class="text-body-md text-on-surface-variant">MacBook Pro - New York, NY</p>
+<p class="text-label-md text-outline mt-1 italic">Yesterday</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-8 py-3 text-body-md font-semibold text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-all">
+                            View Full Activity Log
+                        </button>
+</div>
+<!-- Statistics Small Card -->
+<div class="bg-primary text-white rounded-xl p-6 shadow-xl relative overflow-hidden group">
+<!-- Abstract glow effect -->
+<div class="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-700"></div>
+<h4 class="text-label-md uppercase tracking-[2px] opacity-80 mb-2">Workspace Performance</h4>
+<div class="flex items-baseline gap-2">
+<span class="text-[32px] font-bold">98.2%</span>
+<span class="text-label-md text-white/80">+2.4% this month</span>
+</div>
+<div class="mt-6 flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
+<div class="h-full bg-white w-[92%] rounded-full shadow-[0_0_10px_white]"></div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<!-- Footer -->
+<footer class="mt-auto py-8 px-8 border-t border-outline-variant bg-white text-center">
+<p class="text-on-surface-variant text-label-md">© 2024 CRM Pro Enterprise. All rights reserved. Built for Alex Thompson.</p>
+</footer>
+</main>
+<!-- BottomNavBar (Visible on mobile only, hidden as per prompt focusing on Desktop) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 md:hidden bg-white/80 backdrop-blur-xl border-t border-outline-variant shadow-lg px-4">
+<button class="text-primary bg-primary-container/20 rounded-full p-2 active:scale-90 duration-200">
+<span class="material-symbols-outlined">dashboard</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="text-primary active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[32px]">add_circle</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined">handshake</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined">person</span>
+</button>
+</nav>
+<script>
+        // Micro-interactions and subtle UI effects
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.bg-white.rounded-xl');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.classList.add('shadow-xl');
+                    card.style.transform = 'translateY(-2px)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.classList.remove('shadow-xl');
+                    card.style.transform = 'translateY(0px)';
+                });
+                card.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+            });
+        });
+    </script>
+</body></html>

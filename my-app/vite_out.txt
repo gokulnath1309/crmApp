@@ -1,0 +1,32 @@
+
+  [32m[1mVITE[22m v8.0.16[39m  [2mready in [0m[1m290[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.9:[1m5173[22m/[39m
+[2m4:26:06 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/01-dashboard-mobile.html[22m
+[2m4:26:06 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/01-dashboard-mobile.html[22m
+[2m4:26:06 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/01-dashboard-mobile.html[22m
+[2m4:26:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/02-signin-desktop.html[22m
+[2m4:26:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/02-signin-desktop.html[22m
+[2m4:26:09 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/03-profile-desktop.html[22m
+[2m4:26:09 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/03-profile-desktop.html[22m
+[2m4:26:09 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/03-profile-desktop.html[22m
+[2m4:26:11 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/04-signup-desktop.html[22m
+[2m4:26:11 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/04-signup-desktop.html[22m
+[2m4:26:11 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/04-signup-desktop.html[22m
+[2m4:26:12 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/05-dashboard-desktop.html[22m
+[2m4:26:12 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/05-dashboard-desktop.html[22m
+[2m4:26:12 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/05-dashboard-desktop.html[22m
+[2m4:26:22 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/06-signin-mobile.html[22m
+[2m4:26:22 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/06-signin-mobile.html[22m
+[2m4:26:22 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/06-signin-mobile.html[22m
+[2m4:26:23 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/07-signup-mobile.html[22m
+[2m4:26:23 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/07-signup-mobile.html[22m
+[2m4:26:23 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/07-signup-mobile.html[22m
+[2m4:26:25 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/08-dashboard-mobile.html[22m
+[2m4:26:25 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/08-dashboard-mobile.html[22m
+[2m4:26:25 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/08-dashboard-mobile.html[22m
+[2m4:26:27 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/09-profile-mobile.html[22m
+[2m4:26:27 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mstitch-assets/html/09-profile-mobile.html[22m
+[2m5:07:42 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m5:20:39 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m

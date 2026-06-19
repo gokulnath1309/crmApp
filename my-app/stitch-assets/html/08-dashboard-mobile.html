@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CRM Pro Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#e5eeff",
+                        "inverse-primary": "#c3c0ff",
+                        "surface-tint": "#4d44e3",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#004666",
+                        "surface-container-highest": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-surface-variant": "#464555",
+                        "on-error": "#ffffff",
+                        "primary": "#3525cd",
+                        "tertiary-fixed": "#ffdbcc",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "on-tertiary-fixed": "#351000",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#001e2f",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "surface-container-high": "#dce9ff",
+                        "secondary": "#006591",
+                        "outline": "#777587",
+                        "surface-variant": "#d3e4fe",
+                        "on-surface": "#0b1c30",
+                        "surface": "#f8f9ff",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#eff4ff",
+                        "tertiary": "#7e3000",
+                        "secondary-fixed-dim": "#89ceff",
+                        "on-tertiary-container": "#ffd2be",
+                        "surface-dim": "#cbdbf5",
+                        "on-primary": "#ffffff",
+                        "inverse-surface": "#213145",
+                        "primary-fixed": "#e2dfff",
+                        "surface-container-lowest": "#ffffff",
+                        "background": "#f8f9ff",
+                        "tertiary-container": "#a44100",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "primary-container": "#4f46e5",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#0f0069",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary-fixed": "#c9e6ff",
+                        "on-background": "#0b1c30",
+                        "outline-variant": "#c7c4d8",
+                        "on-primary-container": "#dad7ff",
+                        "surface-bright": "#f8f9ff",
+                        "secondary-container": "#39b8fd",
+                        "on-secondary-fixed-variant": "#004c6e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "32px",
+                        "3xl": "64px",
+                        "xs": "4px",
+                        "gutter": "24px",
+                        "2xl": "48px",
+                        "margin-desktop": "32px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "margin-mobile": "16px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "title-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "code-sm": ["JetBrains Mono"],
+                        "display-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "title-md": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "code-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .drawer-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen selection:bg-primary-container selection:text-on-primary-container">
+<!-- Navigation Drawer (Mobile Backdrop) -->
+<div class="fixed inset-0 bg-inverse-surface/40 backdrop-blur-sm z-50 hidden md:hidden opacity-0 transition-opacity duration-300" id="drawer-backdrop" onclick="toggleDrawer()"></div>
+<!-- Navigation Drawer Component -->
+<aside class="fixed left-0 top-0 h-full w-[280px] bg-white/90 dark:bg-inverse-surface/90 backdrop-blur-xl border-r border-outline-variant z-50 transform -translate-x-full drawer-transition md:translate-x-0 flex flex-col py-6 px-4" id="nav-drawer">
+<div class="flex items-center gap-3 mb-8 px-2">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container shadow-lg">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-primary">CRM Pro</h2>
+<p class="text-label-md font-label-md text-on-surface-variant">Enterprise Tier</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Active: Dashboard -->
+<a class="flex items-center gap-4 px-4 py-3 bg-surface-container text-primary border-l-2 border-primary font-semibold rounded-r-full duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">filter_list</span>
+<span class="font-body-md text-body-md">Leads</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">contacts</span>
+<span class="font-body-md text-body-md">Contacts</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">handshake</span>
+<span class="font-body-md text-body-md">Deals</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">task_alt</span>
+<span class="font-body-md text-body-md">Tasks</span>
+</a>
+<div class="pt-4 mt-4 border-t border-outline-variant/30">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-body-md text-body-md">Notifications</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</div>
+</nav>
+<div class="mt-auto p-4 bg-surface-container-low rounded-xl flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full border-2 border-white shadow-sm" data-alt="A professional corporate headshot of a smiling manager in a bright, modern office setting. The lighting is soft and natural, emphasizing a high-end light-mode CRM interface aesthetic. The individual wears professional attire and appears confident, surrounded by clean white surfaces and subtle indigo accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuByuXG50tRE-vKXS7MNwWGMJITcjMBANgZ34wQjqVWWD_mIy0nwR_FuXcqUVK-UY1lAktrqN5pcsBSuSXa1erZsTmw5RIXf4INtmkr7gI194FQ-ZYtH0lk5kYh4uNNneok2PA4T356JbSc9LLlupOnDvCenIpHMOOFncWwxzjWrqzJOYCnqxzerm0udwV2vdinzkn0vLOeFFwlI34PJqky8iiWOMFTTb_qN8qXdQaK7PGggn7trYEUEc2VRj1WrXCd3rO0w9IXZIa1Y"/>
+<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<p class="font-label-md text-label-md font-bold text-on-surface">Alex Rivera</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Account Manager</p>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-[280px] min-h-screen flex flex-col relative">
+<!-- TopAppBar Component -->
+<header class="sticky top-0 z-40 w-full bg-white/80 dark:bg-inverse-surface/80 backdrop-blur-xl shadow-sm h-16 flex items-center px-4 md:px-8 justify-between">
+<div class="flex items-center gap-4">
+<button class="md:hidden p-2 text-primary hover:bg-surface-container-low rounded-full active:scale-95 duration-200 transition-colors" onclick="toggleDrawer()">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md-mobile md:text-headline-md text-primary font-bold">Dashboard</h1>
+</div>
+<div class="flex items-center gap-2 md:gap-4">
+<button class="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-medium shadow-md hover:bg-primary/90 active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                    Quick Create
+                </button>
+<button class="relative p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border border-white"></span>
+</button>
+<div class="w-px h-6 bg-outline-variant mx-1 hidden md:block"></div>
+<button class="md:hidden p-2 text-primary hover:bg-surface-container-low rounded-full">
+<span class="material-symbols-outlined">search</span>
+</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-4 md:p-gutter max-w-7xl mx-auto w-full space-y-gutter pb-32">
+<!-- Greeting -->
+<section class="space-y-1">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background">Good Morning 👋</h2>
+<p class="text-body-lg font-body-lg text-on-surface-variant">Here's what's happening with your CRM today.</p>
+</section>
+<!-- Stats Grid (Single column on mobile, 4-column on desktop) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md md:gap-gutter">
+<!-- Total Leads -->
+<div class="glass-card p-lg rounded-xl flex flex-col shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] hover:translate-y-[-2px] transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">filter_list</span>
+</div>
+<span class="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">trending_up</span> +12%
+                        </span>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Total Leads</p>
+<h3 class="text-display-lg font-display-lg text-on-surface mt-1">1,284</h3>
+</div>
+<!-- Total Contacts -->
+<div class="glass-card p-lg rounded-xl flex flex-col shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] hover:translate-y-[-2px] transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-secondary-container/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">contacts</span>
+</div>
+<span class="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">trending_up</span> +4%
+                        </span>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Total Contacts</p>
+<h3 class="text-display-lg font-display-lg text-on-surface mt-1">4,890</h3>
+</div>
+<!-- Active Deals -->
+<div class="glass-card p-lg rounded-xl flex flex-col shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] hover:translate-y-[-2px] transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-tertiary-container/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">handshake</span>
+</div>
+<span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">trending_down</span> -2%
+                        </span>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Active Deals</p>
+<h3 class="text-display-lg font-display-lg text-on-surface mt-1">$42.8M</h3>
+</div>
+<!-- Tasks Due Today -->
+<div class="glass-card p-lg rounded-xl flex flex-col shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)] hover:translate-y-[-2px] transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-lg bg-error-container/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined">task_alt</span>
+</div>
+<span class="px-2 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">
+                            8 Priority
+                        </span>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Tasks Due Today</p>
+<h3 class="text-display-lg font-display-lg text-on-surface mt-1">24</h3>
+</div>
+</div>
+<!-- Dashboard Content: Recent Activity & Deals Pipeline (Bento Grid Style) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Recent Activity Section -->
+<section class="lg:col-span-8 glass-card rounded-xl p-lg shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-title-md text-title-md text-on-surface">Recent Activity</h3>
+<button class="text-primary font-label-md hover:underline">View All</button>
+</div>
+<div class="space-y-6 relative before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant/30">
+<!-- Activity Item 1 -->
+<div class="relative flex items-start gap-4 pl-8 group">
+<div class="absolute left-0 w-8 h-8 rounded-full bg-white border-2 border-primary-container flex items-center justify-center z-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-sm">handshake</span>
+</div>
+<div class="flex-1">
+<p class="text-body-md font-body-md text-on-surface">
+<span class="font-bold">Deal Closed</span> with Global Tech Solutions Inc.
+                                </p>
+<p class="text-label-md text-on-surface-variant mt-1">2 hours ago • <span class="text-primary font-semibold">$1.2M</span></p>
+<div class="mt-3 p-3 bg-surface-container-low rounded-lg border border-outline-variant/20">
+<p class="text-body-md italic text-on-surface-variant">"Excellent collaboration, look forward to scaling further next quarter."</p>
+</div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="relative flex items-start gap-4 pl-8 group">
+<div class="absolute left-0 w-8 h-8 rounded-full bg-white border-2 border-secondary-container flex items-center justify-center z-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-secondary text-sm">person_add</span>
+</div>
+<div class="flex-1">
+<p class="text-body-md font-body-md text-on-surface">
+<span class="font-bold">Sarah Jenkins</span> added as a new lead.
+                                </p>
+<p class="text-label-md text-on-surface-variant mt-1">4 hours ago • Source: LinkedIn Outreach</p>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="relative flex items-start gap-4 pl-8 group">
+<div class="absolute left-0 w-8 h-8 rounded-full bg-white border-2 border-tertiary-container flex items-center justify-center z-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-tertiary text-sm">edit_document</span>
+</div>
+<div class="flex-1">
+<p class="text-body-md font-body-md text-on-surface">
+<span class="font-bold">Proposal Updated</span> for SkyNet Logistics.
+                                </p>
+<p class="text-label-md text-on-surface-variant mt-1">Yesterday at 5:30 PM • Stage: Negotiation</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Column: Performance & Actions -->
+<aside class="lg:col-span-4 space-y-gutter">
+<!-- Quick Actions Card -->
+<div class="glass-card rounded-xl p-lg shadow-sm border-primary/20 bg-primary-container/5">
+<h3 class="font-title-md text-title-md text-on-surface mb-4">Quick Create</h3>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-outline-variant hover:border-primary hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined mb-2">person_add</span>
+<span class="text-label-md font-label-md">New Lead</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-outline-variant hover:border-primary hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined mb-2">add_task</span>
+<span class="text-label-md font-label-md">Add Task</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-outline-variant hover:border-primary hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined mb-2">payments</span>
+<span class="text-label-md font-label-md">New Deal</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-outline-variant hover:border-primary hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined mb-2">event</span>
+<span class="text-label-md font-label-md">Meeting</span>
+</button>
+</div>
+</div>
+<!-- Pipeline Health Card -->
+<div class="glass-card rounded-xl p-lg shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-title-md text-title-md text-on-surface">Sales Pipeline</h3>
+<span class="material-symbols-outlined text-on-surface-variant cursor-help">info</span>
+</div>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-label-md mb-2">
+<span class="text-on-surface-variant uppercase">Discovery</span>
+<span class="font-bold">$12.4M</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-primary h-2 rounded-full" style="width: 85%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-label-md mb-2">
+<span class="text-on-surface-variant uppercase">Proposal</span>
+<span class="font-bold">$8.2M</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-secondary h-2 rounded-full" style="width: 60%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-label-md mb-2">
+<span class="text-on-surface-variant uppercase">Closing</span>
+<span class="font-bold">$4.1M</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-tertiary h-2 rounded-full" style="width: 30%"></div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<!-- Floating Action Button (Mobile Only) -->
+<button class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-all z-40">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- BottomNavBar Component (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 md:hidden px-4 bg-white/80 dark:bg-inverse-surface/80 backdrop-blur-xl border-t border-outline-variant shadow-lg">
+<a class="text-primary bg-primary-container/20 rounded-full p-2 flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-medium mt-0.5">Home</span>
+</a>
+<a class="text-on-surface-variant hover:text-primary transition-all flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">filter_list</span>
+<span class="text-[10px] font-medium mt-0.5">Leads</span>
+</a>
+<div class="w-10"></div> <!-- Spacer for FAB if needed or just even spacing -->
+<a class="text-on-surface-variant hover:text-primary transition-all flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">handshake</span>
+<span class="text-[10px] font-medium mt-0.5">Deals</span>
+</a>
+<a class="text-on-surface-variant hover:text-primary transition-all flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium mt-0.5">Profile</span>
+</a>
+</nav>
+</main>
+<script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('nav-drawer');
+            const backdrop = document.getElementById('drawer-backdrop');
+            
+            if (drawer.classList.contains('-translate-x-full')) {
+                drawer.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+                setTimeout(() => backdrop.classList.add('opacity-100'), 10);
+            } else {
+                drawer.classList.add('-translate-x-full');
+                backdrop.classList.remove('opacity-100');
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
+            }
+        }
+
+        // Add some micro-interactions
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.borderColor = 'rgba(53, 37, 205, 0.2)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.borderColor = 'rgba(226, 232, 240, 0.8)';
+            });
+        });
+    </script>
+</body></html>
