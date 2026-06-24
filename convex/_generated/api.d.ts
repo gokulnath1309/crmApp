@@ -16,10 +16,18 @@ import type * as deals from "../deals.js";
 import type * as email from "../email.js";
 import type * as http from "../http.js";
 import type * as leads from "../leads.js";
+import type * as lib_getCurrentUser from "../lib/getCurrentUser.js";
+import type * as lib_notifications from "../lib/notifications.js";
+import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
 import type * as passwordReset from "../passwordReset.js";
+import type * as rbac from "../rbac.js";
+import type * as removeCompanyIdMigration from "../removeCompanyIdMigration.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
+import type * as workspaceInvitations from "../workspaceInvitations.js";
+import type * as workspaceMembers from "../workspaceMembers.js";
+import type * as workspaces from "../workspaces.js";
 
 import type {
   ApiFromModules,
@@ -36,10 +44,18 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   http: typeof http;
   leads: typeof leads;
+  "lib/getCurrentUser": typeof lib_getCurrentUser;
+  "lib/notifications": typeof lib_notifications;
+  migrations: typeof migrations;
   notifications: typeof notifications;
   passwordReset: typeof passwordReset;
+  rbac: typeof rbac;
+  removeCompanyIdMigration: typeof removeCompanyIdMigration;
   tasks: typeof tasks;
   users: typeof users;
+  workspaceInvitations: typeof workspaceInvitations;
+  workspaceMembers: typeof workspaceMembers;
+  workspaces: typeof workspaces;
 }>;
 
 /**

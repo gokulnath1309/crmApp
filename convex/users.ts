@@ -1,86 +1,82 @@
 declare const process: { env: Record<string, string | undefined> };
 
 import { v } from "convex/values";
-import { query, mutation, action } from "./_generated/server";
-import { auth } from "./auth";
+import { query, mutation, action, internalMutation } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { canEditField } from "./rbac";
+import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
+import { notifyUser, notifyAdmins } from "./lib/notifications";
+
+function formatUserDoc(user: any) {
+  return {
+    _id: user._id,
+    clerkId: user.clerkId,
+    email: user.email ?? "",
+    name: user.name ?? "",
+    role: user.role ?? "employee",
+    managerId: user.managerId,
+    department: user.department,
+    jobFunction: user.jobFunction,
+    permissions: user.permissions ?? [],
+    isActive: user.isActive ?? true,
+    lastLogin: user.lastLogin,
+    avatarUrl: user.image ?? user.avatarUrl,
+    emailVerified: user.emailVerified ?? false,
+    createdAt: user.createdAt ?? user._creationTime,
+    updatedAt: user.updatedAt ?? user._creationTime,
+    coverImage: user.coverImage,
+    company: user.company,
+    location: user.location,
+    timezone: user.timezone,
+    bio: user.bio,
+    jobTitle: user.jobTitle,
+    phone: user.phone,
+    workspaceId: user.workspaceId,
+    activeWorkspaceId: user.activeWorkspaceId,
+    isOwner: user.isOwner,
+  };
+}
 
 export const getCurrentUser = query({
   args: { token: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    console.log("[getCurrentUser]", {
-      identity: identity?.email ?? null,
-      hasArgsToken: !!args.token,
-    });
-
-    if (identity?.email) {
-      const userId = await auth.getUserId(ctx);
-      console.log("[getCurrentUser] auth.getUserId:", userId);
-
-      if (userId) {
-        const user = await ctx.db.get(userId);
-        if (user) {
-          console.log("[getCurrentUser] Found user by ID:", user._id);
-          return {
-            _id: user._id,
-            email: user.email ?? "",
-            name: user.name ?? "Google User",
-            role: user.role ?? "member",
-            avatarUrl: user.image ?? user.avatarUrl,
-            emailVerified: user.emailVerified ?? false,
-            createdAt: user.createdAt ?? user._creationTime,
-            updatedAt: user.updatedAt ?? user._creationTime,
-          };
-        }
-        console.warn("[getCurrentUser] User doc not found by ID, falling back to email lookup");
-      }
-
-      const userByEmail = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", identity.email))
-        .unique();
-
-      if (userByEmail) {
-        console.log("[getCurrentUser] Found user by email:", userByEmail._id);
-        return {
-          _id: userByEmail._id,
-          email: userByEmail.email ?? "",
-          name: userByEmail.name ?? "Google User",
-          role: userByEmail.role ?? "member",
-          avatarUrl: userByEmail.image ?? userByEmail.avatarUrl,
-          emailVerified: userByEmail.emailVerified ?? false,
-          createdAt: userByEmail.createdAt ?? userByEmail._creationTime,
-          updatedAt: userByEmail.updatedAt ?? userByEmail._creationTime,
-        };
-      }
-
-      console.warn("[getCurrentUser] Identity present but no user found in DB");
-      return null;
+    const user = await resolveUserReadOnly(ctx);
+    if (user) {
+      console.log("[getCurrentUser] Found via lib helper:", user._id);
+      return formatUserDoc(user);
     }
 
     if (args.token) {
-      const user = await ctx.db
+      const legacyUser = await ctx.db
         .query("users")
         .withIndex("by_authToken", (q) => q.eq("authToken", args.token))
         .unique();
-
-      if (user) {
-        console.log("[getCurrentUser] Found user by legacy token:", user._id);
-        return {
-          _id: user._id,
-          email: user.email ?? "",
-          name: user.name ?? "",
-          role: user.role ?? "member",
-          avatarUrl: user.avatarUrl,
-          emailVerified: user.emailVerified ?? false,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        };
+      if (legacyUser) {
+        console.log("[getCurrentUser] Found by legacy token:", legacyUser._id);
+        return formatUserDoc(legacyUser);
       }
     }
 
-    console.log("[getCurrentUser] No user found, returning null");
+    console.log("[getCurrentUser] Not found, returning null");
     return null;
+  },
+});
+
+export const getUserById = query({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.id);
+    if (!user) return null;
+    return {
+      _id: user._id,
+      name: user.name ?? "",
+      email: user.email ?? "",
+      role: user.role ?? "employee",
+      department: user.department,
+      jobTitle: user.jobTitle,
+      workspaceId: user.workspaceId,
+      avatarUrl: user.image ?? user.avatarUrl,
+    };
   },
 });
 
@@ -89,9 +85,11 @@ export const debugEnv = action({
   handler: async () => {
     const convexSiteUrl = typeof process !== "undefined" ? process.env.CONVEX_SITE_URL : "process not defined";
     const siteUrl = typeof process !== "undefined" ? process.env.SITE_URL : "process not defined";
+    const resendKey = typeof process !== "undefined" ? (process.env.RESEND_API_KEY ? "✅ Set (length: " + process.env.RESEND_API_KEY.length + ")" : "❌ MISSING") : "process not defined";
     return {
       CONVEX_SITE_URL: convexSiteUrl,
       SITE_URL: siteUrl,
+      RESEND_API_KEY: resendKey,
       nodeEnv: typeof process !== "undefined" ? process.env.NODE_ENV : "N/A",
     };
   },
@@ -104,21 +102,32 @@ export const updateProfile = mutation({
     avatarUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let user = null;
-
-    const userId = await auth.getUserId(ctx);
-    if (userId) {
-      user = await ctx.db.get(userId);
-    }
-
-    if (!user && args.token) {
-      user = await ctx.db
-        .query("users")
-        .withIndex("by_authToken", (q) => q.eq("authToken", args.token))
-        .unique();
-    }
-
+    const user = await resolveUser(ctx);
     if (!user) {
+      if (args.token) {
+        const legacyUser = await ctx.db
+          .query("users")
+          .withIndex("by_authToken", (q) => q.eq("authToken", args.token))
+          .unique();
+        if (legacyUser) {
+          const patch: Record<string, string | number | undefined> = { updatedAt: Date.now() };
+          if (args.name !== undefined) patch.name = args.name;
+          if (args.avatarUrl !== undefined) {
+            patch.avatarUrl = args.avatarUrl;
+            patch.image = args.avatarUrl;
+          }
+          await ctx.db.patch(legacyUser._id, patch);
+          return {
+            _id: legacyUser._id,
+            email: legacyUser.email ?? "",
+            name: args.name ?? legacyUser.name ?? "",
+            role: legacyUser.role ?? "employee",
+            avatarUrl: args.avatarUrl ?? legacyUser.image ?? legacyUser.avatarUrl,
+            createdAt: legacyUser.createdAt ?? legacyUser._creationTime,
+            updatedAt: patch.updatedAt as number,
+          };
+        }
+      }
       throw new Error("Not authenticated");
     }
 
@@ -137,7 +146,7 @@ export const updateProfile = mutation({
       _id: user._id,
       email: user.email ?? "",
       name: args.name ?? user.name ?? "",
-      role: user.role ?? "member",
+      role: user.role ?? "employee",
       avatarUrl: args.avatarUrl ?? user.image ?? user.avatarUrl,
       createdAt: user.createdAt ?? user._creationTime,
       updatedAt: patch.updatedAt as number,
@@ -145,15 +154,1037 @@ export const updateProfile = mutation({
   },
 });
 
+export const updateProfileImage = mutation({
+  args: {
+    image: v.string(),
+  },
+  handler: async (ctx, args) => {
+    console.log("[AUTH] Profile image update started");
+    const user = await resolveUser(ctx);
+    if (!user) {
+      console.error("[AUTH] Profile image update: No authenticated user");
+      throw new Error("Not authenticated");
+    }
+    console.log("[AUTH] Profile image update: user resolved", user._id);
+
+    await ctx.db.patch(user._id, {
+      image: args.image,
+      avatarUrl: args.image,
+      updatedAt: Date.now(),
+    });
+    console.log("[AUTH] Image updated:", user._id);
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "avatar_updated",
+      description: "Updated profile avatar",
+      userId: user._id,
+      userName: user.name || "System",
+      entityType: "user",
+      entityId: user._id,
+    });
+
+    return { _id: user._id, avatarUrl: args.image };
+  },
+});
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db.query("users").collect();
-    return users.map(u => ({
-      _id: u._id,
-      name: u.name || "Unknown User",
-      email: u.email || "",
-      avatarUrl: u.image || u.avatarUrl,
-    }));
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser) {
+      return [];
+    }
+    const workspaceId = currentUser.activeWorkspaceId;
+    if (!workspaceId) {
+      return [];
+    }
+    
+    // Get all members for this workspace
+    const members = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    // Fetch the user documents for each member
+    const users = await Promise.all(
+      members.map(async (m) => {
+        const u = await ctx.db.get(m.userId);
+        if (!u) return null;
+        return {
+          _id: u._id,
+          name: u.name || "Unknown User",
+          email: u.email || "",
+          role: m.role || "employee", // Get role from membership
+          managerId: u.managerId,
+          department: m.department || u.department, // Get department from membership
+          jobTitle: u.jobTitle,
+          permissions: u.permissions || [],
+          isActive: m.status === "active",
+          lastLogin: u.lastLogin,
+          avatarUrl: u.image || u.avatarUrl,
+        };
+      })
+    );
+
+    return users.filter(Boolean);
   },
 });
+
+export const syncUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      console.warn("[syncUser] Called without authenticated identity");
+      return null;
+    }
+
+    const clerkId = identity.subject;
+    const email = identity.email?.trim().toLowerCase();
+
+    // Try by clerkId first
+    let user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+      .unique();
+
+    if (!user && email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const usersByEmail = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
+        .collect();
+
+      if (usersByEmail.length === 1) {
+        user = usersByEmail[0];
+      } else if (usersByEmail.length > 1) {
+        console.warn("[syncUser] Multiple users for email, deduplicating:", email);
+        const withClerkId = usersByEmail.find((u) => u.clerkId === clerkId);
+        if (withClerkId) {
+          user = withClerkId;
+        } else {
+          const withPassword = usersByEmail.find((u) => u.passwordHash);
+          user = withPassword || usersByEmail[0];
+          for (const dup of usersByEmail) {
+            if (dup._id !== user._id) {
+              console.warn("[syncUser] Deleting duplicate user:", dup._id);
+              await ctx.db.delete(dup._id);
+            }
+          }
+        }
+      }
+    }
+
+    const now = Date.now();
+    const isSuperAdminEmail = email === "gokulnath13092001@gmail.com";
+
+    // Check if there is an active pending or email_sent invitation for this email
+    let invitation = null;
+    if (email) {
+      invitation = await ctx.db
+        .query("workspaceInvitations")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .filter((q) =>
+          q.or(
+            q.eq(q.field("status"), "pending"),
+            q.eq(q.field("status"), "email_sent")
+          )
+        )
+        .first();
+    }
+
+    let workspaceId = invitation ? invitation.workspaceId : undefined;
+    let role = invitation ? invitation.role : (isSuperAdminEmail ? "super_admin" : "employee");
+    let department = invitation ? invitation.department : (isSuperAdminEmail ? "Management" : undefined);
+    let jobTitle = invitation ? invitation.jobTitle : (isSuperAdminEmail ? "Founder" : undefined);
+    let managerId = invitation ? invitation.managerId : undefined;
+    let isOwner = false;
+
+    if (!user) {
+      console.log("[syncUser] Creating new user for:", email);
+      const newUserId = await ctx.db.insert("users", {
+        clerkId,
+        email,
+        name: identity.name || identity.givenName || "User",
+        role,
+        workspaceId,
+        activeWorkspaceId: workspaceId,
+        department,
+        jobTitle,
+        managerId,
+        isOwner,
+        isActive: true,
+        avatarUrl: identity.pictureUrl,
+        createdAt: now,
+        updatedAt: now,
+        lastLogin: now,
+        lastLoginAt: now,
+      });
+
+      const newUser = await ctx.db.get(newUserId);
+      if (newUser) {
+        user = newUser;
+        if (invitation) {
+          await ctx.db.patch(invitation._id, {
+            status: "accepted",
+            acceptedAt: now,
+            acceptedByClerkId: clerkId,
+          });
+        }
+        if (workspaceId) {
+          // Notify admins of the tenant that user has joined
+          await notifyAdmins(ctx, undefined, "user_invited", {
+            entityName: newUser.name || newUser.email,
+            userName: newUser.name || "System",
+            entityType: "user",
+            entityId: newUserId,
+          });
+        }
+      }
+    } else {
+      const patch: any = { lastLogin: now, lastLoginAt: now, updatedAt: now };
+      if (!user.clerkId) {
+        console.log("[syncUser] Backfilling clerkId for user:", user._id);
+        patch.clerkId = clerkId;
+      }
+      if (invitation) {
+        patch.workspaceId = invitation.workspaceId;
+        patch.activeWorkspaceId = invitation.workspaceId;
+        patch.role = invitation.role;
+        patch.department = invitation.department;
+        patch.jobTitle = invitation.jobTitle;
+        patch.managerId = invitation.managerId;
+        patch.isActive = true;
+        
+        await ctx.db.patch(invitation._id, {
+          status: "accepted",
+          acceptedAt: now,
+          acceptedByClerkId: clerkId,
+        });
+      } else if (isSuperAdminEmail && !user.workspaceId) {
+        patch.role = "super_admin";
+        patch.department = "Management";
+        patch.jobTitle = "Founder";
+        patch.isActive = true;
+      }
+      await ctx.db.patch(user._id, patch);
+      user = await ctx.db.get(user._id);
+    }
+
+    return user;
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTERNAL: Pure DB writer — receives pre-validated caller context as args.
+// Auth is resolved in the action (inviteUser) where Clerk identity is reliable.
+// ─────────────────────────────────────────────────────────────────────────────
+export const createInvitationRecord = internalMutation({
+  args: {
+    // Caller-provided (pre-validated in the action)
+    callerUserId: v.id("users"),
+    callerName: v.string(),
+    callerWorkspaceId: v.id("workspaces"),
+    callerWorkspaceName: v.string(),
+    callerManagerName: v.optional(v.string()),
+    // Invitation payload
+    email: v.string(),
+    name: v.string(),
+    role: v.string(),
+    department: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    managerId: v.optional(v.id("users")),
+    permissions: v.optional(v.array(v.string())),
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase();
+    const now = Date.now();
+
+    console.log("[createInvitationRecord] Creating invitation record", { email, role: args.role, company: args.callerWorkspaceId });
+
+    // Check if user already exists in company
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    if (existingUser && existingUser.workspaceId === args.callerWorkspaceId) {
+      throw new Error("User with this email is already a member of your company");
+    }
+
+    // Check for existing pending (not yet expired) invitation
+    const existingInvitation = await ctx.db
+      .query("workspaceInvitations")
+      .withIndex("by_workspace_email", (q) =>
+        q.eq("workspaceId", args.callerWorkspaceId).eq("email", email)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+    if (existingInvitation) {
+      if (existingInvitation.expiresAt < now) {
+        console.log("[createInvitationRecord] Found expired pending invitation — auto-expiring it:", existingInvitation._id);
+        await ctx.db.patch(existingInvitation._id, { status: "expired" });
+      } else {
+        console.error("[createInvitationRecord] Blocking — active pending invitation exists:", existingInvitation._id);
+        throw new Error("An invitation is already pending for this email address");
+      }
+    }
+
+    const invitationId = await ctx.db.insert("workspaceInvitations", {
+      workspaceId: args.callerWorkspaceId,
+      email,
+      role: args.role,
+      department: args.department,
+      invitedBy: args.callerUserId,
+      inviteToken: args.token,
+      status: "pending",
+      expiresAt: now + 7 * 24 * 60 * 60 * 1000, // 7 days
+      createdAt: now,
+    });
+
+    console.log("[createInvitationRecord] Invitation record created:", invitationId);
+
+    // Log activity
+    await ctx.db.insert("activities", {
+      type: "user_invited",
+      description: `invited ${args.name} (${email}) to join the company`,
+      userId: args.callerUserId,
+      userName: args.callerName,
+      entityType: "user",
+      entityId: invitationId,
+      workspaceId: args.callerWorkspaceId,
+      createdAt: now,
+    });
+
+    return { invitationId };
+  },
+});
+
+export const updateInvitationEmailStatus = internalMutation({
+  args: {
+    invitationId: v.id("workspaceInvitations"),
+    status: v.string(), // "email_sent" | "email_failed"
+    emailStatus: v.string(), // "sent" | "failed"
+    emailError: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const patch: any = {
+      status: args.status,
+      emailStatus: args.emailStatus,
+    };
+    if (args.emailStatus === "sent") {
+      patch.emailSentAt = Date.now();
+    }
+    if (args.emailError !== undefined) {
+      patch.emailError = args.emailError;
+    }
+    console.log("[updateInvitationEmailStatus] Patching invitation", args.invitationId, {
+      status: args.status,
+      emailStatus: args.emailStatus,
+      hasError: !!args.emailError,
+    });
+    await ctx.db.patch(args.invitationId, patch);
+    console.log("[updateInvitationEmailStatus] ✅ Patched successfully");
+  },
+});
+
+export const createInviteNotification = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    invitedName: v.string(),
+    invitedEmail: v.string(),
+    invitationId: v.id("workspaceInvitations"),
+    senderId: v.id("users"),
+    senderName: v.string(),
+    success: v.boolean(),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceId, invitedName, invitedEmail, invitationId, senderId, senderName, success, errorMessage } = args;
+    const now = Date.now();
+
+    // Find all admin and super_admin users in the company
+    const admins = await ctx.db
+      .query("users")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("role"), "super_admin"),
+          q.eq(q.field("role"), "admin")
+        )
+      )
+      .collect();
+
+    const title = success
+      ? `Invitation sent to ${invitedName}`
+      : `Failed to invite ${invitedName}`;
+    const message = success
+      ? `${senderName} invited ${invitedName} (${invitedEmail}) to join the company.`
+      : `Failed to send invitation to ${invitedName} (${invitedEmail}). Error: ${errorMessage || "Unknown error"}`;
+
+    for (const admin of admins) {
+      // Don't notify the sender on success (they already know)
+      if (admin._id === senderId && success) continue;
+
+      await ctx.db.insert("notifications", {
+        userId: admin._id,
+        workspaceId,
+        title,
+        message,
+        type: success ? "user_invited" : "invite_failed",
+        entityType: "invitation",
+        entityId: invitationId,
+        read: false,
+        createdBy: senderId,
+        createdAt: now,
+      });
+    }
+  },
+});
+
+export const cancelInvitation = mutation({
+  args: {
+    id: v.id("workspaceInvitations"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) throw new Error("Not authenticated");
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (currentUser.role !== "super_admin" && currentUser.role !== "admin") {
+      throw new Error("Unauthorized: Only Admins can cancel workspaceInvitations");
+    }
+
+    const invitation = await ctx.db.get(args.id);
+    if (!invitation) throw new Error("Invitation not found");
+
+    if (invitation.workspaceId !== workspaceId) {
+      throw new Error("Unauthorized: Cannot cancel invitation for another company");
+    }
+
+    await ctx.db.patch(args.id, { status: "revoked" });
+
+    await ctx.db.insert("activities", {
+      type: "invite_revoked",
+      description: `revoked invitation for ${invitation.fullName || invitation.email}`,
+      userId: currentUser._id,
+      userName: currentUser.name || "System",
+      entityType: "user",
+      entityId: args.id,
+      workspaceId,
+      createdAt: Date.now(),
+    });
+
+    return args.id;
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC ACTION: Validates auth here (Clerk identity is reliable in actions),
+// then orchestrates DB write → email send → status update atomically.
+// ─────────────────────────────────────────────────────────────────────────────
+export const inviteUser = action({
+  args: {
+    email: v.string(),
+    name: v.string(),
+    role: v.string(),
+    department: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    managerId: v.optional(v.id("users")),
+    permissions: v.optional(v.array(v.string())),
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // ── STEP 1: Authenticate & Authorise ──────────────────────────────────────
+    const identity = await ctx.auth.getUserIdentity();
+    console.log("[inviteUser] Step 1 — Identity:", {
+      exists: !!identity,
+      subject: identity?.subject,
+      email: identity?.email,
+    });
+    if (!identity) {
+      console.error("[inviteUser] Step 1 ❌ — No identity found");
+      throw new Error("Not authenticated. Please sign in first.");
+    }
+
+    // Resolve the Convex user from the database
+    console.log("[inviteUser] Step 1 — Resolving Convex user from identity...");
+    const callerUser: any = await ctx.runQuery(api.users.getCurrentUser, {});
+    console.log("[inviteUser] Step 1 — Current User:", {
+      id: callerUser?._id,
+      role: callerUser?.role,
+      workspaceId: callerUser?.workspaceId,
+      name: callerUser?.name,
+    });
+
+    if (!callerUser) {
+      console.error("[inviteUser] Step 1 ❌ — Convex user record not found");
+      throw new Error("User record not found. Try refreshing.");
+    }
+    if (callerUser.role !== "super_admin" && callerUser.role !== "admin") {
+      console.error("[inviteUser] Step 1 ❌ — Unauthorized role:", callerUser.role);
+      throw new Error(`Unauthorized: Your role is '${callerUser.role}'. Only Super Admin or Admin can invite users.`);
+    }
+    const workspaceId = callerUser.activeWorkspaceId || callerUser.workspaceId;
+    if (!workspaceId) {
+      console.error("[inviteUser] Step 1 ❌ — User has no workspaceId");
+      throw new Error("Unauthorized: You must belong to a company workspace to invite users.");
+    }
+
+    // ── STEP 2: Resolve company and manager names ─────────────────────────────
+    console.log("[inviteUser] Step 2 — Looking up company...");
+    const company: any = await ctx.runQuery(api.workspaces.getById, { id: workspaceId });
+    const callerWorkspaceName = company?.name || "CRM Pro";
+    console.log("[inviteUser] Step 2 — Company:", { id: workspaceId, name: callerWorkspaceName });
+
+    let callerManagerName: string | undefined;
+    if (args.managerId) {
+      console.log("[inviteUser] Step 2 — Looking up manager...");
+      const manager: any = await ctx.runQuery(api.users.getUserById, { id: args.managerId });
+      callerManagerName = manager?.name || manager?.email;
+      console.log("[inviteUser] Step 2 — Manager:", { id: args.managerId, name: callerManagerName });
+    }
+
+    // ── STEP 3: Create invitation record (status: pending) ────────────────────
+    console.log("[inviteUser] Step 3 — Creating invitation record in DB...");
+    console.log("[inviteUser] Step 3 — Payload:", {
+      email: args.email,
+      name: args.name,
+      role: args.role,
+      department: args.department,
+      workspaceId: workspaceId,
+      token: args.token?.slice(0, 8) + "...",
+    });
+    const { invitationId } = await ctx.runMutation(internal.users.createInvitationRecord, {
+      callerUserId: callerUser._id,
+      callerName: callerUser.name || callerUser.email || "Admin",
+      callerWorkspaceId: workspaceId,
+      callerWorkspaceName,
+      callerManagerName,
+      email: args.email,
+      name: args.name,
+      role: args.role,
+      department: args.department,
+      jobTitle: args.jobTitle,
+      managerId: args.managerId,
+      permissions: args.permissions,
+      token: args.token,
+    });
+    console.log("[inviteUser] Step 3 ✅ — Invitation record created:", invitationId);
+
+    // ── STEP 4: Send email via Resend ─────────────────────────────────────────
+    try {
+      console.log("[inviteUser] Step 4 — Preparing to call sendInvitationEmail action...");
+      console.log("[inviteUser] Step 4 — Email args:", {
+        to: args.email.trim().toLowerCase(),
+        name: args.name.trim(),
+        role: args.role,
+        company: callerWorkspaceName,
+        token: args.token?.slice(0, 8) + "...",
+      });
+      const emailResult = await ctx.runAction(api.email.sendInvitationEmail, {
+        email: args.email.trim().toLowerCase(),
+        name: args.name.trim(),
+        role: args.role,
+        department: args.department,
+        managerName: callerManagerName,
+        companyName: callerWorkspaceName,
+        token: args.token,
+      });
+      console.log("[inviteUser] Step 4 ✅ — Resend API response:", JSON.stringify(emailResult));
+
+      console.log("[inviteUser] Step 4 — Updating invitation status → email_sent");
+      await ctx.runMutation(internal.users.updateInvitationEmailStatus, {
+        invitationId,
+        status: "email_sent",
+        emailStatus: "sent",
+      });
+
+      // ── STEP 5: Notify admins ─────────────────────────────────────────────
+      console.log("[inviteUser] Step 5 — Creating success notifications for admins...");
+      await ctx.runMutation(internal.users.createInviteNotification, {
+        workspaceId: workspaceId,
+        invitedName: args.name.trim(),
+        invitedEmail: args.email.trim().toLowerCase(),
+        invitationId,
+        senderId: callerUser._id,
+        senderName: callerUser.name || "Admin",
+        success: true,
+      });
+
+      console.log("[inviteUser] ✅ Invitation flow complete. ID:", invitationId);
+      return invitationId;
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : "No stack trace";
+      console.error("[inviteUser] ❌ Email send FAILED at Step 4.");
+      console.error("[inviteUser] ❌ Error message:", errorMsg);
+      console.error("[inviteUser] ❌ Error stack:", errorStack);
+
+      // ── STEP 5 (failure path): Mark as email_failed ─────────────────────
+      console.log("[inviteUser] Step 5 (fail) — Updating invitation status → email_failed");
+      await ctx.runMutation(internal.users.updateInvitationEmailStatus, {
+        invitationId,
+        status: "email_failed",
+        emailStatus: "failed",
+        emailError: errorMsg,
+      });
+
+      console.log("[inviteUser] Step 5 (fail) — Creating failure notifications for admins...");
+      await ctx.runMutation(internal.users.createInviteNotification, {
+        workspaceId: workspaceId,
+        invitedName: args.name.trim(),
+        invitedEmail: args.email.trim().toLowerCase(),
+        invitationId,
+        senderId: callerUser._id,
+        senderName: callerUser.name || "Admin",
+        success: false,
+        errorMessage: errorMsg,
+      });
+
+      // Surface the error to the UI — it is already tracked in DB
+      throw new Error(errorMsg);
+    }
+  },
+});
+
+export const updateUserRole = mutation({
+  args: {
+    id: v.id("users"),
+    role: v.optional(v.string()),
+    department: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    managerId: v.optional(v.union(v.id("users"), v.null())),
+    permissions: v.optional(v.array(v.string())),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) throw new Error("Not authenticated");
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const targetUser = await ctx.db.get(args.id);
+    if (!targetUser) throw new Error("User not found");
+
+    if (targetUser.workspaceId !== workspaceId) {
+      throw new Error("Unauthorized: Cannot modify user outside your company");
+    }
+
+    const isSuperAdmin = currentUser.role === "super_admin";
+
+    if (targetUser.role === "super_admin" && !isSuperAdmin) {
+      throw new Error("Unauthorized: Only Super Admins can modify Super Admin accounts");
+    }
+
+    const isAdmin = currentUser.role === "admin" && targetUser.managerId === currentUser._id;
+
+    if (!isSuperAdmin && !isAdmin) {
+      throw new Error("Unauthorized");
+    }
+
+    const patch: any = { updatedAt: Date.now() };
+
+    if (args.role !== undefined) {
+      if (!isSuperAdmin) throw new Error("Unauthorized to change roles");
+      patch.role = args.role;
+
+      if (targetUser.role !== args.role) {
+        await ctx.scheduler.runAfter(0, internal.activities.log, {
+          type: "role_updated",
+          description: `changed role of ${targetUser.name || targetUser.email} from ${targetUser.role || "none"} to ${args.role}`,
+          userId: currentUser._id ?? undefined,
+          userName: currentUser.name || "System",
+          entityType: "user",
+          entityId: args.id,
+        });
+      }
+    }
+
+    if (args.department !== undefined) patch.department = args.department;
+    if (args.jobTitle !== undefined) patch.jobTitle = args.jobTitle;
+    if (args.managerId !== undefined) {
+      if (!isSuperAdmin) throw new Error("Unauthorized to change manager");
+      patch.managerId = args.managerId === null ? undefined : args.managerId;
+    }
+    if (args.permissions !== undefined) {
+      if (!isSuperAdmin) throw new Error("Unauthorized to change permissions");
+      patch.permissions = args.permissions;
+    }
+    if (args.isActive !== undefined) {
+      patch.isActive = args.isActive;
+    }
+
+    await ctx.db.patch(args.id, patch);
+
+    if (args.role !== undefined && targetUser.role !== args.role) {
+      await notifyUser(ctx, args.id, "role_changed", {
+        entityName: targetUser.name || "User",
+        role: args.role,
+        entityType: "user",
+        entityId: args.id,
+        createdBy: currentUser._id,
+      });
+    }
+
+    return args.id;
+  },
+});
+
+export const updateProfileDetails = mutation({
+  args: {
+    name: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    department: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    location: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    company: v.optional(v.string()),
+    activityType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    console.log("[AUTH] Profile details update started");
+    const user = await resolveUser(ctx);
+    if (!user) {
+      console.error("[AUTH] Profile details update: No authenticated user");
+      throw new Error("Not authenticated");
+    }
+    console.log("[AUTH] Profile details update: user resolved", user._id, "role:", user.role);
+
+    const userRole = user.role || "employee";
+
+    const keysToCheck = [
+      { key: "name", name: "name" },
+      { key: "phone", name: "phone" },
+      { key: "department", name: "department" },
+      { key: "jobTitle", name: "jobTitle" },
+      { key: "location", name: "location" },
+      { key: "timezone", name: "timezone" },
+      { key: "bio", name: "bio" },
+      { key: "avatarUrl", name: "avatarUrl" },
+      { key: "company", name: "company" },
+    ];
+
+    for (const { key, name } of keysToCheck) {
+      if ((args as any)[key] !== undefined) {
+        const currentValue = (user as any)[key === "avatarUrl" ? "avatarUrl" : key];
+        const newValue = (args as any)[key];
+        if (currentValue !== newValue) {
+          if (!canEditField(name, userRole)) {
+            throw new Error("You do not have permission to modify this field.");
+          }
+        }
+      }
+    }
+
+    const patch: any = { updatedAt: Date.now() };
+
+    if (args.name !== undefined) patch.name = args.name;
+    if (args.phone !== undefined) patch.phone = args.phone;
+    if (args.department !== undefined) patch.department = args.department;
+    if (args.jobTitle !== undefined) patch.jobTitle = args.jobTitle;
+    if (args.location !== undefined) patch.location = args.location;
+    if (args.timezone !== undefined) patch.timezone = args.timezone;
+    if (args.bio !== undefined) patch.bio = args.bio;
+    if (args.avatarUrl !== undefined) {
+      patch.avatarUrl = args.avatarUrl;
+      patch.image = args.avatarUrl;
+    }
+    if (args.company !== undefined) patch.company = args.company;
+
+    await ctx.db.patch(user._id, patch);
+    console.log("[AUTH] Profile details patched:", user._id, Object.keys(patch));
+
+    const logsToCreate: Array<{ type: string; desc: string }> = [];
+
+    if (args.avatarUrl !== undefined && user.avatarUrl !== args.avatarUrl) {
+      logsToCreate.push({ type: "avatar_updated", desc: "Updated profile avatar" });
+    }
+    if (args.department !== undefined && user.department !== args.department) {
+      logsToCreate.push({ type: "department_updated", desc: "Updated department assignment" });
+    }
+    if (args.jobTitle !== undefined && user.jobTitle !== args.jobTitle) {
+      logsToCreate.push({ type: "job_title_updated", desc: "Updated job title" });
+    }
+
+    let generalProfileChanged = false;
+    const generalFields = ["name", "phone", "location", "timezone", "bio", "company"];
+    for (const f of generalFields) {
+      if ((args as any)[f] !== undefined && (user as any)[f] !== (args as any)[f]) {
+        generalProfileChanged = true;
+        break;
+      }
+    }
+
+    if (generalProfileChanged) {
+      const actType = args.activityType || "profile_updated";
+      const actDesc = actType === "personal_info_updated" ? "Updated personal information" : "Updated profile information";
+      logsToCreate.push({ type: actType, desc: actDesc });
+    }
+
+    for (const logItem of logsToCreate) {
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: logItem.type,
+        description: logItem.desc,
+        userId: user._id,
+        userName: user.name || "System",
+        entityType: "user",
+        entityId: user._id,
+      });
+    }
+
+    return { _id: user._id, ...patch };
+  },
+});
+
+export const updateCoverImage = mutation({
+  args: {
+    coverImage: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    console.log("[AUTH] Cover image update started");
+    const user = await resolveUser(ctx);
+    if (!user) {
+      console.error("[AUTH] Cover image update: No authenticated user");
+      throw new Error("Not authenticated");
+    }
+    console.log("[AUTH] Cover image update: user resolved", user._id);
+
+    const userRole = user.role || "employee";
+    const currentValue = user.coverImage;
+    const newValue = args.coverImage === null ? undefined : args.coverImage;
+    if (currentValue !== newValue) {
+      if (!canEditField("coverImage", userRole)) {
+        throw new Error("You do not have permission to modify this field.");
+      }
+    }
+
+    await ctx.db.patch(user._id, {
+      coverImage: args.coverImage === null ? undefined : args.coverImage,
+      updatedAt: Date.now(),
+    });
+    console.log("[AUTH] Cover image updated:", user._id);
+
+    if (currentValue !== newValue) {
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: "cover_updated",
+        description: "Updated profile cover",
+        userId: user._id,
+        userName: user.name || "System",
+        entityType: "user",
+        entityId: user._id,
+      });
+    }
+
+    return { _id: user._id, coverImage: args.coverImage };
+  },
+});
+
+export const diagnoseUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const allUsers = await ctx.db.query("users").collect();
+
+    const emailCounts = new Map<string, number>();
+    for (const u of allUsers) {
+      if (u.email) {
+        emailCounts.set(u.email, (emailCounts.get(u.email) || 0) + 1);
+      }
+    }
+
+    const duplicateEmails: string[] = [];
+    for (const [email, count] of emailCounts) {
+      if (count > 1) duplicateEmails.push(email);
+    }
+
+    const missingClerkId = allUsers.filter((u) => !u.clerkId);
+    const missingEmail = allUsers.filter((u) => !u.email);
+    const missingName = allUsers.filter((u) => !u.name);
+
+    return {
+      totalUsers: allUsers.length,
+      usersMissingClerkId: missingClerkId.length,
+      usersMissingEmail: missingEmail.length,
+      usersMissingName: missingName.length,
+      duplicateEmails,
+      users: allUsers.map((u) => ({
+        _id: u._id,
+        clerkId: u.clerkId || "(missing)",
+        email: u.email || "(missing)",
+        name: u.name || "(missing)",
+        role: u.role || "(missing)",
+        authProvider: u.authProvider || "clerk",
+        hasPassword: !!u.passwordHash,
+        createdAt: u.createdAt,
+        lastLogin: u.lastLogin,
+      })),
+    };
+  },
+});
+
+export const healUsersTable = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allUsers = await ctx.db.query("users").collect();
+    let healed = 0;
+    let removed = 0;
+
+    for (const email of new Set(allUsers.filter((u) => u.email).map((u) => u.email))) {
+      const usersWithEmail = allUsers.filter((u) => u.email === email);
+      if (usersWithEmail.length <= 1) continue;
+
+      console.warn("[healUsersTable] Duplicate email detected:", email, "count:", usersWithEmail.length);
+      const withPassword = usersWithEmail.find((u) => u.passwordHash);
+      const withClerkId = usersWithEmail.find((u) => u.clerkId);
+      const keeper = withPassword || withClerkId || usersWithEmail[0];
+
+      for (const dup of usersWithEmail) {
+        if (dup._id === keeper._id) continue;
+        console.warn("[healUsersTable] Removing duplicate user:", dup._id, "keeping:", keeper._id);
+        await ctx.db.delete(dup._id);
+        removed++;
+      }
+    }
+
+    const allUsersAfter = await ctx.db.query("users").collect();
+    for (const user of allUsersAfter) {
+      if (!user.clerkId) {
+        console.warn("[healUsersTable] User missing clerkId:", user._id, user.email);
+        healed++;
+      }
+    }
+
+    return { healed, removed, totalAfter: allUsersAfter.length };
+  },
+});
+
+export const getInvitationByToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const invitation = await ctx.db
+      .query("workspaceInvitations")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!invitation) return null;
+
+    const company = await ctx.db.get(invitation.workspaceId);
+    const inviter = await ctx.db.get(invitation.invitedBy);
+    let managerName = undefined;
+    if (invitation.managerId) {
+      const manager = await ctx.db.get(invitation.managerId);
+      managerName = manager?.name || manager?.email;
+    }
+
+    return {
+      ...invitation,
+      companyName: company?.name || "CRMPro Company",
+      inviterName: inviter?.name || "Admin",
+      managerName,
+    };
+  },
+});
+
+export const acceptInvitation = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
+
+    const invitation = await ctx.db
+      .query("workspaceInvitations")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
+    if (invitation.status !== "pending" && invitation.status !== "email_sent") {
+      throw new Error(`Invitation is already ${invitation.status}`);
+    }
+
+    if (Date.now() > invitation.expiresAt) {
+      await ctx.db.patch(invitation._id, { status: "expired" });
+      throw new Error("Invitation has expired");
+    }
+
+    // Accept invitation: update user properties
+    await ctx.db.patch(currentUser._id, {
+      workspaceId: invitation.workspaceId,
+      activeWorkspaceId: invitation.workspaceId,
+      role: invitation.role,
+      department: invitation.department,
+      jobTitle: invitation.jobTitle,
+      managerId: invitation.managerId,
+      permissions: invitation.permissions,
+      isActive: true,
+      updatedAt: Date.now(),
+    });
+
+    // Create membership for the new workspace
+    const existingMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", currentUser._id).eq("workspaceId", invitation.workspaceId)
+      )
+      .first();
+    if (existingMembership) {
+      if (existingMembership.status !== "active") {
+        await ctx.db.patch(existingMembership._id, {
+          role: invitation.role,
+          department: invitation.department,
+          status: "active",
+          joinedAt: Date.now(),
+        });
+      }
+    } else {
+      await ctx.db.insert("workspaceMembers", {
+        workspaceId: invitation.workspaceId,
+        clerkUserId: currentUser.clerkId,
+        userId: currentUser._id,
+        role: invitation.role,
+        department: invitation.department,
+        status: "active",
+        joinedAt: Date.now(),
+      });
+    }
+
+    // Mark invitation as accepted
+    await ctx.db.patch(invitation._id, {
+      status: "accepted",
+      
+      
+    });
+
+    const company = await ctx.db.get(invitation.workspaceId);
+    const companyName = company ? company.name : "the company";
+
+    // Create welcome notification
+    await ctx.db.insert("notifications", {
+      userId: currentUser._id,
+      workspaceId: invitation.workspaceId,
+      title: `Welcome to ${companyName}`,
+      message: `You have successfully joined ${companyName} as a ${invitation.role}.`,
+      type: "system",
+      read: false,
+      createdAt: Date.now(),
+    });
+
+    // Create activity
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "joined_company",
+      description: `joined ${companyName} via invitation`,
+      userId: currentUser._id,
+      userName: currentUser.name || "New Employee",
+      entityType: "user",
+      entityId: currentUser._id,
+      workspaceId: invitation.workspaceId,
+    });
+
+    return invitation.workspaceId;
+  },
+});
+

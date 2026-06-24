@@ -3,7 +3,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, hasMemberships } = useAuth();
 
   if (isLoading) {
     return (
@@ -14,7 +14,10 @@ export function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    if (hasMemberships) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;

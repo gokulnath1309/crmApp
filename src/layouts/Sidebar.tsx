@@ -4,19 +4,66 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDarkMode } from "@/hooks/useDarkMode";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Bell, Settings,
-  LogOut, Target, ChevronLeft, ChevronRight, X, BarChart2, ChevronDown, Sun, Moon
+  LogOut, Target, ChevronLeft, ChevronRight, X, BarChart2, Sun, Moon,
+  Building2, CreditCard, UserCircle,
 } from "lucide-react";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Leads", href: "/leads", icon: Target },
-  { label: "Contacts", href: "/contacts", icon: Users },
-  { label: "Deals", href: "/deals", icon: Briefcase },
-  { label: "Tasks", href: "/tasks", icon: CheckSquare },
-  { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Settings", href: "/settings", icon: Settings },
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: string[];
+  excludeJobFunctions?: string[];
+  requireJobFunctions?: string[];
+}
+
+const navItems: NavItem[] = [
+  // Dashboard - All roles
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["super_admin", "admin", "sales_rep", "employee", "marketing", "support"] },
+
+  // Leads
+  { label: "Leads", href: "/leads", icon: Target, roles: ["super_admin", "admin", "marketing"] },
+  { label: "My Leads", href: "/leads", icon: Target, roles: ["sales_rep", "employee"] },
+
+  // Contacts
+  { label: "Contacts", href: "/contacts", icon: Users, roles: ["super_admin", "admin"] },
+  { label: "My Contacts", href: "/contacts", icon: Users, roles: ["sales_rep", "employee"] },
+
+  // Companies (Customer list proxy, scoped to tenant)
+  { label: "Companies", href: "/companies", icon: Building2, roles: ["super_admin", "admin"] },
+
+  // Deals
+  { label: "Deals", href: "/deals", icon: Briefcase, roles: ["super_admin", "admin"] },
+  { label: "My Deals", href: "/deals", icon: Briefcase, roles: ["sales_rep", "employee"] },
+
+  // Tasks
+  { label: "Tasks", href: "/tasks", icon: CheckSquare, roles: ["super_admin", "admin"] },
+  { label: "My Tasks", href: "/tasks", icon: CheckSquare, roles: ["sales_rep", "employee", "support"] },
+
+  // Management / Admin only
+  { label: "Employees", href: "/employees", icon: Users, roles: ["super_admin", "admin"] },
+  { label: "Teams", href: "/teams", icon: Users, roles: ["super_admin"] },
+  { label: "Reports", href: "/reports", icon: BarChart2, roles: ["super_admin"] },
+  
+  // Marketing Campaigns & Analytics
+  { label: "Campaigns", href: "/leads", icon: Target, roles: ["marketing"] },
+  { label: "Analytics", href: "/reports", icon: BarChart2, roles: ["marketing"] },
+
+  // Notifications (all)
+  { label: "Notifications", href: "/notifications", icon: Bell, roles: ["super_admin", "admin", "sales_rep", "marketing", "support", "employee"] },
+
+  // Settings
+  { label: "Settings", href: "/settings", icon: Settings, roles: ["super_admin"] },
+
+  // Profile (all)
+  { label: "Profile", href: "/profile", icon: UserCircle, roles: ["super_admin", "admin", "sales_rep", "marketing", "support", "employee"] },
+
+  // Billing
+  { label: "Billing", href: "/billing", icon: CreditCard, roles: ["super_admin"] },
 ];
 
 interface SidebarProps {
@@ -30,6 +77,23 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
   const { user, signOut } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1023px)");
   const [dark, toggleDark] = useDarkMode();
+
+  const company = useQuery(api.workspaces.getMyWorkspace, {});
+  const unreadCount = useQuery(api.notifications.getUnreadCount, {});
+
+  const userRole = user?.role || "employee";
+
+  const visibleItems = navItems.filter((item) => {
+    return item.roles?.includes(userRole) ?? false;
+  });
+
+  const companyName = company?.name || "Workspace";
+  const companyInitials = companyName
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800">
@@ -53,13 +117,12 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
       {/* Workspace selector */}
       {!collapsed && (
         <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-          <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
+          <div className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50/50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60">
             <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-md flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[9px] font-bold">AC</span>
+              <span className="text-white text-[9px] font-bold">{companyInitials}</span>
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 text-left">Acme Corp</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
-          </button>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 text-left truncate">{companyName}</span>
+          </div>
         </div>
       )}
 
@@ -70,9 +133,9 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
             Menu
           </p>
         )}
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
-            key={item.href}
+            key={item.href + item.label}
             to={item.href}
             end={item.href === "/dashboard"}
             onClick={isMobile ? onMobileClose : undefined}
@@ -88,9 +151,9 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
           >
             <item.icon className="w-4.5 h-4.5 flex-shrink-0" />
             {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
-            {!collapsed && item.label === "Notifications" && (
-              <span className="bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0">
-                12
+            {!collapsed && item.label === "Notifications" && unreadCount !== undefined && unreadCount > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center flex-shrink-0 animate-bounce">
+                {unreadCount}
               </span>
             )}
           </NavLink>
@@ -113,7 +176,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
             <button
               onClick={(e) => { e.preventDefault(); signOut(); }}
               title="Sign out"
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -123,7 +186,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
         <div className={cn("flex gap-1 mt-2", collapsed && "flex-col")}>
           <button
             onClick={toggleDark}
-            className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-1"
+            className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-1 cursor-pointer"
             title={dark ? "Light mode" : "Dark mode"}
           >
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -131,7 +194,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
           {!collapsed && signOut && (
             <button
               onClick={signOut}
-              className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-1"
+              className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-1 cursor-pointer"
               title="Sign out"
             >
               <LogOut className="h-4 w-4" />
@@ -140,7 +203,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
           {!isMobile && (
             <button
               onClick={onToggleCollapse}
-              className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

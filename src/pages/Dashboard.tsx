@@ -2,12 +2,13 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { formatCurrency } from "@/lib/currency";
 
 import { motion } from "motion/react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import {
   Users, Briefcase, CheckSquare, ChevronRight, TrendingUp, TrendingDown,
-  Clock, Target, UserCheck
+  Clock, Target, UserCheck, CheckCircle2, Percent
 } from "lucide-react";
 
 // Sparkline datasets
@@ -16,11 +17,7 @@ const sp2 = [{ v: 50 }, { v: 42 }, { v: 58 }, { v: 48 }, { v: 65 }, { v: 55 }, {
 const sp3 = [{ v: 20 }, { v: 35 }, { v: 28 }, { v: 45 }, { v: 38 }, { v: 55 }, { v: 50 }, { v: 64 }];
 const sp4 = [{ v: 15 }, { v: 22 }, { v: 18 }, { v: 30 }, { v: 24 }, { v: 32 }, { v: 26 }, { v: 24 }];
 
-const formatCurrency = (val: number) => {
-  if (val >= 1e6) return `$${(val / 1e6).toFixed(1)}M`;
-  if (val >= 1e3) return `$${(val / 1e3).toFixed(0)}K`;
-  return `$${val}`;
-};
+// Local formatCurrency removed; using imported formatCurrency from src/lib/currency
 
 const formatTime = (epoch: number) => {
   const diff = Date.now() - epoch;
@@ -55,7 +52,7 @@ function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green"
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>{label}</span>;
 }
 
-function StatCard({ title, value, change, up, Icon, iconBg, data }: { title: string; value: string; change: string; up: boolean; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; iconBg: string; data: { v: number }[] }) {
+function StatCard({ title, value, change, up, Icon, iconBg, data }: { title: string; value: string | React.ReactNode; change: string; up: boolean; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; iconBg: string; data: { v: number }[] }) {
   return (
     <motion.div
       whileHover={{ y: -3, boxShadow: "0 16px 40px -12px rgba(79,70,229,0.12)" }}
@@ -65,7 +62,13 @@ function StatCard({ title, value, change, up, Icon, iconBg, data }: { title: str
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{title}</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
+          <div className="text-slate-900 dark:text-white mt-1 tracking-tight font-sans">
+            {typeof value === "string" ? (
+              <span className="text-2xl font-bold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</span>
+            ) : (
+              value
+            )}
+          </div>
         </div>
         <div className={`w-10 h-10 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}>
           <Icon style={{ width: 18, height: 18 }} className="text-white" />
@@ -126,10 +129,153 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Leads" value={String(metrics.totalLeads)} change="+12% this month" up Icon={Target} iconBg="bg-indigo-500" data={sp1} />
+        <StatCard title="Total Leads" value={String(metrics.totalLeads)} change={`${metrics.openLeadsCount || 0} active leads`} up Icon={Target} iconBg="bg-indigo-500" data={sp1} />
         <StatCard title="Contacts" value={String(metrics.totalContacts)} change="+5% this month" up Icon={Users} iconBg="bg-violet-500" data={sp2} />
-        <StatCard title="Active Deals" value={formatCurrency(metrics.activeDealsValue)} change="+8% pipeline" up Icon={Briefcase} iconBg="bg-emerald-500" data={sp3} />
-        <StatCard title="Tasks Due Today" value={String(metrics.pendingTasks)} change="6 overdue" up={false} Icon={CheckSquare} iconBg="bg-orange-500" data={sp4} />
+        <StatCard
+          title="Won Revenue"
+          value={
+            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+              {Object.keys(metrics.wonRevenue || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No revenue</span>
+              ) : (
+                Object.entries(metrics.wonRevenue).map(([currency, amount]) => (
+                  <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
+                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          }
+          change="+8% pipeline"
+          up
+          Icon={Briefcase}
+          iconBg="bg-emerald-500"
+          data={sp3}
+        />
+        <StatCard
+          title="Revenue Forecast"
+          value={
+            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+              {Object.keys(metrics.revenueForecast || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No forecast</span>
+              ) : (
+                Object.entries(metrics.revenueForecast).map(([currency, amount]) => (
+                  <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
+                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          }
+          change="Proposal/Neg."
+          up
+          Icon={TrendingUp}
+          iconBg="bg-orange-500"
+          data={sp4}
+        />
+      </div>
+
+      <div className="pt-2">
+        <h2 className="text-md font-bold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <Briefcase className="w-4 h-4 text-indigo-500" />
+          Deal Pipeline Analytics
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time breakdown of active sales cycles and performance metrics.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Pipeline"
+          value={
+            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+              {Object.keys(metrics.totalPipelineValue || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No active deals</span>
+              ) : (
+                Object.entries(metrics.totalPipelineValue).map(([currency, amount]) => (
+                  <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
+                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          }
+          change="Active stages"
+          up
+          Icon={Briefcase}
+          iconBg="bg-indigo-600"
+          data={sp1}
+        />
+        <StatCard
+          title="Weighted Pipeline"
+          value={
+            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+              {Object.keys(metrics.weightedPipelineValue || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No active deals</span>
+              ) : (
+                Object.entries(metrics.weightedPipelineValue).map(([currency, amount]) => (
+                  <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
+                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          }
+          change="Prob. adjusted"
+          up
+          Icon={Target}
+          iconBg="bg-violet-600"
+          data={sp2}
+        />
+        <StatCard
+          title="Closed Won Revenue"
+          value={
+            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+              {Object.keys(metrics.closedRevenue || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No closed deals</span>
+              ) : (
+                Object.entries(metrics.closedRevenue).map(([currency, amount]) => (
+                  <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
+                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          }
+          change="From won deals"
+          up
+          Icon={CheckCircle2}
+          iconBg="bg-emerald-600"
+          data={sp3}
+        />
+        <StatCard
+          title="Pipeline Performance"
+          value={
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Win Rate</span>
+                <span className="text-[15px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {metrics.winRate.toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lost Rate</span>
+                <span className="text-[15px] font-extrabold text-red-500 dark:text-red-400">
+                  {metrics.lostRate.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          }
+          change="Closed won vs lost"
+          up={metrics.winRate >= 50}
+          Icon={Percent}
+          iconBg="bg-blue-600"
+          data={sp4}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -234,6 +380,43 @@ export function DashboardPage() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
+              <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Deals by Stage</h2>
+            </div>
+            <div className="p-4 space-y-3">
+              {Object.entries(metrics.dealsByStage).map(([stage, count]) => {
+                const maxCount = Math.max(...Object.values(metrics.dealsByStage), 1);
+                const percent = (count / maxCount) * 100;
+                
+                // stage-specific color mappings
+                let barColor = "bg-indigo-500 dark:bg-indigo-600";
+                if (stage === "Closed Won") barColor = "bg-emerald-500 dark:bg-emerald-600";
+                else if (stage === "Closed Lost") barColor = "bg-red-500 dark:bg-red-600";
+                else if (stage === "Negotiation" || stage === "Verbal Commit") barColor = "bg-violet-500 dark:bg-violet-600";
+                else if (stage === "Proposal") barColor = "bg-orange-500 dark:bg-orange-600";
+
+                return (
+                  <div key={stage} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{stage}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">{count}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className={`h-full rounded-full ${barColor}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

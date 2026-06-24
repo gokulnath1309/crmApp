@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
   Building, Filter, Plus, Search, X, Mail, Phone, User,
-  Award, Loader2, Edit, Trash2, Download, Sparkles
+  Award, Loader2, Edit, Trash2, Download, Sparkles,
+  Clock, ArrowRight, History, UserCheck, XCircle, CheckCircle2, Archive
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/components/ui/Toast";
@@ -11,6 +12,23 @@ import { useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Select } from "@/components/ui/Select";
+import { formatCurrency } from "@/lib/currency";
+import { LeadStatusSelect } from "@/components/LeadStatusSelect";
+import { UnqualifiedModal, LostModal, RequalifyModal } from "@/components/StatusWorkflowModals";
+
+const currencyOptions = [
+  { value: "INR", label: "₹ INR — Indian Rupee", searchString: "INR Indian Rupee Rupee INR ₹" },
+  { value: "USD", label: "$ USD — US Dollar", searchString: "USD US Dollar Dollar USD $" },
+  { value: "EUR", label: "€ EUR — Euro", searchString: "EUR Euro Euro EUR €" },
+  { value: "GBP", label: "£ GBP — British Pound", searchString: "GBP British Pound Pound GBP £" },
+  { value: "AED", label: "د.إ AED — UAE Dirham", searchString: "AED UAE Dirham Dirham AED د.إ" },
+  { value: "SGD", label: "S$ SGD — Singapore Dollar", searchString: "SGD Singapore Dollar Dollar SGD S$" },
+  { value: "AUD", label: "A$ AUD — Australian Dollar", searchString: "AUD Australian Dollar Dollar AUD A$" },
+  { value: "CAD", label: "C$ CAD — Canadian Dollar", searchString: "CAD Canadian Dollar Dollar CAD C$" },
+  { value: "JPY", label: "¥ JPY — Japanese Yen", searchString: "JPY Japanese Yen Yen JPY ¥" },
+  { value: "CNY", label: "¥ CNY — Chinese Yuan", searchString: "CNY Chinese Yuan Yuan CNY ¥" },
+];
 
 interface Lead {
   _id: string;
@@ -24,9 +42,22 @@ interface Lead {
   source: string;
   assignedTo?: string;
   value?: number;
+  currency?: string;
   score?: number;
   createdAt: number;
   updatedAt: number;
+
+  statusChangedAt?: number;
+  statusChangedBy?: string;
+  unqualifiedReason?: string;
+  unqualifiedNotes?: string;
+  unqualifiedAt?: number;
+  lostReason?: string;
+  lostNotes?: string;
+  lostAt?: number;
+  requalifiedAt?: number;
+  requalifiedBy?: string;
+  requalificationReason?: string;
 }
 
 function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
@@ -51,6 +82,7 @@ export function LeadsPage() {
   const sourceFilter = searchParams.get("source") || "all";
   const assignedFilter = searchParams.get("assignedTo") || "all";
   const datePresetFilter = searchParams.get("datePreset") || "all";
+  const currencyFilter = searchParams.get("currency") || "all";
   const customStartVal = searchParams.get("customStart") || "";
   const customEndVal = searchParams.get("customEnd") || "";
 
@@ -94,6 +126,7 @@ export function LeadsPage() {
     datePreset: datePresetFilter,
     customStart: customStartVal ? Number(customStartVal) : undefined,
     customEnd: customEndVal ? Number(customEndVal) : undefined,
+    currency: currencyFilter,
   });
 
   const users = useQuery(api.users.list);
@@ -111,6 +144,41 @@ export function LeadsPage() {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  const leadActivities = useQuery(
+    api.activities.list,
+    selectedLead ? { entityType: "lead", entityId: selectedLead._id } : "skip"
+  );
+
+  // Workflow Modals States
+  const [isUnqualifiedModalOpen, setIsUnqualifiedModalOpen] = useState(false);
+  const [isLostModalOpen, setIsLostModalOpen] = useState(false);
+  const [isRequalifyModalOpen, setIsRequalifyModalOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    targetStatus: string;
+    onConfirm: (extraFields: Record<string, string>) => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  const handleStatusChangeRequest = (
+    targetStatus: string,
+    currentStatus: string,
+    onConfirm: (extraFields: Record<string, string>) => void,
+    onCancel?: () => void
+  ) => {
+    if (targetStatus === "Unqualified") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+      setIsUnqualifiedModalOpen(true);
+    } else if (targetStatus === "Lost") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+      setIsLostModalOpen(true);
+    } else if ((currentStatus === "Unqualified" || currentStatus === "Lost") && targetStatus === "New") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+      setIsRequalifyModalOpen(true);
+    } else {
+      onConfirm({});
+    }
+  };
+
   // Form Field State
   const [form, setForm] = useState({
     firstName: "",
@@ -123,7 +191,13 @@ export function LeadsPage() {
     source: "Website",
     assignedTo: "" as any,
     value: "" as any,
+    currency: "INR",
     score: "" as any,
+    unqualifiedReason: "",
+    unqualifiedNotes: "",
+    lostReason: "",
+    lostNotes: "",
+    requalificationReason: "",
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -143,6 +217,17 @@ export function LeadsPage() {
     else if (name === "email") {
       if (!value.trim()) err = "Email is required";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) err = "Invalid email address";
+    } else if (name === "value") {
+      if (!value || !value.toString().trim()) {
+        err = "Value is required";
+      } else {
+        const num = Number(value);
+        if (isNaN(num)) {
+          err = "Value must be a number";
+        } else if (num < 0) {
+          err = "Value must be a positive number";
+        }
+      }
     }
     return err;
   };
@@ -155,8 +240,8 @@ export function LeadsPage() {
   };
 
   const isFormValid = () => {
-    const required = ["firstName", "lastName", "email", "company"];
-    const hasRequired = required.every(f => form[f as keyof typeof form]);
+    const required = ["firstName", "lastName", "email", "company", "value"];
+    const hasRequired = required.every(f => form[f as keyof typeof form]?.toString().trim());
     const hasErrors = Object.values(formErrors).some(err => err);
     return hasRequired && !hasErrors;
   };
@@ -173,7 +258,13 @@ export function LeadsPage() {
       source: "Website",
       assignedTo: "",
       value: "",
+      currency: "INR",
       score: "",
+      unqualifiedReason: "",
+      unqualifiedNotes: "",
+      lostReason: "",
+      lostNotes: "",
+      requalificationReason: "",
     });
     setFormErrors({});
     setEditingLeadId(null);
@@ -191,7 +282,13 @@ export function LeadsPage() {
       source: lead.source,
       assignedTo: lead.assignedTo || "",
       value: lead.value?.toString() || "",
+      currency: lead.currency || "INR",
       score: lead.score?.toString() || "",
+      unqualifiedReason: lead.unqualifiedReason || "",
+      unqualifiedNotes: lead.unqualifiedNotes || "",
+      lostReason: lead.lostReason || "",
+      lostNotes: lead.lostNotes || "",
+      requalificationReason: lead.requalificationReason || "",
     });
     setEditingLeadId(lead._id);
     setIsDetailsOpen(false);
@@ -229,7 +326,13 @@ export function LeadsPage() {
       source: form.source,
       assignedTo: form.assignedTo ? form.assignedTo : undefined,
       value: form.value ? Number(form.value) : undefined,
+      currency: form.currency,
       score: form.score ? Number(form.score) : undefined,
+      unqualifiedReason: form.unqualifiedReason || undefined,
+      unqualifiedNotes: form.unqualifiedNotes || undefined,
+      lostReason: form.lostReason || undefined,
+      lostNotes: form.lostNotes || undefined,
+      requalificationReason: form.requalificationReason || undefined,
     };
 
     try {
@@ -266,12 +369,11 @@ export function LeadsPage() {
       const headerRow1 = worksheet.getRow(1);
       headerRow1.height = 30;
       headerRow1.getCell(1).value = "Lead & Contact Info";
-      headerRow1.getCell(7).value = "Assignment & Quality";
+      headerRow1.getCell(7).value = "Value & Quality";
       headerRow1.getCell(10).value = "Dates";
 
       worksheet.mergeCells("A1:F1");
       worksheet.mergeCells("G1:I1");
-      worksheet.mergeCells("J1:K1");
 
       const primaryIndigoFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
       const whiteBoldFont = { name: 'Inter', size: 11, bold: true, color: { argb: 'FFFFFF' } };
@@ -283,7 +385,7 @@ export function LeadsPage() {
         right: { style: 'thin', color: { argb: 'C7D2FE' } }
       };
 
-      for (let col = 1; col <= 11; col++) {
+      for (let col = 1; col <= 10; col++) {
         const cell = headerRow1.getCell(col);
         cell.fill = primaryIndigoFill as any;
         cell.font = whiteBoldFont;
@@ -292,9 +394,9 @@ export function LeadsPage() {
       }
 
       const subHeaders = [
-        "Company", "Contact Name", "Email Address", "Phone Number", "Job Title",
-        "Lead Status", "Lead Source", "Value ($)", "Quality Score",
-        "Created Date", "Last Updated"
+        "Company", "Contact Name", "Email Address", "Phone Number",
+        "Lead Source", "Lead Status", "Currency", "Value", "Quality Score",
+        "Created Date"
       ];
 
       const headerRow2 = worksheet.getRow(2);
@@ -337,13 +439,12 @@ export function LeadsPage() {
           `${l.firstName} ${l.lastName}`,
           l.email,
           l.phone || "Not Provided",
-          l.jobTitle || "Not Provided",
-          l.status,
           l.source,
-          l.value !== undefined ? l.value : 0,
+          l.status,
+          l.currency || "INR",
+          l.value !== undefined ? formatCurrency(l.value, l.currency || "INR") : "—",
           l.score !== undefined ? l.score : "N/A",
           formatExcelDate(l.createdAt),
-          formatExcelDate(l.updatedAt),
         ];
 
         const isEven = rowIndex % 2 === 0;
@@ -359,17 +460,12 @@ export function LeadsPage() {
             vertical: 'middle',
             horizontal: colIndex === 0 || colIndex === 1 || colIndex === 2 ? 'left' : 'center'
           } as any;
-
-          // Format value column as currency
-          if (colIndex === 7 && typeof val === "number") {
-            cell.numFmt = '"$"#,##0';
-          }
         });
       });
 
       worksheet.autoFilter = {
         from: { row: 2, column: 1 },
-        to: { row: 2, column: 11 }
+        to: { row: 2, column: 10 }
       };
 
       worksheet.columns.forEach((column) => {
@@ -416,7 +512,10 @@ export function LeadsPage() {
         New: "blue",
         Contacted: "neutral",
         Qualified: "green",
-        Proposal: "purple",
+        "Proposal Sent": "purple",
+        Negotiation: "orange",
+        Won: "green",
+        Lost: "red",
         Unqualified: "red",
       }[s] as any ?? "neutral"
     );
@@ -482,7 +581,7 @@ export function LeadsPage() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 overflow-hidden shadow-sm"
+            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 overflow-hidden shadow-sm"
           >
             {/* Status */}
             <div>
@@ -493,11 +592,14 @@ export function LeadsPage() {
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500"
               >
                 <option value="all">All Statuses</option>
-                <option value="New">New</option>
-                <option value="Contacted">Contacted</option>
-                <option value="Qualified">Qualified</option>
-                <option value="Proposal">Proposal</option>
-                <option value="Unqualified">Unqualified</option>
+                <option value="New">🆕 New</option>
+                <option value="Contacted">📞 Contacted</option>
+                <option value="Qualified">✅ Qualified</option>
+                <option value="Proposal Sent">📄 Proposal Sent</option>
+                <option value="Negotiation">🤝 Negotiation</option>
+                <option value="Won">🎉 Won</option>
+                <option value="Lost">❌ Lost</option>
+                <option value="Unqualified">🚫 Unqualified</option>
               </select>
             </div>
 
@@ -552,8 +654,30 @@ export function LeadsPage() {
               </select>
             </div>
 
+            {/* Currency Filter */}
+            <div>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2 uppercase tracking-wider">Currency</label>
+              <select
+                value={currencyFilter}
+                onChange={(e) => updateSearchParams("currency", e.target.value)}
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500"
+              >
+                <option value="all">All Currencies</option>
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="AED">AED (AED)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="SGD">SGD (S$)</option>
+                <option value="AUD">AUD (A$)</option>
+                <option value="CAD">CAD (C$)</option>
+                <option value="JPY">JPY (¥)</option>
+                <option value="CNY">CNY (¥)</option>
+              </select>
+            </div>
+
             {/* Clear Filters Option */}
-            <div className="sm:col-span-2 lg:col-span-4 flex justify-end">
+            <div className="sm:col-span-2 lg:col-span-5 flex justify-end">
               <button
                 onClick={handleClearFilters}
                 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
@@ -614,7 +738,7 @@ export function LeadsPage() {
                       <Chip label={l.status} v={statusColors(l.status)} />
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">
-                      {l.value !== undefined ? `$${l.value.toLocaleString()}` : "—"}
+                      {l.value !== undefined ? formatCurrency(l.value, l.currency || "INR") : "—"}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{l.source}</td>
                     <td className="px-6 py-4">
@@ -762,18 +886,29 @@ export function LeadsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 block mb-1.5">Lead Status</label>
-                    <select
-                      name="status"
+                    <LeadStatusSelect
                       value={form.status}
-                      onChange={handleInputChange}
-                      className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
-                    >
-                      <option value="New">New</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Qualified">Qualified</option>
-                      <option value="Proposal">Proposal</option>
-                      <option value="Unqualified">Unqualified</option>
-                    </select>
+                      onChange={(val) => {
+                        if (!editingLeadId) {
+                          setForm(prev => ({ ...prev, status: val }));
+                        } else {
+                          const current = leads?.find(l => l._id === editingLeadId)?.status || "New";
+                          handleStatusChangeRequest(
+                            val,
+                            current,
+                            (extra) => {
+                              setForm(prev => ({
+                                ...prev,
+                                status: val,
+                                ...extra,
+                              }));
+                            }
+                          );
+                        }
+                      }}
+                      currentStatus={editingLeadId ? (leads?.find(l => l._id === editingLeadId)?.status) : undefined}
+                      isNewLead={!editingLeadId}
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 block mb-1.5">Lead Source</label>
@@ -793,17 +928,30 @@ export function LeadsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 block mb-1.5">Value ($)</label>
-                    <input
-                      type="number"
-                      name="value"
-                      value={form.value}
-                      onChange={handleInputChange}
-                      placeholder="25000"
-                      className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
-                    />
+                    <label className="text-xs font-semibold text-slate-500 block mb-1.5">Value *</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          step="any"
+                          name="value"
+                          value={form.value}
+                          onChange={handleInputChange}
+                          placeholder="500000"
+                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="w-full sm:w-[130px] flex-shrink-0">
+                        <Select
+                          options={currencyOptions}
+                          value={form.currency}
+                          onChange={(val) => setForm(prev => ({ ...prev, currency: val }))}
+                        />
+                      </div>
+                    </div>
+                    {formErrors.value && <p className="text-xs text-red-500 mt-1">{formErrors.value}</p>}
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 block mb-1.5">Assigned To</label>
@@ -837,8 +985,6 @@ export function LeadsPage() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* ─── Details Drawer ─── */}
       <AnimatePresence>
         {isDetailsOpen && selectedLead && (
           <div className="fixed inset-0 z-50 flex items-center justify-end">
@@ -860,19 +1006,52 @@ export function LeadsPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{selectedLead.firstName} {selectedLead.lastName}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsDetailsOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg"><X className="w-5 h-5" /></button>
+                <button onClick={() => setIsDetailsOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 rounded-lg"><X className="w-5 h-5" /></button>
               </div>
 
               {/* Status Header */}
-              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 flex items-center justify-between border border-slate-100 dark:border-slate-700/40">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</span>
-                  <Chip label={selectedLead.status} v={statusColors(selectedLead.status)} />
+              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-slate-100 dark:border-slate-700/40">
+                <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status Workflow</span>
+                  <LeadStatusSelect
+                    value={selectedLead.status}
+                    onChange={(val) => {
+                      handleStatusChangeRequest(
+                        val,
+                        selectedLead.status,
+                        async (extra) => {
+                          try {
+                            await updateLeadMutation({
+                              id: selectedLead._id as any,
+                              firstName: selectedLead.firstName,
+                              lastName: selectedLead.lastName,
+                              email: selectedLead.email,
+                              phone: selectedLead.phone,
+                              company: selectedLead.company,
+                              jobTitle: selectedLead.jobTitle,
+                              status: val,
+                              source: selectedLead.source,
+                              assignedTo: selectedLead.assignedTo as any,
+                              value: selectedLead.value,
+                              currency: selectedLead.currency,
+                              score: selectedLead.score,
+                              ...extra,
+                            });
+                            setSelectedLead(prev => prev ? { ...prev, status: val, ...extra } : null);
+                            toast("success", `Status updated to ${val}`);
+                          } catch (err: any) {
+                            toast("error", err.message || "Failed to update status");
+                          }
+                        }
+                      );
+                    }}
+                    currentStatus={selectedLead.status}
+                  />
                 </div>
-                <div className="flex flex-col gap-1 text-right">
+                <div className="flex flex-col gap-1 text-left sm:text-right flex-shrink-0">
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Estimated Value</span>
                   <span className="text-base font-extrabold text-slate-900 dark:text-white">
-                    {selectedLead.value !== undefined ? `$${selectedLead.value.toLocaleString()}` : "—"}
+                    {selectedLead.value !== undefined ? formatCurrency(selectedLead.value, selectedLead.currency || "INR") : "—"}
                   </span>
                 </div>
               </div>
@@ -919,17 +1098,123 @@ export function LeadsPage() {
                 </div>
               </div>
 
+              {/* Exit/Requalify status details */}
+              {(selectedLead.status === "Unqualified" || selectedLead.status === "Lost" || selectedLead.requalifiedAt) && (
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status Workflow Info</h4>
+                  <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 space-y-3.5 text-sm">
+                    {selectedLead.status === "Unqualified" && selectedLead.unqualifiedReason && (
+                      <div>
+                        <p className="text-xs text-slate-400 font-medium">Unqualified Reason</p>
+                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.unqualifiedReason}</p>
+                        {selectedLead.unqualifiedNotes && (
+                          <div className="mt-2 p-2.5 bg-white dark:bg-slate-800 rounded-lg text-xs text-slate-500 border border-slate-100 dark:border-slate-750 whitespace-pre-wrap">
+                            {selectedLead.unqualifiedNotes}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-slate-400 mt-2">
+                          Archived on {new Date(selectedLead.unqualifiedAt || selectedLead.updatedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {selectedLead.status === "Lost" && selectedLead.lostReason && (
+                      <div>
+                        <p className="text-xs text-slate-400 font-medium">Lost Reason</p>
+                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.lostReason}</p>
+                        {selectedLead.lostNotes && (
+                          <div className="mt-2 p-2.5 bg-white dark:bg-slate-800 rounded-lg text-xs text-slate-500 border border-slate-100 dark:border-slate-750 whitespace-pre-wrap">
+                            {selectedLead.lostNotes}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-slate-400 mt-2">
+                          Marked lost on {new Date(selectedLead.lostAt || selectedLead.updatedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {selectedLead.requalifiedAt && (
+                      <div>
+                        <p className="text-xs text-slate-400 font-medium">Requalification Reason</p>
+                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.requalificationReason}</p>
+                        <p className="text-[10px] text-slate-400 mt-2">
+                          Reopened by {selectedLead.requalifiedBy || "System"} on {new Date(selectedLead.requalifiedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity Timeline */}
+              <div className="space-y-4">
+                <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5" /> Pipeline History
+                </h4>
+                {leadActivities === undefined ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                  </div>
+                ) : leadActivities.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic px-2">No activity events recorded.</p>
+                ) : (
+                  <div className="relative pl-4 border-l border-slate-200 dark:border-slate-750 space-y-5 ml-2.5 py-1">
+                    {leadActivities.map((a) => {
+                      let IconComponent = Clock;
+                      let iconColor = "text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400";
+                      
+                      if (a.type === "lead_created") {
+                        IconComponent = Plus;
+                        iconColor = "text-indigo-650 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-400";
+                      } else if (a.type === "lead_won") {
+                        IconComponent = CheckCircle2;
+                        iconColor = "text-emerald-650 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400";
+                      } else if (a.type === "lead_lost") {
+                        IconComponent = XCircle;
+                        iconColor = "text-orange-650 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-400";
+                      } else if (a.type === "lead_unqualified") {
+                        IconComponent = Archive;
+                        iconColor = "text-rose-650 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400";
+                      } else if (a.type === "lead_requalified") {
+                        IconComponent = UserCheck;
+                        iconColor = "text-blue-650 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400";
+                      } else if (a.type === "lead_status_changed") {
+                        IconComponent = ArrowRight;
+                        iconColor = "text-violet-650 bg-violet-50 dark:bg-violet-950/40 dark:text-violet-400";
+                      }
+
+                      return (
+                        <div key={a._id} className="relative group">
+                          <div className={`absolute -left-[24px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-slate-800 shadow-sm ${iconColor} z-10`}>
+                            <IconComponent className="w-2.5 h-2.5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-slate-805 dark:text-slate-200">
+                              {a.description}
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">
+                              by {a.userName || "System"} • {new Date(a.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Footer Actions */}
-              <div className="flex items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-700/50">
+              <div className="flex items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800">
                 <button
+                  type="button"
                   onClick={() => handleEditLead(selectedLead)}
                   className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Edit className="w-4 h-4" /> Edit Lead
                 </button>
                 <button
+                  type="button"
                   onClick={() => handleDeleteLead(selectedLead._id, selectedLead.company)}
-                  className="px-4 h-12 rounded-xl bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-4 h-12 rounded-xl bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-650 dark:text-red-400 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" /> Delete
                 </button>
@@ -976,6 +1261,59 @@ export function LeadsPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <UnqualifiedModal
+        open={isUnqualifiedModalOpen}
+        onClose={() => {
+          setIsUnqualifiedModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              unqualifiedReason: data.reason,
+              unqualifiedNotes: data.notes || "",
+            });
+          }
+          setIsUnqualifiedModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <LostModal
+        open={isLostModalOpen}
+        onClose={() => {
+          setIsLostModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              lostReason: data.reason,
+              lostNotes: data.notes || "",
+            });
+          }
+          setIsLostModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <RequalifyModal
+        open={isRequalifyModalOpen}
+        onClose={() => {
+          setIsRequalifyModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              requalificationReason: data.reason,
+            });
+          }
+          setIsRequalifyModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
     </div>
   );
 }

@@ -201,3 +201,112 @@ export const sendPasswordResetEmail = action({
   },
 });
 
+export const checkResendConfig = action({
+  args: {},
+  handler: async () => {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return {
+        configured: false,
+        keyPresent: false,
+        message: "RESEND_API_KEY is missing from environment variables.",
+      };
+    }
+    return {
+      configured: true,
+      keyPresent: true,
+      keyPrefix: apiKey.substring(0, 5) + "...",
+      keyLength: apiKey.length,
+      message: "RESEND_API_KEY is configured.",
+    };
+  },
+});
+
+export const sendInvitationEmail = action({
+  args: {
+    email: v.string(),
+    name: v.string(),
+    role: v.string(),
+    department: v.optional(v.string()),
+    managerName: v.optional(v.string()),
+    companyName: v.optional(v.string()),
+    token: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const { email, name, role, department, managerName, companyName, token } = args;
+    console.log("[sendInvitationEmail] Sending email payload:", { email, name, role, department, managerName, companyName, token });
+
+    const company = companyName || "our company";
+    const baseUrl = process.env.SITE_URL ?? "http://localhost:5173";
+    const inviteUrl = `${baseUrl}/invite/${token}`;
+
+    let resend;
+    try {
+      resend = getResendClient();
+    } catch (err: any) {
+      console.error(`[sendInvitationEmail] Client init error:`, err);
+      throw new Error(`Resend API Key configuration error: ${err.message}`);
+    }
+
+    try {
+      console.log(`[sendInvitationEmail] Invoking Resend send for ${email}...`);
+      const response = await resend.emails.send({
+        from: "CRM Pro <onboarding@resend.dev>",
+        to: [email],
+        subject: `You're invited to join ${company} on CRMPro`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="text-align: center; margin-bottom: 28px;">
+              <span style="font-size: 26px; font-weight: 800; color: #4f46e5; letter-spacing: -0.5px;">CRM Pro</span>
+            </div>
+            <h2 style="color: #0f172a; margin-bottom: 12px; font-size: 22px; text-align: center; font-weight: 700;">You're Invited!</h2>
+            <p style="color: #475569; font-size: 15px; line-height: 1.6; text-align: center; margin-bottom: 28px;">
+              Hi ${name}, you have been invited to join the <strong>${company}</strong> workspace.
+            </p>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 20px 0;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #475569;">
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600; color: #0f172a; width: 120px;">Role:</td>
+                  <td style="padding: 6px 0;">${role}</td>
+                </tr>
+                ${department ? `
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">Department:</td>
+                  <td style="padding: 6px 0;">${department}</td>
+                </tr>
+                ` : ""}
+                ${managerName ? `
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">Manager:</td>
+                  <td style="padding: 6px 0;">${managerName}</td>
+                </tr>
+                ` : ""}
+              </table>
+            </div>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${inviteUrl}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; font-size: 15px; font-weight: 700; padding: 14px 36px; border-radius: 12px; text-decoration: none; letter-spacing: 0.2px; box-shadow: 0 4px 14px rgba(79,70,229,0.4);">
+                Accept Invitation
+              </a>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; line-height: 1.5;">
+              If you did not expect this invitation, please ignore this email.
+            </p>
+          </div>
+        `,
+      });
+
+      console.log("[sendInvitationEmail] Resend API Response:", response);
+      if (response.error) {
+        console.error("[sendInvitationEmail] Resend API error details:", response.error);
+        throw new Error(response.error.message || "Failed to send email via Resend");
+      }
+      console.log(`[sendInvitationEmail] Email sent successfully! Msg ID: ${response.data?.id}`);
+      return { success: true, messageId: response.data?.id };
+    } catch (error: any) {
+      console.error("[sendInvitationEmail] Resend API Exception:", error);
+      throw error;
+    }
+  },
+});
+

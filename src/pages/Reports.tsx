@@ -1,0 +1,585 @@
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { Navigate } from "react-router-dom";
+import { formatCurrency } from "@/lib/currency";
+import {
+  TrendingUp,
+  Briefcase,
+  Download,
+  Award,
+  DollarSign,
+  Activity,
+  Layers,
+  Filter
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+
+const STAGE_COLORS: Record<string, string> = {
+  Prospecting: "#3b82f6",     // Blue
+  Qualification: "#6366f1",   // Indigo
+  Proposal: "#8b5cf6",        // Violet
+  Negotiation: "#f97316",     // Orange
+  "Verbal Commit": "#ec4899", // Pink
+  "Closed Won": "#10b981",    // Emerald
+  "Closed Lost": "#ef4444",   // Red
+};
+
+export function ReportsPage() {
+  const { user: currentUser } = useAuth();
+  const metrics = useQuery(api.dashboard.getMetrics);
+  const [activeTab, setActiveTab] = useState<"revenue" | "funnel" | "stages">("revenue");
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("ALL");
+
+  // Guard routing
+  if (!currentUser) return <Navigate to="/signin" replace />;
+  if (currentUser.role !== "super_admin" && currentUser.role !== "admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!metrics) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Get list of currencies present in the metrics
+  const currencies = Array.from(
+    new Set([
+      ...Object.keys(metrics.closedRevenue || {}),
+      ...Object.keys(metrics.totalPipelineValue || {}),
+      ...Object.keys(metrics.weightedPipelineValue || {}),
+      ...Object.keys(metrics.wonRevenue || {}),
+      ...Object.keys(metrics.revenueForecast || {}),
+    ])
+  );
+
+  // If selectedCurrency is "ALL" but currencies has items, we default to the first one or INR if it exists
+  const activeCurrency = selectedCurrency === "ALL" 
+    ? (currencies.includes("INR") ? "INR" : currencies[0] || "INR")
+    : selectedCurrency;
+
+  // Prepare Revenue chart data
+  const revenueChartData = currencies.map((cur) => ({
+    currency: cur,
+    "Closed Revenue": metrics.closedRevenue[cur] || 0,
+    "Weighted Pipeline": metrics.weightedPipelineValue[cur] || 0,
+    "Total Pipeline": metrics.totalPipelineValue[cur] || 0,
+    "Forecast Revenue": metrics.revenueForecast[cur] || 0,
+  }));
+
+  // Prepare Deal Stage chart data
+  const dealStageData = Object.entries(metrics.dealsByStage).map(([stage, count]) => ({
+    stage,
+    count,
+    color: STAGE_COLORS[stage] || "#6366f1",
+  }));
+
+  // Prepare Pie Chart data for active pipeline vs closed revenue for active currency
+  const activeCurrencyStats = [
+    { name: "Closed Won", value: metrics.closedRevenue[activeCurrency] || 0, color: "#10b981" },
+    { name: "Weighted Active Pipeline", value: metrics.weightedPipelineValue[activeCurrency] || 0, color: "#8b5cf6" },
+    { name: "Forecast Opportunity", value: metrics.revenueForecast[activeCurrency] || 0, color: "#f97316" },
+  ];
+
+  // Calculate conversion rates
+  const totalLeads = metrics.totalLeads || 0;
+  const totalContacts = metrics.totalContacts || 0;
+  const wonDeals = Object.values(metrics.dealsByStage).reduce((a, b) => a + b, 0); // approximation or closed won count
+  const closedWonCount = metrics.dealsByStage["Closed Won"] || 0;
+  
+  // Custom tooltips
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-xl">
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center justify-between gap-4 text-xs font-semibold py-0.5">
+              <span className="flex items-center gap-1.5" style={{ color: entry.color }}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                {entry.name}
+              </span>
+              <span className="text-slate-900 dark:text-white">
+                {entry.name.includes("Count") || entry.name.includes("count")
+                  ? entry.value
+                  : formatCurrency(entry.value, entry.payload.currency || activeCurrency)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Metric,Currency,Value\n";
+
+    // Add closed revenue
+    Object.entries(metrics.closedRevenue || {}).forEach(([cur, val]) => {
+      csvContent += `Closed Won Revenue,${cur},${val}\n`;
+    });
+    // Add total pipeline
+    Object.entries(metrics.totalPipelineValue || {}).forEach(([cur, val]) => {
+      csvContent += `Total Pipeline Value,${cur},${val}\n`;
+    });
+    // Add weighted pipeline
+    Object.entries(metrics.weightedPipelineValue || {}).forEach(([cur, val]) => {
+      csvContent += `Weighted Pipeline Value,${cur},${val}\n`;
+    });
+    // Add won revenue
+    Object.entries(metrics.wonRevenue || {}).forEach(([cur, val]) => {
+      csvContent += `Won Lead Revenue,${cur},${val}\n`;
+    });
+    // Add forecast revenue
+    Object.entries(metrics.revenueForecast || {}).forEach(([cur, val]) => {
+      csvContent += `Forecast Revenue (Proposal/Neg),${cur},${val}\n`;
+    });
+
+    // Add stages
+    csvContent += "\nStage,Count\n";
+    Object.entries(metrics.dealsByStage).forEach(([stage, count]) => {
+      csvContent += `"${stage}",${count}\n`;
+    });
+
+    // General Stats
+    csvContent += `\nGeneral Metric,Value\n`;
+    csvContent += `Total Leads,${metrics.totalLeads}\n`;
+    csvContent += `Total Contacts,${metrics.totalContacts}\n`;
+    csvContent += `Win Rate,${metrics.winRate.toFixed(2)}%\n`;
+    csvContent += `Lost Rate,${metrics.lostRate.toFixed(2)}%\n`;
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CRM_Analytics_Report_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl pb-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Sales & Pipeline Reports
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Deep-dive performance charts, conversion funnels, and revenue forecasting.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {currencies.length > 1 && (
+            <div className="relative">
+              <select
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value)}
+                className="h-10 pl-3 pr-8 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 dark:text-slate-350 cursor-pointer appearance-none font-semibold shadow-2xs"
+              >
+                <option value="ALL">All Currencies</option>
+                {currencies.map(cur => (
+                  <option key={cur} value={cur}>{cur} Focus</option>
+                ))}
+              </select>
+              <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          )}
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export Report
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Win Rate</p>
+            <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 leading-none">
+              {metrics.winRate.toFixed(1)}%
+            </h3>
+            <span className="text-[10px] text-slate-400 block mt-1.5">
+              Closed Won vs Closed Lost
+            </span>
+          </div>
+          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs">
+            <Award className="w-5 h-5 text-white" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Deals</p>
+            <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 leading-none">
+              {Object.entries(metrics.dealsByStage)
+                .filter(([stage]) => stage !== "Closed Won" && stage !== "Closed Lost")
+                .reduce((sum, [_, count]) => sum + count, 0)}
+            </h3>
+            <span className="text-[10px] text-slate-400 block mt-1.5">
+              Deals currently in pipeline
+            </span>
+          </div>
+          <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs">
+            <Briefcase className="w-5 h-5 text-white" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Closed Won Revenue</p>
+            <div className="mt-1 space-y-0.5">
+              {Object.keys(metrics.closedRevenue || {}).length === 0 ? (
+                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">—</h3>
+              ) : (
+                Object.entries(metrics.closedRevenue).slice(0, 2).map(([currency, amount]) => (
+                  <div key={currency} className="text-base font-extrabold text-slate-900 dark:text-white leading-none">
+                    {formatCurrency(amount, currency)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs">
+            <DollarSign className="w-5 h-5 text-white" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Weighted Forecast</p>
+            <div className="mt-1 space-y-0.5">
+              {Object.keys(metrics.weightedPipelineValue || {}).length === 0 ? (
+                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">—</h3>
+              ) : (
+                Object.entries(metrics.weightedPipelineValue).slice(0, 2).map(([currency, amount]) => (
+                  <div key={currency} className="text-base font-extrabold text-indigo-650 dark:text-indigo-400 leading-none">
+                    {formatCurrency(amount, currency)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="w-10 h-10 bg-violet-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs">
+            <TrendingUp className="w-5 h-5 text-white" />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-150 dark:border-slate-800/80 pb-0.5">
+        {[
+          { id: "revenue", label: "Revenue & Forecasts", icon: DollarSign },
+          { id: "stages", label: "Pipeline Stage Analysis", icon: Layers },
+          { id: "funnel", label: "Conversion Funnel", icon: Activity },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-1.5 px-5 py-3 text-xs font-bold transition-all relative border-b-2 cursor-pointer ${
+              activeTab === tab.id
+                ? "border-indigo-650 text-indigo-650 dark:border-indigo-455 dark:text-indigo-400"
+                : "border-transparent text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
+          <AnimatePresence mode="wait">
+            {activeTab === "revenue" && (
+              <motion.div
+                key="revenue-chart"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 h-full flex flex-col justify-between"
+              >
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Revenue Performance by Currency
+                  </h3>
+                  <p className="text-xs text-slate-450 dark:text-slate-500 mt-0.5">
+                    Comparison of actual won revenue against total and risk-adjusted active pipeline.
+                  </p>
+                </div>
+                {revenueChartData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-sm text-slate-400">
+                    No transaction or pipeline data available.
+                  </div>
+                ) : (
+                  <div className="h-72 w-full mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueChartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(203, 213, 225, 0.15)" />
+                        <XAxis dataKey="currency" tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                        <YAxis tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99, 102, 241, 0.04)" }} />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize: 10, fontWeight: 600, color: "#64748b", paddingTop: 10 }} />
+                        <Bar dataKey="Closed Revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Weighted Pipeline" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Total Pipeline" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === "stages" && (
+              <motion.div
+                key="stages-chart"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 h-full flex flex-col justify-between"
+              >
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Deals Count by Stage
+                  </h3>
+                  <p className="text-xs text-slate-450 dark:text-slate-500 mt-0.5">
+                    Distribution of active and closed deals across stages of the sales process.
+                  </p>
+                </div>
+                {dealStageData.every(d => d.count === 0) ? (
+                  <div className="h-64 flex items-center justify-center text-sm text-slate-400">
+                    No deals in pipeline.
+                  </div>
+                ) : (
+                  <div className="h-72 w-full mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dealStageData} layout="vertical" margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(203, 213, 225, 0.15)" />
+                        <XAxis type="number" tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                        <YAxis dataKey="stage" type="category" tickLine={false} axisLine={false} className="text-[10px] font-bold text-slate-500" width={100} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99, 102, 241, 0.04)" }} />
+                        <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                          {dealStageData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === "funnel" && (
+              <motion.div
+                key="funnel-chart"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 h-full flex flex-col justify-between"
+              >
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Lead to Customer Funnel
+                  </h3>
+                  <p className="text-xs text-slate-450 dark:text-slate-500 mt-0.5">
+                    Conversion tracking from initial lead creation through closed-won deals.
+                  </p>
+                </div>
+                <div className="py-6 flex flex-col justify-center gap-6 h-72">
+                  {[
+                    { label: "Total Leads", value: totalLeads, desc: "Top of Funnel Interest", color: "bg-indigo-600" },
+                    { label: "Contacts Created", value: totalContacts, desc: "Engaged Contacts / Qualified", color: "bg-violet-600" },
+                    { label: "Deals Created", value: wonDeals, desc: "Active Sales Opportunities", color: "bg-pink-500" },
+                    { label: "Closed Won Deals", value: closedWonCount, desc: "Converted Customers", color: "bg-emerald-500" },
+                  ].map((stage, i, arr) => {
+                    const maxVal = arr[0].value || 1;
+                    const widthPercent = maxVal > 0 ? (stage.value / maxVal) * 100 : 0;
+                    const prevVal = i > 0 ? arr[i-1].value : 0;
+                    const conversionRate = prevVal > 0 ? (stage.value / prevVal) * 100 : 100;
+
+                    return (
+                      <div key={stage.label} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-700 dark:text-slate-350">{stage.label}</span>
+                          <div className="flex items-center gap-2">
+                            {i > 0 && (
+                              <span className="text-[10px] text-indigo-650 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded font-mono">
+                                {conversionRate.toFixed(1)}% conv.
+                              </span>
+                            )}
+                            <span className="text-slate-900 dark:text-white font-bold">{stage.value}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-6 flex-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg overflow-hidden border border-slate-100/50 dark:border-slate-750/30 flex items-center px-1">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${Math.max(widthPercent, 5)}%` }}
+                              transition={{ duration: 0.6, ease: "easeOut" }}
+                              className={`h-4 rounded-md ${stage.color} flex items-center justify-end px-2`}
+                            >
+                              {widthPercent > 15 && (
+                                <span className="text-[8px] font-extrabold text-white uppercase tracking-wider">{stage.desc}</span>
+                              )}
+                            </motion.div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Currency Focus Widget */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {activeCurrency} Performance Summary
+            </h3>
+            <p className="text-xs text-slate-450 dark:text-slate-500 mt-0.5">
+              Breakdown of total revenue allocation for {activeCurrency}.
+            </p>
+          </div>
+
+          <div className="h-44 w-full relative flex items-center justify-center mt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={activeCurrencyStats.filter(item => item.value > 0)}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={68}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
+                  {activeCurrencyStats.filter(item => item.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => formatCurrency(Number(value), activeCurrency)} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute text-center">
+              <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Focused</span>
+              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                {formatCurrency(
+                  activeCurrencyStats.reduce((sum, item) => sum + item.value, 0),
+                  activeCurrency
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-slate-50 dark:border-slate-700/40 pt-4 mt-2">
+            {activeCurrencyStats.map((item) => (
+              <div key={item.name} className="flex items-center justify-between text-xs font-semibold py-1 hover:bg-slate-50 dark:hover:bg-slate-700/20 px-2 rounded-lg transition-colors">
+                <span className="flex items-center gap-2 text-slate-650 dark:text-slate-350">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  {item.name}
+                </span>
+                <span className="text-slate-900 dark:text-white">{formatCurrency(item.value, activeCurrency)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Reports Breakdown Table */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Currency Breakdown Matrix
+          </h3>
+          <p className="text-xs text-slate-450 dark:text-slate-500 mt-0.5">
+            Tabular summary of transaction flow, active leads, and forecasts grouped by currency.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto border border-slate-50 dark:border-slate-750/30 rounded-xl">
+          <table className="w-full min-w-[650px] border-collapse text-left text-slate-900 dark:text-white">
+            <thead>
+              <tr className="border-b border-slate-50 dark:border-slate-750/50 bg-slate-50/50 dark:bg-slate-800/40 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <th className="px-6 py-3.5">Currency</th>
+                <th className="px-6 py-3.5 text-right">Closed Won Revenue</th>
+                <th className="px-6 py-3.5 text-right">Active Pipeline Value</th>
+                <th className="px-6 py-3.5 text-right">Weighted Pipeline</th>
+                <th className="px-6 py-3.5 text-right">Forecast Revenue</th>
+                <th className="px-6 py-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/40 dark:divide-slate-750/20 text-xs font-semibold">
+              {currencies.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400 italic">
+                    No financial data available.
+                  </td>
+                </tr>
+              ) : (
+                currencies.map((cur) => (
+                  <tr key={cur} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
+                    <td className="px-6 py-3 text-slate-900 dark:text-white font-extrabold uppercase tracking-wider">{cur}</td>
+                    <td className="px-6 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(metrics.closedRevenue[cur] || 0, cur)}
+                    </td>
+                    <td className="px-6 py-3 text-right text-blue-600 dark:text-blue-400">
+                      {formatCurrency(metrics.totalPipelineValue[cur] || 0, cur)}
+                    </td>
+                    <td className="px-6 py-3 text-right text-violet-600 dark:text-violet-400">
+                      {formatCurrency(metrics.weightedPipelineValue[cur] || 0, cur)}
+                    </td>
+                    <td className="px-6 py-3 text-right text-orange-600 dark:text-orange-400">
+                      {formatCurrency(metrics.revenueForecast[cur] || 0, cur)}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => setSelectedCurrency(cur)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                          activeCurrency === cur
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-650 dark:bg-indigo-950/30 dark:border-indigo-850 dark:text-indigo-400"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-750"
+                        }`}
+                      >
+                        Focus
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

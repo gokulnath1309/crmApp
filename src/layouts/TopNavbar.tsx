@@ -1,11 +1,14 @@
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";
+import { useAuth } from "@/features/auth/AuthProvider";
 
 import {
-  Search, Plus, Bell, Menu, ChevronRight,
-  Sun, Moon, User, Settings
+  Search, Plus, Menu, ChevronRight, ChevronDown,
+  Sun, Moon, User, Settings, Building2, Check
 } from "lucide-react";
 import { UserButton } from "@clerk/clerk-react";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface TopNavbarProps {
   onMenuClick: () => void;
@@ -49,6 +52,9 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
         <span className="font-semibold text-slate-900 dark:text-white">{currentTitle}</span>
       </div>
 
+      {/* Workspace Switcher */}
+      <WorkspaceSwitcher />
+
       {/* Search Bar */}
       <div className="flex-1 max-w-xs mx-auto hidden md:block">
         <div className="relative">
@@ -73,10 +79,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
           {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        <button className="relative w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-        </button>
+        <NotificationBell />
 
         <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
@@ -104,5 +107,105 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
         </UserButton>
       </div>
     </header>
+  );
+}
+
+function WorkspaceSwitcher() {
+  const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  if (workspaces.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+      >
+        <Building2 className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+        <span className="font-medium truncate max-w-[140px]">{activeWorkspace?.workspaceName || "Workspace"}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl shadow-slate-900/10 py-1 z-50">
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            Switch Workspace
+          </div>
+          {workspaces.map((w) => (
+            <button
+              key={w.workspaceId}
+              onClick={() => {
+                setOpen(false);
+                if (w.workspaceId !== activeWorkspace?.workspaceId) {
+                  switchWorkspace(w.workspaceId);
+                }
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors cursor-pointer ${
+                w.workspaceId === activeWorkspace?.workspaceId
+                  ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              }`}
+            >
+              <Building2 className="w-4 h-4 shrink-0" />
+              <span className="flex-1 truncate">{w.workspaceName}</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 capitalize">{w.role?.replace(/_/g, " ")}</span>
+              {w.workspaceId === activeWorkspace?.workspaceId && (
+                <Check className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              )}
+            </button>
+          ))}
+
+          <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              navigate("/onboarding");
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4 shrink-0 text-emerald-500" />
+            <span>Create Workspace</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              navigate("/onboarding?mode=join");
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4 shrink-0 text-blue-500" />
+            <span>Join Workspace</span>
+          </button>
+
+          {workspaces.length > 0 && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate("/settings?tab=workspaces");
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <Settings className="w-4 h-4 shrink-0 text-slate-400" />
+              <span>Manage Workspaces</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
+import LoginWithOtpButton, { type AuthError } from "@/components/auth/LoginWithOtpButton";
 
 // ─── Static data ───────────────────────────────────────────────────────────────
 
@@ -161,10 +162,71 @@ function NavBar() {
   );
 }
 
+function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: () => void }) {
+  if (!error) return null;
+
+  if (error.type === 'not_found') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, height: 0, marginTop: 0 }}
+        animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+        className="bg-red-50/80 border border-red-200/60 rounded-xl p-4 overflow-hidden mb-4"
+      >
+        <div className="flex gap-3">
+          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-4 h-4 text-red-600" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-red-900">Account Not Found</h4>
+            <p className="text-[13px] text-red-700/90 mt-1 leading-relaxed">
+              We couldn't find an account associated with this email address. Please check your email or create a new account.
+            </p>
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                type="button"
+                onClick={onTryAnother}
+                className="text-[12px] font-semibold text-red-700 hover:text-red-800 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-md transition-colors"
+              >
+                Try Another Email
+              </button>
+              <Link
+                to="/signup"
+                className="text-[12px] font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-md transition-colors shadow-sm shadow-red-500/20"
+              >
+                Create Account
+              </Link>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+      animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+      className="bg-red-50/80 border border-red-200/60 rounded-xl p-4 overflow-hidden mb-4"
+    >
+      <div className="flex gap-3">
+        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+          <Shield className="w-4 h-4 text-red-600" />
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-red-900">Something went wrong</h4>
+          <p className="text-[13px] text-red-700/90 mt-1 leading-relaxed">
+            {error.message || "We couldn't complete your request right now. Please try again in a few moments."}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── AuthForm ──────────────────────────────────────────────────────────────────
 
 function AuthForm() {
-  const { signIn, isLoaded } = useSignIn();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -173,7 +235,7 @@ function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AuthError>(null);
 
   // Forgot-password modal
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -201,19 +263,28 @@ function AuthForm() {
   const handlePasswordSignIn = async () => {
     if (!signIn) return;
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       const result = await signIn.create({ identifier: email, password });
       if (result.status === "complete") {
+        if (setActive) {
+          await setActive({ session: result.createdSessionId });
+        }
         toast("success", "Signed in successfully");
         navigate("/dashboard", { replace: true });
       } else {
-        setError("Sign-in incomplete. Please try again.");
+        setError({ type: 'generic', message: "Sign-in incomplete. Please try again." });
       }
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "Sign-in failed";
-      setError(msg);
-      toast("error", msg);
+      console.error("[Auth Error]", err);
+      const code = err?.errors?.[0]?.code;
+      const msg = err?.errors?.[0]?.longMessage || err?.message || "";
+      
+      if (code === "form_identifier_not_found" || msg.toLowerCase().includes("no account found") || msg.toLowerCase().includes("couldn't find your account")) {
+        setError({ type: 'not_found' });
+      } else {
+        setError({ type: 'generic', message: "We couldn't complete your request right now. Please try again in a few moments." });
+      }
     } finally {
       setLoading(false);
     }
@@ -239,18 +310,18 @@ function AuthForm() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
-        className="w-full max-w-[460px] mx-auto"
+        className="w-full max-w-[400px] mx-auto"
       >
-        <div className="bg-white/85 backdrop-blur-xl rounded-[32px] shadow-2xl shadow-indigo-500/5 border border-white/50 p-10">
-          <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-5 border border-indigo-200/50">
-              <Shield className="w-7 h-7 text-indigo-600" />
+        <div className="w-full">
+          <div className="flex flex-col items-center text-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-3 border border-indigo-200/50">
+              <Shield className="w-6 h-6 text-indigo-600" />
             </div>
-            <h2 className="text-[28px] font-extrabold text-gray-900 tracking-tight">Welcome back</h2>
-            <p className="text-[15px] text-gray-500 mt-1.5">Sign in to your CRM Pro account</p>
+            <h2 className="text-[24px] font-extrabold text-gray-900 tracking-tight">Welcome back</h2>
+            <p className="text-[14px] text-gray-500 mt-1">Sign in to your CRM Pro account</p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Email */}
             <div>
               <label className="text-sm font-semibold text-gray-700 mb-2 block">Work email</label>
@@ -259,12 +330,21 @@ function AuthForm() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   onKeyDown={(e) => e.key === "Enter" && canSubmitPassword && handlePasswordSignIn()}
                   placeholder="you@company.com"
-                  className="w-full h-14 pl-12 pr-4 rounded-2xl border-2 border-gray-200 bg-white text-[15px] placeholder:text-gray-400 outline-none transition-all focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(79,70,229,0.12)]"
+                  className="w-full h-12 pl-11 pr-4 rounded-xl border-2 border-gray-200 bg-white text-[14px] placeholder:text-gray-400 outline-none transition-all focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(79,70,229,0.12)]"
                 />
               </div>
+              <ErrorAlert 
+                error={error} 
+                onTryAnother={() => { 
+                  setEmail(""); 
+                  setPassword(""); 
+                  setError(null); 
+                  document.querySelector<HTMLInputElement>('input[type="email"]')?.focus(); 
+                }} 
+              />
             </div>
 
             {/* Password */}
@@ -275,10 +355,10 @@ function AuthForm() {
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   onKeyDown={(e) => e.key === "Enter" && canSubmitPassword && handlePasswordSignIn()}
                   placeholder="Enter your password"
-                  className="w-full h-14 pl-12 pr-12 rounded-2xl border-2 border-gray-200 bg-white text-[15px] placeholder:text-gray-400 outline-none transition-all focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(79,70,229,0.12)]"
+                  className="w-full h-12 pl-11 pr-11 rounded-xl border-2 border-gray-200 bg-white text-[14px] placeholder:text-gray-400 outline-none transition-all focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(79,70,229,0.12)]"
                 />
                 <button
                   type="button"
@@ -291,14 +371,10 @@ function AuthForm() {
               </div>
             </div>
 
-            {error && (
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 text-center">{error}</motion.p>
-            )}
-
             <button
               onClick={handlePasswordSignIn}
               disabled={!canSubmitPassword}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-bold text-[17px] shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-bold text-[15px] shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Continue <ChevronRight className="w-5 h-5" /></>}
             </button>
@@ -314,10 +390,10 @@ function AuthForm() {
           </div>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-white/85 backdrop-blur-xl px-4 text-[12px] font-semibold text-gray-400 uppercase tracking-widest">or continue with</span>
+              <span className="bg-white px-3 text-[11px] font-semibold text-gray-400 uppercase tracking-widest">or continue with</span>
             </div>
           </div>
 
@@ -325,7 +401,7 @@ function AuthForm() {
           <button
             onClick={handleGoogleLogin}
             disabled={googleLoading}
-            className="w-full h-12 rounded-2xl border border-gray-200 bg-white text-gray-700 font-semibold text-[14px] transition-all hover:shadow-lg hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            className="w-full h-11 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold text-[13px] transition-all hover:shadow-lg hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             {googleLoading ? (
               <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -340,17 +416,19 @@ function AuthForm() {
             {googleLoading ? "Signing in..." : "Continue with Google"}
           </button>
 
-          <p className="text-center text-sm text-gray-400 mt-5">
+          <LoginWithOtpButton email={email} onError={setError} />
+
+          <p className="text-center text-[13px] text-gray-400 mt-4">
             Don&apos;t have an account?{" "}
             <Link to="/signup" className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors">Sign up</Link>
           </p>
 
-          <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <Lock className="w-3.5 h-3.5" />
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] text-gray-400">
+              <Lock className="w-3 h-3" />
               <span>Secured by Clerk</span>
             </div>
-            <div className="text-[11px] font-semibold bg-amber-50 text-amber-700 px-3 py-1 rounded-full">Development mode</div>
+            <div className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">Development mode</div>
           </div>
         </div>
       </motion.div>
@@ -362,62 +440,66 @@ function AuthForm() {
 
 export function SignInPage() {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f8faff_100%)] relative overflow-hidden">
+    <div className="min-h-screen bg-[linear-gradient(135deg,#eef4ff_0%,#e0e7ff_100%)] flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
+      {/* Soft animated background elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-indigo-400/5 rounded-full blur-[120px]" />
-        <div className="absolute top-1/3 -left-32 w-[400px] h-[400px] bg-purple-400/5 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-indigo-300/5 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-20 -left-20 w-[300px] h-[300px] bg-blue-400/5 rounded-full blur-[80px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-400/20 rounded-full blur-[120px] mix-blend-multiply" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-purple-400/20 rounded-full blur-[120px] mix-blend-multiply" />
       </div>
 
-      <NavBar />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
+        className="w-full max-w-[1000px] bg-white rounded-[32px] shadow-[0_40px_100px_-20px_rgba(79,70,229,0.25)] flex flex-col lg:flex-row overflow-hidden relative z-10 max-h-[calc(100vh-4rem)]"
+      >
+        {/* Left Side: Branding & Info */}
+        <div className="hidden lg:flex lg:w-[45%] relative bg-indigo-600 flex-col justify-between p-12 text-white overflow-hidden">
+          {/* Decorative background for left panel */}
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.1)_0%,transparent_100%)] pointer-events-none" />
+          <div className="absolute -top-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-[80px] pointer-events-none" />
+          <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-purple-500/20 rounded-full blur-[80px] pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-16">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm border border-white/20">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-extrabold tracking-tight">CRM Pro</span>
+            </div>
 
-      <div className="flex min-h-[calc(100vh-64px)]">
-        {/* Left panel */}
-        <div className="hidden lg:flex lg:w-[60%] relative">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,#eef4ff_0%,#f8fbff_100%)] rounded-r-[48px]" />
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-20 left-20 w-72 h-72 bg-indigo-300/10 rounded-full blur-[80px]" />
-            <div className="absolute bottom-40 right-20 w-96 h-96 bg-indigo-200/10 rounded-full blur-[100px]" />
+            <h1 className="text-[40px] font-extrabold leading-[1.1] mb-6 tracking-tight">
+              Customer<br/>Relationships,<br/>Simplified
+            </h1>
+            <p className="text-indigo-100 text-[17px] leading-relaxed max-w-[300px]">
+              Streamline your pipeline, track every interaction, and close more deals with AI-powered CRM automation.
+            </p>
           </div>
-          <div className="relative flex flex-col w-full px-16 py-12" style={{ gap: "clamp(28px, 3vw, 40px)" }}>
-            <div className="flex-1 flex flex-col justify-center">
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.4, 0.25, 1] }}
-                className="font-['Inter'] text-[72px] font-extrabold leading-[1] tracking-[-0.03em] text-gray-900 max-w-[700px]"
-              >
-                Customer<br />Relationships,<br />
-                <span className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Simplified</span>
-              </motion.h1>
-              <motion.p
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.4, 0.25, 1] }}
-                className="text-[22px] text-gray-500 max-w-[650px] leading-[1.7] mt-5"
-              >
-                Streamline your pipeline, track every interaction, and close more deals with AI-powered CRM automation.
-              </motion.p>
-              <div className="grid grid-cols-2 gap-5 mt-10">
-                {features.map((f, i) => (
-                  <FeatureCard key={f.title} icon={f.icon} title={f.title} description={f.description} index={i} />
+
+          <div className="relative z-10 mt-12 bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 shadow-lg">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex -space-x-3">
+                {["bg-blue-400", "bg-purple-400", "bg-emerald-400"].map((c, i) => (
+                  <div key={i} className={`w-8 h-8 rounded-full ${c} border-2 border-indigo-600 shadow-sm`} />
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                {Array(5).fill(0).map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                 ))}
               </div>
             </div>
-            <div className="flex-shrink-0"><DashboardPreview /></div>
-            <div className="flex-shrink-0 pb-4"><TrustPill /></div>
+            <p className="text-sm font-medium text-indigo-50">Trusted by over 12,000+ teams worldwide to close more deals.</p>
           </div>
         </div>
 
-        {/* Right panel */}
-        <div className="flex-1 lg:w-[40%] flex items-center justify-center relative px-6 lg:px-10 py-8">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(79,70,229,0.04),transparent_70%)] pointer-events-none" />
-          <div className="w-full flex items-center justify-center">
+        {/* Right Side: Auth Form */}
+        <div className="w-full lg:w-[55%] bg-white flex items-center justify-center p-6 lg:p-8 overflow-y-auto">
+          <div className="w-full max-w-[360px] mx-auto my-auto py-6">
             <AuthForm />
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

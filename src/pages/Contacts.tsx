@@ -106,7 +106,7 @@ function ContactsPageContent() {
   const location = useLocation();
 
   // Convex Hooks
-  const contactsData = useQuery(api.contacts.list);
+  const contactsData = useQuery(api.contacts.list, {});
   const createContact = useMutation(api.contacts.create);
   const updateContact = useMutation(api.contacts.update);
   const deleteContact = useMutation(api.contacts.remove);

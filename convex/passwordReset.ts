@@ -188,11 +188,13 @@ export const generateResetToken = internalMutation({
   handler: async (ctx, args) => {
     const normalizedEmail = args.email.trim().toLowerCase();
 
-    // Find user
-    const user = await ctx.db
+    // Find user safely (collect in case duplicates exist, prioritizing password users)
+    const users = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
-      .unique();
+      .collect();
+
+    const user = users.find((u) => u.passwordHash) ?? users[0] ?? null;
 
     if (!user) {
       return {
@@ -295,35 +297,58 @@ export const completeResetPassword = internalMutation({
 
     // Find the associated user
     const user = await ctx.db.get(resetToken.userId);
-    console.log("User found:", user?._id);
+
+    console.log("Reset requested for token:", token);
+    console.log("Reset user:", user?._id);
+    console.log("Old salt:", user?.salt);
+    console.log("Old hash:", user?.passwordHash);
 
     if (!user) {
       throw new Error("USER_NOT_FOUND");
     }
 
-    console.log("Old salt:", user.salt);
-
-    // Generate a NEW salt
+    // Generate new credentials
     const salt = generateSalt();
+    const passwordHash = await hashPassword(
+      args.password,
+      salt
+    );
+
     console.log("New salt:", salt);
+    console.log("New hash:", passwordHash);
 
-    // Generate a new password hash using custom SHA-256 function
-    const passwordHash = await hashPassword(args.password, salt);
-    console.log("New password hash:", passwordHash);
+    // Persist BOTH values
+    try {
+      await ctx.db.patch(user._id, {
+        passwordHash,
+        salt,
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      throw new Error("Failed to persist password update");
+    }
 
-    // Update the users table
-    await ctx.db.patch(user._id, {
-      passwordHash,
-      salt,
-      updatedAt: Date.now(),
+    // Immediately re-fetch
+    const updatedUser = await ctx.db.get(user._id);
+
+    console.log("After update:", {
+      id: updatedUser?._id,
+      email: updatedUser?.email,
+      salt: updatedUser?.salt,
+      passwordHash: updatedUser?.passwordHash,
     });
-    console.log("Password successfully updated");
 
-    // Database verification: immediately re-fetch the user and log
-    const verifiedUser = await ctx.db.get(user._id);
-    console.log("passwordHash exists:", !!verifiedUser?.passwordHash);
-    console.log("salt exists:", !!verifiedUser?.salt);
-    console.log("updatedAt changed:", verifiedUser?.updatedAt !== user.updatedAt);
+    // Verify no second user document exists
+    if (user.email) {
+      const users = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) =>
+          q.eq("email", user.email)
+        )
+        .collect();
+
+      console.log("Duplicate users:", users);
+    }
 
     // Mark this token as used
     await ctx.db.patch(resetToken._id, { used: true });

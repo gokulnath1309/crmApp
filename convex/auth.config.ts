@@ -7,13 +7,17 @@ export default {
       applicationID: process.env.AUTH_GOOGLE_ID!,
     },
     {
-      // CONVEX_SITE_URL can resolve to either .convex.site or .convex.cloud
-      // depending on the deployment. Include both to ensure JWT validation passes.
-      domain: "https://reliable-fox-165.convex.site",
+      domain: process.env.CLERK_JWT_ISSUER_DOMAIN || "https://hot-panther-21.clerk.accounts.dev",
       applicationID: "convex",
     },
     {
-      domain: "https://reliable-fox-165.convex.cloud",
+      // CONVEX_SITE_URL can resolve to either .convex.site or .convex.cloud
+      // depending on the deployment. Include both to ensure JWT validation passes.
+      domain: "https://fearless-elephant-115.convex.site",
+      applicationID: "convex",
+    },
+    {
+      domain: "https://fearless-elephant-115.convex.cloud",
       applicationID: "convex",
     },
   ],
