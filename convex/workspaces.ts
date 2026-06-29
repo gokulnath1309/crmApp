@@ -43,6 +43,7 @@ export const createWorkspace = mutation({
       createdBy: userId,
       status: "active",
       createdAt: now,
+      updatedAt: now,
     });
 
     // Create membership for this user
@@ -164,6 +165,7 @@ export const update = mutation({
     await ctx.db.patch(id, {
       ...fields,
       name: args.name.trim(),
+      updatedAt: Date.now(),
     });
 
     const userName = currentUser.name || "System";
@@ -223,6 +225,68 @@ export const remove = mutation({
   },
 });
 
+export const updateWorkspace = mutation({
+  args: {
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      throw new Error("Unauthorized: Clerk identity not found");
+    }
+
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) {
+      throw new Error("Unauthorized: User not found in database");
+    }
+
+    const workspaceId = currentUser.activeWorkspaceId;
+    if (!workspaceId) {
+      throw new Error("No active workspace");
+    }
+
+    // Verify workspace membership with SUPER_ADMIN role
+    const membership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", currentUser._id).eq("workspaceId", workspaceId)
+      )
+      .first();
+
+    if (!membership || membership.status !== "active") {
+      throw new Error("You are not a member of this workspace");
+    }
+
+    if (membership.role !== "SUPER_ADMIN") {
+      throw new Error("Only workspace owners and Super Admins can rename the workspace");
+    }
+
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    const trimmed = args.name.trim();
+    await ctx.db.patch(workspaceId, {
+      name: trimmed,
+      updatedAt: Date.now(),
+    });
+
+    // Log activity
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "workspace_updated",
+      description: `renamed workspace from "${workspace.name}" to "${trimmed}"`,
+      userId: currentUser._id,
+      userName: currentUser.name || "System",
+      entityType: "workspace",
+      entityId: workspaceId,
+      workspaceId,
+    });
+
+    return { _id: workspaceId, name: trimmed, updatedAt: Date.now() };
+  },
+});
+
 export const syncClerkWorkspace = mutation({
   args: {
     clerkOrgId: v.string(),
@@ -255,7 +319,7 @@ export const syncClerkWorkspace = mutation({
       workspaceId = workspace._id;
       // Optionally update name if it changed
       if (workspace.name !== args.name.trim()) {
-        await ctx.db.patch(workspaceId, { name: args.name.trim() });
+        await ctx.db.patch(workspaceId, { name: args.name.trim(), updatedAt: Date.now() });
       }
     } else {
       // Create new workspace
@@ -266,6 +330,7 @@ export const syncClerkWorkspace = mutation({
         createdBy: userId,
         status: "active",
         createdAt: now,
+        updatedAt: now,
         clerkOrgId: args.clerkOrgId,
       });
 

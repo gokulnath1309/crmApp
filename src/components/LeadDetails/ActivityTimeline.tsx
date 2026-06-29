@@ -11,9 +11,10 @@ import { useToast } from "@/components/ui/Toast";
 interface ActivityTimelineProps {
   lead: any;
   activities: any[] | undefined;
+  transitions?: any[] | undefined;
 }
 
-export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
+export function ActivityTimeline({ lead, activities, transitions }: ActivityTimelineProps) {
   const { toast } = useToast();
   const currentUser = useQuery(api.users.getCurrentUser);
   const users = useQuery(api.users.list);
@@ -56,8 +57,17 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
       case "Note":
       case "Internal Note":
         return <FileText className="w-3.5 h-3.5 text-slate-500" />;
+      case "Lead Created":
+        return <Plus className="w-3.5 h-3.5 text-indigo-650" />;
+      case "Lead Lost":
+      case "Lead Unqualified":
+      case "Lead Spam":
+      case "Duplicate Lead":
+        return <AlertCircle className="w-3.5 h-3.5 text-rose-600" />;
+      case "Lead Reopened":
+        return <Clock className="w-3.5 h-3.5 text-indigo-650" />;
       default:
-        return <Clock className="w-3.5 h-3.5 text-slate-400" />;
+        return <History className="w-3.5 h-3.5 text-slate-400" />;
     }
   };
 
@@ -68,15 +78,86 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
       case "Meeting": return "bg-amber-50 border-amber-100 dark:bg-amber-955/20";
       case "Demo": return "bg-indigo-50 border-indigo-100 dark:bg-indigo-950/20";
       case "Proposal": return "bg-rose-50 border-rose-100 dark:bg-rose-955/20";
+      case "Lead Created": return "bg-indigo-50 border-indigo-105 dark:bg-indigo-950/20";
+      case "Lead Lost":
+      case "Lead Unqualified":
+      case "Lead Spam":
+      case "Duplicate Lead":
+        return "bg-rose-50 border-rose-100 dark:bg-rose-950/20";
       default: return "bg-slate-50 border-slate-200 dark:bg-slate-805/40";
     }
   };
 
   // Filter Activities
   const getFilteredActivities = () => {
-    if (!activities) return [];
+    const allItems: any[] = [];
 
-    let filtered = [...activities];
+    // Add normal manual activities
+    if (activities) {
+      allItems.push(...activities);
+    }
+
+    // Add stage transitions as formatted system events
+    if (transitions) {
+      for (const t of transitions) {
+        let actionType = "Status Change";
+        let summary = `Status changed from ${t.fromStage} to ${t.toStage}`;
+        let notes = "";
+
+        if (t.toStage === "Lost") {
+          actionType = "Lead Lost";
+          summary = "Lead marked as Lost";
+          notes = `Reason: ${t.data?.lostReason || "N/A"}\nNotes: ${t.data?.lostNotes || ""}`;
+        } else if (t.toStage === "Unqualified") {
+          actionType = "Lead Unqualified";
+          summary = "Lead marked as Unqualified";
+          notes = `Reason: ${t.data?.unqualifiedReason || "N/A"}\nNotes: ${t.data?.unqualifiedNotes || ""}`;
+        } else if (t.toStage === "Spam") {
+          actionType = "Lead Spam";
+          summary = "Lead marked as Spam";
+          notes = `Reason: ${t.data?.spamReason || "N/A"}\nNotes: ${t.data?.spamNotes || ""}`;
+        } else if (t.toStage === "Duplicate") {
+          actionType = "Duplicate Lead";
+          summary = "Merged as Duplicate";
+          notes = `Merged into Lead ID: ${t.data?.mergedIntoLeadId || "N/A"}\nNotes: ${t.data?.notes || ""}`;
+        } else if (t.fromStage && ["Lost", "Unqualified", "Spam", "Duplicate"].includes(t.fromStage) && t.toStage === "Contacted") {
+          actionType = "Lead Reopened";
+          summary = "Lead reopened";
+          notes = `Reopening Reason: ${t.data?.requalificationReason || "N/A"}`;
+        }
+
+        allItems.push({
+          _id: t._id,
+          activityType: actionType,
+          summary,
+          notes,
+          userId: t.userId,
+          userName: t.userName,
+          createdAt: t.transitionedAt,
+          date: new Date(t.transitionedAt).toLocaleDateString(),
+          time: new Date(t.transitionedAt).toLocaleTimeString(),
+          isSystemEvent: true,
+        });
+      }
+    }
+
+    // Add synthetic lead creation event
+    if (lead) {
+      allItems.push({
+        _id: "creation",
+        activityType: "Lead Created",
+        summary: "Lead created in system",
+        notes: lead.initialNotes || "No initial notes provided.",
+        userId: lead.createdBy || "",
+        userName: "System",
+        createdAt: lead.createdAt,
+        date: new Date(lead.createdAt).toLocaleDateString(),
+        time: new Date(lead.createdAt).toLocaleTimeString(),
+        isSystemEvent: true,
+      });
+    }
+
+    let filtered = [...allItems];
 
     // 1. Search text
     if (searchVal.trim()) {
@@ -110,7 +191,11 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
       filtered = filtered.filter((a) => (now - a.createdAt) <= limitMs);
     }
 
-    return filtered;
+    return filtered.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.createdAt - a.createdAt;
+    });
   };
 
   const handlePinToggle = async (activityId: string) => {
@@ -153,7 +238,7 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
   const filtered = getFilteredActivities();
 
   // Activity Types present in timeline for filter options
-  const uniqueTypes = ["Phone Call", "Meeting", "Email", "WhatsApp", "Demo", "Proposal", "Note"];
+  const uniqueTypes = ["Phone Call", "Meeting", "Email", "WhatsApp", "Demo", "Proposal", "Note", "Lead Created", "Status Change", "Lead Lost", "Lead Unqualified", "Lead Spam", "Lead Reopened", "Duplicate Lead"];
 
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs flex flex-col h-full">
@@ -231,8 +316,9 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
               // Permission check
               const isCreator = act.userId === currentUser?._id;
               const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "admin";
-              const canEdit = isCreator || isAdmin;
-              const canDelete = isCreator || isAdmin;
+              const canEdit = !act.isSystemEvent && (isCreator || isAdmin);
+              const canDelete = !act.isSystemEvent && (isCreator || isAdmin);
+              const canPin = !act.isSystemEvent;
 
               return (
                 <div key={act._id} className="relative group">
@@ -267,16 +353,18 @@ export function ActivityTimeline({ lead, activities }: ActivityTimelineProps) {
 
                       {/* Controls */}
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handlePinToggle(act._id)}
-                          className={`p-1 rounded-md transition-colors cursor-pointer ${
-                            act.isPinned 
-                              ? "text-amber-500 hover:bg-amber-100/20" 
-                              : "text-slate-350 hover:text-slate-600 hover:bg-slate-105"
-                          }`}
-                        >
-                          <Pin className="w-3 h-3 fill-current" />
-                        </button>
+                        {canPin && (
+                          <button
+                            onClick={() => handlePinToggle(act._id)}
+                            className={`p-1 rounded-md transition-colors cursor-pointer ${
+                              act.isPinned 
+                                ? "text-amber-500 hover:bg-amber-100/20" 
+                                : "text-slate-350 hover:text-slate-600 hover:bg-slate-105"
+                            }`}
+                          >
+                            <Pin className="w-3 h-3 fill-current" />
+                          </button>
+                        )}
                         {canEdit && !isEditing && (
                           <button
                             onClick={() => handleStartEdit(act)}

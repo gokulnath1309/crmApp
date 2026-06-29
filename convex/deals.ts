@@ -283,7 +283,7 @@ export const update = mutation({
         });
 
         // 4. Mark company as Customer
-        const targetCompanyId = args.workspaceId || existing.workspaceId;
+        const targetCompanyId = existing.companyId;
         if (targetCompanyId) {
           await ctx.db.patch(targetCompanyId, {
             status: "Customer",

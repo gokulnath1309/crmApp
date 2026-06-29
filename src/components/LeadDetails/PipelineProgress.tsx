@@ -6,12 +6,17 @@ interface PipelineProgressProps {
   transitions: any[] | undefined;
   onTransitionClick: (targetStage: string) => void;
   onQuickMarkStatus: (targetStage: string) => void;
+  onReopenClick?: () => void;
+  currentUserRole?: string;
 }
 
-export function PipelineProgress({ lead, transitions = [], onTransitionClick, onQuickMarkStatus }: PipelineProgressProps) {
+export function PipelineProgress({ lead, transitions = [], onTransitionClick, onQuickMarkStatus, onReopenClick, currentUserRole }: PipelineProgressProps) {
   const [hoveredStage, setHoveredStage] = useState<string | null>(null);
 
   if (!lead) return null;
+
+  const isAdminOrManager = currentUserRole === "super_admin" || currentUserRole === "admin" || currentUserRole === "manager";
+  const isClosed = ["Lost", "Unqualified", "Spam", "Duplicate"].includes(lead.status) || lead.isClosed;
 
   const stages = ["New", "Contacted", "Qualified", "Converted"];
   const currentIdx = stages.indexOf(lead.status);
@@ -67,7 +72,7 @@ export function PipelineProgress({ lead, transitions = [], onTransitionClick, on
   };
 
   const handleStageClick = (stage: string) => {
-    if (stage === lead.status) return;
+    if (stage === lead.status || isClosed) return;
     
     const clickedIdx = stages.indexOf(stage);
     if (clickedIdx === -1) return;
@@ -87,12 +92,39 @@ export function PipelineProgress({ lead, transitions = [], onTransitionClick, on
         </span>
       </div>
 
+      {/* Closed Lead Details Banner */}
+      {isClosed && (
+        <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200/50 dark:border-slate-700/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">
+                🚫 Lead Closed: {lead.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-slate-550 dark:text-slate-450 mt-1">
+              <p><strong>Reason:</strong> {lead.statusReason || lead.lostReason || lead.unqualifiedReason || "N/A"}</p>
+              <p><strong>Closed By:</strong> {lead.statusChangedBy || "System"}</p>
+              <p className="col-span-2"><strong>Closed On:</strong> {lead.closedAt ? new Date(lead.closedAt).toLocaleString() : "N/A"}</p>
+              {lead.statusNotes && <p className="col-span-2 mt-1 bg-white dark:bg-slate-850 p-2 rounded-lg border border-slate-100 dark:border-slate-800 italic text-[11px]">"{lead.statusNotes}"</p>}
+            </div>
+          </div>
+          
+          {isAdminOrManager && onReopenClick && (
+            <button
+              onClick={onReopenClick}
+              className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/10 transition-all cursor-pointer whitespace-nowrap"
+            >
+              🔄 Reopen Lead
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Chevron Pipeline list */}
       <div className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-1 bg-slate-50 dark:bg-slate-900/30 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto select-none">
         {stages.map((stage, idx) => {
           const isCompleted = idx < currentIdx;
           const isCurrent = idx === currentIdx;
-          const isFuture = idx > currentIdx;
           const metrics = calculateStageMetrics(stage);
 
           let stageBg = "bg-slate-200/55 dark:bg-slate-805/40 text-slate-400 hover:bg-slate-300/40";
@@ -175,20 +207,37 @@ export function PipelineProgress({ lead, transitions = [], onTransitionClick, on
       </div>
 
       {/* Bottom actions: Mark Lost and Mark Unqualified */}
-      {lead.status !== "Converted" && lead.status !== "Lost" && lead.status !== "Unqualified" && (
-        <div className="flex gap-3 mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800/50">
+      {lead.status !== "Converted" && !isClosed && (
+        <div className="flex flex-wrap gap-2.5 mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800/50">
           <button
             onClick={() => onQuickMarkStatus("Lost")}
-            className="flex-1 h-9 rounded-xl border border-rose-250 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-extrabold uppercase tracking-wider hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-colors cursor-pointer"
+            className="flex-1 min-w-[130px] h-9 rounded-xl border border-rose-250 dark:border-rose-900/30 text-rose-600 dark:text-rose-450 text-[10px] font-extrabold uppercase tracking-wider hover:bg-rose-50/50 dark:hover:bg-rose-950/10 transition-colors cursor-pointer"
           >
             ❌ Mark Lead Lost
           </button>
           <button
             onClick={() => onQuickMarkStatus("Unqualified")}
-            className="flex-1 h-9 rounded-xl border border-slate-205 dark:border-slate-750 text-slate-655 dark:text-slate-350 text-[10px] font-extrabold uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-805 transition-colors cursor-pointer"
+            className="flex-1 min-w-[130px] h-9 rounded-xl border border-slate-205 dark:border-slate-750 text-slate-655 dark:text-slate-350 text-[10px] font-extrabold uppercase tracking-wider hover:bg-slate-55/60 dark:hover:bg-slate-805 transition-colors cursor-pointer"
           >
             🚫 Mark Unqualified
           </button>
+
+          {isAdminOrManager && (
+            <>
+              <button
+                onClick={() => onQuickMarkStatus("Duplicate")}
+                className="flex-1 min-w-[130px] h-9 rounded-xl border border-indigo-200 dark:border-indigo-900/30 text-indigo-650 dark:text-indigo-400 text-[10px] font-extrabold uppercase tracking-wider hover:bg-indigo-50/50 dark:hover:bg-indigo-950/10 transition-colors cursor-pointer"
+              >
+                👥 Merge Duplicate
+              </button>
+              <button
+                onClick={() => onQuickMarkStatus("Spam")}
+                className="flex-1 min-w-[130px] h-9 rounded-xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-extrabold uppercase tracking-wider hover:bg-red-50/50 dark:hover:bg-red-950/10 transition-colors cursor-pointer"
+              >
+                ⚠️ Mark Spam
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

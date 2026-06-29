@@ -1,6 +1,5 @@
-import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
+import { motion } from "motion/react";
 import { Zap, Layout, Layers, MessageSquare, Code, Globe } from "lucide-react";
 import styles from "./LandingPage.module.css";
 
@@ -18,63 +17,6 @@ const integrationLogos = [
   { icon: Code, label: "Github" },
   { icon: Globe, label: "Chrome" },
 ];
-
-function Background3D() {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  const mouseXSpring = useSpring(x, { stiffness: 300, damping: 30 });
-  const mouseYSpring = useSpring(y, { stiffness: 300, damping: 30 });
-
-  // Transforms to create parallax depth
-  const x1 = useTransform(mouseXSpring, [-0.5, 0.5], [80, -80]);
-  const y1 = useTransform(mouseYSpring, [-0.5, 0.5], [80, -80]);
-  
-  const x2 = useTransform(mouseXSpring, [-0.5, 0.5], [-120, 120]);
-  const y2 = useTransform(mouseYSpring, [-0.5, 0.5], [-120, 120]);
-
-  const rotate1 = useTransform(mouseXSpring, [-0.5, 0.5], [-20, 20]);
-  const rotate2 = useTransform(mouseYSpring, [-0.5, 0.5], [20, -20]);
-
-  useEffect(() => {
-    const handleMouse = (e: MouseEvent) => {
-      const xPct = e.clientX / window.innerWidth - 0.5;
-      const yPct = e.clientY / window.innerHeight - 0.5;
-      x.set(xPct);
-      y.set(yPct);
-    };
-    window.addEventListener("mousemove", handleMouse);
-    return () => window.removeEventListener("mousemove", handleMouse);
-  }, [x, y]);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" style={{ perspective: "1000px" }}>
-       {/* Orbs */}
-       <motion.div 
-         className={styles.blobPurple} 
-         style={{ x: x1, y: y1 }}
-       />
-       <motion.div 
-         className={styles.blobBlue} 
-         style={{ x: x2, y: y2 }}
-       />
-
-       {/* 3D Floating shapes */}
-       <motion.div
-         className={styles.floatingShape1}
-         style={{ x: x1, y: y2, rotateX: rotate2, rotateY: rotate1 }}
-       />
-       <motion.div
-         className={styles.floatingShape2}
-         style={{ x: x2, y: y1, rotateX: rotate1, rotateY: rotate2 }}
-       />
-       <motion.div
-         className={styles.floatingShape3}
-         style={{ x: x1, y: y1, rotateX: rotate1, rotateY: rotate1, rotateZ: rotate2 }}
-       />
-    </div>
-  );
-}
 
 import { AnimatedBackground } from "../components/AnimatedBackground";
 
@@ -94,7 +36,7 @@ export default function LandingPage() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: { duration: 0.6, ease: "easeOut" as const },
     },
   };
 
@@ -109,17 +51,17 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className={styles.brand}>
+          <div className={styles.brand} onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
             <Zap className={styles.brandIcon} />
             <div className={styles.brandPro}>CRMPro</div>
           </div>
 
           <div className={styles.navLinks}>
-            <a href="#home">Home</a>
-            <a href="#features">Features</a>
-            <a href="#resources">Resources</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#info">Info</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/features"); }}>Features</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); }}>Resources</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); }}>Pricing</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); }}>Info</a>
           </div>
 
           <div className={styles.navActions}>

@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSignIn } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
+import { setPendingAuthTransition } from "@/routes/AuthGate";
 import { Mail, ArrowLeft, CheckCircle, Send, X, Lock, Eye, EyeOff, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -42,6 +44,7 @@ function OTPInput({ value, onChange, onKeyDown, inputIndex, inputRefs, isFilled 
 export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProps) {
   const { toast } = useToast();
   const { signIn, setActive, isLoaded } = useSignIn();
+  const navigate = useNavigate();
 
   const [step, setStep] = useState<"email" | "code" | "success">("email");
   const [email, setEmail] = useState("");
@@ -97,11 +100,14 @@ export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProp
       if (result.status === "complete") {
         setStep("success");
         toast("success", "Password updated successfully.");
+        setPendingAuthTransition(true);
         await setActive({ session: result.createdSessionId });
+        navigate("/", { replace: true });
       } else {
         setError("Failed to complete password reset.");
       }
     } catch (err: any) {
+      setPendingAuthTransition(false);
       setError(err?.errors?.[0]?.longMessage || err?.message || "Verification failed. Please try again.");
     } finally {
       setLoading(false);

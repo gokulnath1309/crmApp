@@ -38,9 +38,12 @@ export default defineSchema({
     bio: v.optional(v.string()),
     jobTitle: v.optional(v.string()),
     profileImage: v.optional(v.string()),
+    profileStorageId: v.optional(v.id("_storage")),
+    bannerStorageId: v.optional(v.id("_storage")),
     isOwner: v.optional(v.boolean()),
     // Multi-tenant workspace fields
     activeWorkspaceId: v.optional(v.id("workspaces")),
+    notificationSettings: v.optional(v.any()),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_email", ["email"])
@@ -142,6 +145,17 @@ export default defineSchema({
     // Conversion tracking
     convertedAt: v.optional(v.number()),
     dealId: v.optional(v.id("deals")),
+
+    // Extended lead qualification fields
+    statusReason: v.optional(v.string()),
+    statusNotes: v.optional(v.string()),
+    closedAt: v.optional(v.number()),
+    closedBy: v.optional(v.id("users")),
+    reopenedAt: v.optional(v.number()),
+    reopenedBy: v.optional(v.id("users")),
+    mergedIntoLeadId: v.optional(v.id("leads")),
+    spamFlag: v.optional(v.boolean()),
+    isClosed: v.optional(v.boolean()),
   })
     .index("by_status", ["status"])
     .index("by_source", ["source"])
@@ -306,6 +320,13 @@ export default defineSchema({
     createdBy: v.optional(v.id("users")),
     workspaceId: v.optional(v.id("workspaces")),
     createdAt: v.number(),
+    icon: v.optional(v.string()),
+    color: v.optional(v.string()),
+    pinned: v.optional(v.boolean()),
+    archived: v.optional(v.boolean()),
+    updatedAt: v.optional(v.number()),
+    readAt: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_user_read", ["userId", "read"])
@@ -356,6 +377,7 @@ export default defineSchema({
     companySize: v.optional(v.number()),
     createdBy: v.id("users"),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
     status: v.string(), // "active", "inactive"
     clerkOrgId: v.optional(v.string()),
   })

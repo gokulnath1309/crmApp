@@ -1,16 +1,19 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/Avatar";
+import { useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useUser } from "@/features/auth/UserProvider";
+import { useWorkspace } from "@/features/auth/WorkspaceProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { RenameWorkspaceModal } from "@/components/RenameWorkspaceModal";
 import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Bell, Settings,
   LogOut, Target, ChevronLeft, ChevronRight, X, BarChart2, Sun, Moon,
-  Building2, CreditCard, UserCircle, Calendar,
+  Building2, CreditCard, UserCircle, Calendar, Pencil,
 } from "lucide-react";
 
 interface NavItem {
@@ -80,11 +83,15 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse }: SidebarProps) {
   const { signOut } = useAuth();
   const { user } = useUser();
+  const { activeWorkspace } = useWorkspace();
   const isMobile = useMediaQuery("(max-width: 1023px)");
   const [dark, toggleDark] = useDarkMode();
+  const [renameOpen, setRenameOpen] = useState(false);
 
   const company = useQuery(api.workspaces.getMyWorkspace, {});
   const unreadCount = useQuery(api.notifications.getUnreadCount, {});
+
+  const canRename = activeWorkspace?.role === "SUPER_ADMIN";
 
   const userRole = user?.role || "employee";
 
@@ -92,7 +99,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
     return item.roles?.includes(userRole) ?? false;
   });
 
-  const companyName = company?.name || "Workspace";
+  const companyName = company?.name || "Unnamed Workspace";
   const companyInitials = companyName
     .split(/\s+/)
     .map((n) => n[0])
@@ -122,11 +129,20 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
       {/* Workspace selector */}
       {!collapsed && (
         <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-          <div className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50/50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60">
+          <div className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50/50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 group">
             <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-md flex items-center justify-center flex-shrink-0">
               <span className="text-white text-[9px] font-bold">{companyInitials}</span>
             </div>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 text-left truncate">{companyName}</span>
+            {canRename && (
+              <button
+                onClick={() => setRenameOpen(true)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 cursor-pointer"
+                title="Rename workspace"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -219,35 +235,40 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
     </div>
   );
 
-  if (isMobile) {
-    return (
-      <>
-        {mobileOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-            onClick={onMobileClose}
-          />
-        )}
+  return (
+    <>
+      <RenameWorkspaceModal
+        open={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        currentName={companyName}
+      />
+      {isMobile ? (
+        <>
+          {mobileOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+              onClick={onMobileClose}
+            />
+          )}
+          <aside
+            className={cn(
+              "fixed inset-y-0 left-0 z-50 w-[260px] transform transition-transform duration-300 lg:hidden",
+              mobileOpen ? "translate-x-0" : "-translate-x-full"
+            )}
+          >
+            {sidebarContent}
+          </aside>
+        </>
+      ) : (
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[260px] transform transition-transform duration-300 lg:hidden",
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
+            "fixed inset-y-0 left-0 z-30 transition-all duration-300 hidden lg:flex flex-col",
+            collapsed ? "w-16" : "w-[260px]"
           )}
         >
           {sidebarContent}
         </aside>
-      </>
-    );
-  }
-
-  return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-30 transition-all duration-300 hidden lg:flex flex-col",
-        collapsed ? "w-16" : "w-[260px]"
       )}
-    >
-      {sidebarContent}
-    </aside>
+    </>
   );
 }

@@ -10,6 +10,18 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { InteractionEvidence, type EvidenceItem } from "./InteractionEvidence";
 
+function dataURLtoBlob(dataurl: string): Blob {
+  const arr = dataurl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
 interface AttachmentPayload {
   fileName: string;
   fileType: string;
@@ -283,6 +295,33 @@ export function ContactInteractionDrawer({
               size: att.fileSize,
             });
             pendingFilesRef.current.delete(att.id);
+          } else if (att.fileUrl && att.fileUrl.startsWith("data:")) {
+            try {
+              const blob = dataURLtoBlob(att.fileUrl);
+              const uploadUrl = await generateUploadUrl();
+              const result = await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": att.mimeType || blob.type },
+                body: blob,
+              });
+              if (!result.ok) {
+                const errText = await result.text();
+                throw new Error(`Failed to upload draft attachment ${att.fileName}: ${errText}`);
+              }
+              const { storageId } = await result.json();
+              savedAttachments.push({
+                fileName: att.fileName,
+                fileType: att.fileType,
+                fileUrl: "",
+                category: att.category,
+                duration: att.duration,
+                mimeType: att.mimeType,
+                storageId,
+                size: att.fileSize,
+              });
+            } catch (err: any) {
+              throw new Error(`Failed to upload draft attachment ${att.fileName}: ${err.message}`);
+            }
           } else {
             savedAttachments.push({
               fileName: att.fileName,

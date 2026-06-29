@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import { type Id } from "./_generated/dataModel";
 
 export const hasMemberships = query({
   args: {},
@@ -41,8 +40,8 @@ export const listWorkspaces = query({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) {
-      console.log(`[listWorkspaces] t=${t} No user found for clerkId, returning []`);
-      return [];
+      console.log(`[listWorkspaces] t=${t} No user found for clerkId, returning null (user not yet created)`);
+      return null;
     }
 
     const memberships = await ctx.db
@@ -57,7 +56,7 @@ export const listWorkspaces = query({
         return {
           membershipId: m._id,
           workspaceId: m.workspaceId,
-          workspaceName: workspace?.name ?? "Unknown",
+          workspaceName: workspace?.name || "Unnamed Workspace",
           role: m.role,
           isActive: user.activeWorkspaceId === m.workspaceId,
           clerkOrgId: workspace?.clerkOrgId,

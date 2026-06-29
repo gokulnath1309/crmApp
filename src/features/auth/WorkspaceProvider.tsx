@@ -21,17 +21,30 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
-  const membershipsData = useQuery(api.workspaceMembers.listWorkspaces, {});
+  // Wait for UserProvider to finish loading before querying workspaces.
+  // isUserLoading covers both "useQuery still loading" and "query returned
+  // null because the Convex user record hasn't been created yet".  Without
+  // this guard, listWorkspaces can fire before the Clerk JWT reaches Convex,
+  // causing getUserIdentity() to return null and the query to return null.
+  const queryArgs = isAuthenticated && !isUserLoading ? {} : "skip";
+  const membershipsData = useQuery(
+    api.workspaceMembers.listWorkspaces,
+    queryArgs,
+  );
+
+  if (typeof window !== "undefined") {
+    console.log("[WorkspaceProvider] isAuthenticated:", isAuthenticated, "isUserLoading:", isUserLoading, "queryArgs:", queryArgs, "membershipsData:", membershipsData);
+  }
 
   const memberships = useMemo(() => {
     return membershipsData ?? [];
   }, [membershipsData]);
 
-  // membershipsData is undefined while query runs initially;
-  // null means the query returned before Convex auth identity was available (race).
-  // Both mean "not yet ready" — wait for a real result.
+  // membershipsData is undefined while query is skipped or hasn't resolved;
+  // null means the user record doesn't exist yet in Convex (race with ensureUserExists).
+  // Both mean "not yet ready" — keep loading.
   const isWorkspaceLoading = isAuthenticated && user !== null && (membershipsData === undefined || membershipsData === null);
 
   const hasMemberships = memberships.length > 0;

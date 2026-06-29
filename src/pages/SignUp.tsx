@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useSignUp, useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
+import { useSignUp, useAuth, useClerk } from "@clerk/clerk-react";
+import { Link, useNavigate } from "react-router-dom";
+import { setPendingAuthTransition } from "@/routes/AuthGate";
 import {
   Zap,
   TrendingUp,
@@ -185,6 +186,8 @@ function OTPInput({ value, onChange, onKeyDown, inputIndex, inputRefs, isFilled 
 function AuthForm() {
   const { signUp, setActive, isLoaded } = useSignUp();
   const { isSignedIn: clerkIsSignedIn } = useAuth();
+  const clerk = useClerk();
+  const navigate = useNavigate();
   const [step, setStep] = useState<"email" | "otp">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -223,29 +226,38 @@ function AuthForm() {
       console.error("[Sign Up Error]", err);
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "";
       if (msg.toLowerCase().includes("already signed in")) {
-        // Clerk frontend is out of sync with backend — reload to re-sync
-        window.location.reload();
+        try { await clerk.signOut(); } catch {}
+        setError({ type: 'generic', message: "Existing session cleared. Please try again." });
         return;
       }
       setError({ type: 'generic', message: msg || "Something went wrong" });
     } finally {
       setEmailLoading(false);
     }
-  }, [email, password, confirmPassword, isLoaded, signUp]);
+  }, [email, password, confirmPassword, isLoaded, signUp, clerk]);
 
   const handleVerifyOtp = useCallback(async () => {
     const code = otp.join("");
     if (code.length !== 6 || !isLoaded || !signUp || !setActive) return;
+    console.log("[SignUp] Starting OTP verification, code length:", code.length);
     setLoading(true);
     setError(null);
     try {
       const verifyResult = await signUp.attemptEmailAddressVerification({ code });
+      console.log("[SignUp] verifyResult.status:", verifyResult.status, "createdSessionId:", verifyResult.createdSessionId);
       if (verifyResult.status === "complete") {
+        // Set the auth-transition flag BEFORE setActive so AuthGate Phase 2
+        // shows a spinner instead of redirecting to /signin when Clerk's
+        // internal routerPush fires before the auth state propagates.
+        setPendingAuthTransition(true);
         await setActive({ session: verifyResult.createdSessionId });
+        console.log("[SignUp] setActive completed, navigating to /onboarding");
+        navigate("/onboarding", { replace: true });
       } else {
         setError({ type: 'generic', message: "Verification was not completed. Please try again." });
       }
     } catch (err: any) {
+      setPendingAuthTransition(false);
       console.error("[OTP Verification Error]", err);
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Invalid code. Please try again.";
       setError({ type: 'generic', message: msg });
@@ -298,14 +310,15 @@ function AuthForm() {
       console.error("[Google Sign Up Error]", err);
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "";
       if (msg.toLowerCase().includes("already signed in")) {
-        // Clerk frontend is out of sync with backend — reload to re-sync
-        window.location.reload();
+        try { await clerk.signOut(); } catch {}
+        setError({ type: 'generic', message: "Existing session cleared. Please try again." });
+        setGoogleLoading(false);
         return;
       }
       setError({ type: 'generic', message: msg || "Something went wrong" });
       setGoogleLoading(false);
     }
-  }, [signUp, googleLoading, clerkIsSignedIn]);
+  }, [signUp, googleLoading, clerkIsSignedIn, clerk]);
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { ClerkProvider, AuthenticateWithRedirectCallback, useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { ClerkProvider, AuthenticateWithRedirectCallback, useAuth as useClerkAuth, useClerk } from "@clerk/clerk-react";
 import { AuthProvider } from "@/features/auth/AuthProvider";
 import { UserProvider } from "@/features/auth/UserProvider";
 import { WorkspaceProvider } from "@/features/auth/WorkspaceProvider";
@@ -31,6 +31,7 @@ import CreateWorkspace from "@/pages/CreateWorkspace";
 import OnboardingPage from "@/pages/OnboardingPage";
 import { AcceptInvitationPage } from "@/pages/AcceptInvitation";
 import LandingPage from "@/pages/LandingPage";
+import FeaturesPage from "@/pages/Features";
 import { TeamsPage } from "@/pages/Teams";
 import { TeamOverviewPage } from "@/pages/TeamOverview";
 import { TeamMembersPage } from "@/pages/TeamMembers";
@@ -45,8 +46,13 @@ if (!publishableKey) {
 function ClerkWithRouter({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
+  const clerkNavigate = useCallback((to: string) => {
+    navigate(to);
+    return Promise.resolve();
+  }, [navigate]);
+
   const routerPush = useCallback((to: string) => {
-    navigate(to, { replace: false });
+    navigate(to);
   }, [navigate]);
 
   const routerReplace = useCallback((to: string) => {
@@ -56,8 +62,11 @@ function ClerkWithRouter({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={publishableKey}
+      navigate={clerkNavigate}
       routerPush={routerPush}
       routerReplace={routerReplace}
+      signInUrl="/signin"
+      signUpUrl="/signup"
     >
       {children}
     </ClerkProvider>
@@ -73,6 +82,7 @@ function AppRoutes() {
           element={<AuthenticateWithRedirectCallback afterSignInUrl="/" afterSignUpUrl="/" />}
         />
         <Route path="/" element={<LandingPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/verify-otp" element={<VerifyOtpPage />} />
@@ -155,12 +165,25 @@ function AppRoutes() {
   );
 }
 
+function useAuthForConvex() {
+  const clerkAuth = useClerkAuth();
+  const clerk = useClerk();
+  const effectivelySignedIn = clerkAuth.isSignedIn || !!clerk.session;
+
+  console.log("[useAuthForConvex] clerkAuth.isSignedIn:", clerkAuth.isSignedIn, "clerk.session?.id:", clerk.session?.id, "effectivelySignedIn:", effectivelySignedIn);
+
+  return {
+    ...clerkAuth,
+    isSignedIn: effectivelySignedIn,
+  };
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <ClerkWithRouter>
         <ToastProvider>
-          <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
+          <ConvexProviderWithClerk client={convex} useAuth={useAuthForConvex}>
             <AuthProvider>
               <UserProvider>
                 <WorkspaceProvider>

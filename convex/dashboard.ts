@@ -34,6 +34,31 @@ export const getMetrics = query({
         totalPipelineValue: {},
         weightedPipelineValue: {},
         closedRevenue: {},
+        leadMetrics: {
+          leadsByStatus: {
+            New: 0,
+            Contacted: 0,
+            Qualified: 0,
+            Converted: 0,
+            Unqualified: 0,
+            Lost: 0,
+            Spam: 0,
+            Duplicate: 0,
+          },
+          unqualifiedReasons: {},
+          lostReasons: {},
+          qualificationRate: 0,
+          conversionRate: 0,
+          avgResponseTimeMin: 0,
+          spamPercentage: 0,
+          duplicatePercentage: 0,
+          leadAging: {
+            "0-7 Days": 0,
+            "8-30 Days": 0,
+            "30+ Days": 0,
+          },
+          employeeConversionRate: [],
+        },
       };
     }
 
@@ -252,6 +277,97 @@ export const getMetrics = query({
       }
     }
 
+    // Extended lead qualification metrics
+    const leadsByStatus = {
+      New: 0,
+      Contacted: 0,
+      Qualified: 0,
+      Converted: 0,
+      Unqualified: 0,
+      Lost: 0,
+      Spam: 0,
+      Duplicate: 0,
+    };
+    const unqualifiedReasons: Record<string, number> = {};
+    const lostReasons: Record<string, number> = {};
+
+    for (const lead of leads) {
+      let status = lead.status;
+      if (status === "Won") status = "Converted"; // Normalize legacy
+      if (leadsByStatus[status as keyof typeof leadsByStatus] !== undefined) {
+        leadsByStatus[status as keyof typeof leadsByStatus]++;
+      }
+      if (status === "Unqualified" && lead.unqualifiedReason) {
+        unqualifiedReasons[lead.unqualifiedReason] = (unqualifiedReasons[lead.unqualifiedReason] || 0) + 1;
+      }
+      if (status === "Lost" && lead.lostReason) {
+        lostReasons[lead.lostReason] = (lostReasons[lead.lostReason] || 0) + 1;
+      }
+    }
+
+    const totalLeadsCount = leads.length;
+    const qualifiedCount = leads.filter((l) => l.status === "Qualified").length;
+    const convertedCount = leads.filter((l) => l.status === "Converted" || l.status === "Won").length;
+    const qualificationRate = totalLeadsCount > 0 ? ((qualifiedCount + convertedCount) / totalLeadsCount) * 100 : 0;
+    const conversionRate = totalLeadsCount > 0 ? (convertedCount / totalLeadsCount) * 100 : 0;
+
+    // Response time: average time from creation to contacted
+    const transitions = await ctx.db
+      .query("leadStageTransitions")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const contactedTransitions = transitions.filter((t) => t.toStage === "Contacted");
+    let totalResponseTimeMs = 0;
+    let responseCount = 0;
+    for (const t of contactedTransitions) {
+      const matchingLead = leads.find((l) => l._id === t.leadId);
+      if (matchingLead) {
+        totalResponseTimeMs += (t.transitionedAt - matchingLead.createdAt);
+        responseCount++;
+      }
+    }
+    const avgResponseTimeMin = responseCount > 0 ? Math.round((totalResponseTimeMs / responseCount) / 60000) : 0;
+
+    // Lead Aging
+    const now = Date.now();
+    const leadAging = {
+      "0-7 Days": 0,
+      "8-30 Days": 0,
+      "30+ Days": 0,
+    };
+    const activeLeads = leads.filter((l) => l.status === "New" || l.status === "Contacted" || l.status === "Qualified");
+    for (const l of activeLeads) {
+      const ageDays = (now - l.createdAt) / (24 * 60 * 60 * 1000);
+      if (ageDays <= 7) leadAging["0-7 Days"]++;
+      else if (ageDays <= 30) leadAging["8-30 Days"]++;
+      else leadAging["30+ Days"]++;
+    }
+
+    // Employee Conversion Rate
+    const members = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const employees = [];
+    for (const m of members) {
+      const u = await ctx.db.get(m.userId);
+      if (u) {
+        employees.push(u);
+      }
+    }
+    const employeeConversionRate = [];
+    for (const emp of employees) {
+      const empLeads = leads.filter((l) => l.assignedTo === emp._id);
+      if (empLeads.length > 0) {
+        const empConverted = empLeads.filter((l) => l.status === "Converted" || l.status === "Won").length;
+        employeeConversionRate.push({
+          name: emp.name || emp.email,
+          conversionRate: Math.round((empConverted / empLeads.length) * 100),
+          totalLeads: empLeads.length,
+        });
+      }
+    }
+
     return {
       totalLeads,
       totalContacts,
@@ -270,6 +386,18 @@ export const getMetrics = query({
       totalPipelineValue,
       weightedPipelineValue,
       closedRevenue,
+      leadMetrics: {
+        leadsByStatus,
+        unqualifiedReasons,
+        lostReasons,
+        qualificationRate,
+        conversionRate,
+        avgResponseTimeMin,
+        spamPercentage: totalLeadsCount > 0 ? (leadsByStatus.Spam / totalLeadsCount) * 100 : 0,
+        duplicatePercentage: totalLeadsCount > 0 ? (leadsByStatus.Duplicate / totalLeadsCount) * 100 : 0,
+        leadAging,
+        employeeConversionRate,
+      },
     };
   },
 });

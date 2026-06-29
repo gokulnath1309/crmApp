@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
 import { canAccessLead, hasPermission, canAssignLead } from "./rbac";
-import { notifyUser } from "./lib/notifications";
+import { notifyUser, notifyAdmins } from "./lib/notifications";
 
 export const list = query({
   args: {
@@ -660,6 +660,10 @@ export const changeStatus = mutation({
     unqualifiedNotes: v.optional(v.string()),
     lostReason: v.optional(v.string()),
     lostNotes: v.optional(v.string()),
+    lostDate: v.optional(v.number()),
+    spamReason: v.optional(v.string()),
+    spamNotes: v.optional(v.string()),
+    mergedIntoLeadId: v.optional(v.id("leads")),
     requalificationReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -680,17 +684,30 @@ export const changeStatus = mutation({
     if (fromStage === args.status) throw new Error("Lead is already in this stage");
 
     const allowedTransitions: Record<string, string[]> = {
-      New: ["Contacted", "Unqualified"],
-      Contacted: ["Qualified", "Unqualified", "Lost"],
-      Qualified: ["Converted", "Unqualified", "Lost"],
+      New: ["Contacted", "Unqualified", "Lost", "Spam", "Duplicate"],
+      Contacted: ["Qualified", "Unqualified", "Lost", "Spam", "Duplicate"],
+      Qualified: ["Converted", "Unqualified", "Lost", "Spam", "Duplicate"],
       Converted: [],
-      Lost: ["New"],
-      Unqualified: ["New"],
+      Lost: ["Contacted"],
+      Unqualified: ["Contacted"],
+      Spam: ["Contacted"],
+      Duplicate: ["Contacted"],
     };
 
     const allowed = allowedTransitions[fromStage || "New"];
     if (!allowed || !allowed.includes(args.status)) {
       throw new Error(`Invalid status transition from ${fromStage} to ${args.status}`);
+    }
+
+    const role = currentUser.role || "employee";
+    const isAdminOrManager = role === "admin" || role === "super_admin";
+    const isReopening = ["Lost", "Unqualified", "Spam", "Duplicate"].includes(fromStage) && args.status === "Contacted";
+
+    if (isReopening && !isAdminOrManager) {
+      throw new Error("Only Managers and Admins can reopen leads");
+    }
+    if ((args.status === "Duplicate" || args.status === "Spam") && !isAdminOrManager) {
+      throw new Error(`Only Managers and Admins can mark leads as ${args.status}`);
     }
 
     const now = Date.now();
@@ -703,16 +720,53 @@ export const changeStatus = mutation({
 
     if (args.status === "Lost") {
       patchData.lostAt = now;
-      patchData.lostReason = args.lostReason;
-      patchData.lostNotes = args.lostNotes;
+      patchData.lostReason = args.lostReason || "Other";
+      patchData.lostNotes = args.lostNotes || "";
+
+      patchData.statusReason = args.lostReason || "Other";
+      patchData.statusNotes = args.lostNotes || "";
+      patchData.closedAt = args.lostDate || now;
+      patchData.closedBy = userId;
+      patchData.isClosed = true;
     } else if (args.status === "Unqualified") {
       patchData.unqualifiedAt = now;
-      patchData.unqualifiedReason = args.unqualifiedReason;
-      patchData.unqualifiedNotes = args.unqualifiedNotes;
-    } else if (fromStage === "Unqualified" || fromStage === "Lost") {
+      patchData.unqualifiedReason = args.unqualifiedReason || "Other";
+      patchData.unqualifiedNotes = args.unqualifiedNotes || "";
+
+      patchData.statusReason = args.unqualifiedReason || "Other";
+      patchData.statusNotes = args.unqualifiedNotes || "";
+      patchData.closedAt = now;
+      patchData.closedBy = userId;
+      patchData.isClosed = true;
+    } else if (args.status === "Spam") {
+      patchData.statusReason = args.spamReason || "Spam";
+      patchData.statusNotes = args.spamNotes || "";
+      patchData.closedAt = now;
+      patchData.closedBy = userId;
+      patchData.isClosed = true;
+      patchData.spamFlag = true;
+    } else if (args.status === "Duplicate") {
+      patchData.statusReason = "Merged Duplicate";
+      patchData.statusNotes = args.unqualifiedNotes || args.lostNotes || "";
+      patchData.closedAt = now;
+      patchData.closedBy = userId;
+      patchData.isClosed = true;
+      patchData.mergedIntoLeadId = args.mergedIntoLeadId;
+    } else if (isReopening) {
+      patchData.reopenedAt = now;
+      patchData.reopenedBy = userId;
+      patchData.isClosed = false;
+      patchData.spamFlag = false;
+      patchData.mergedIntoLeadId = undefined;
+      patchData.statusReason = undefined;
+      patchData.statusNotes = undefined;
+      patchData.closedAt = undefined;
+      patchData.closedBy = undefined;
       patchData.requalifiedAt = now;
       patchData.requalifiedBy = userName;
       patchData.requalificationReason = args.requalificationReason;
+    } else {
+      patchData.isClosed = false;
     }
 
     await ctx.db.patch(args.leadId, patchData);
@@ -729,7 +783,10 @@ export const changeStatus = mutation({
         lostNotes: args.lostNotes,
         unqualifiedReason: args.unqualifiedReason,
         unqualifiedNotes: args.unqualifiedNotes,
+        spamReason: args.spamReason,
+        spamNotes: args.spamNotes,
         requalificationReason: args.requalificationReason,
+        mergedIntoLeadId: args.mergedIntoLeadId,
       },
       workspaceId,
     });
@@ -737,7 +794,7 @@ export const changeStatus = mutation({
     const activityType =
       args.status === "Lost" ? "lead_lost" :
       args.status === "Unqualified" ? "lead_unqualified" :
-      (fromStage === "Unqualified" || fromStage === "Lost") ? "lead_requalified" :
+      isReopening ? "lead_requalified" :
       "lead_status_changed";
 
     await ctx.scheduler.runAfter(0, internal.activities.log, {
@@ -749,6 +806,32 @@ export const changeStatus = mutation({
       entityId: args.leadId,
       workspaceId,
     });
+
+    if (args.status === "Lost") {
+      await notifyAdmins(ctx, undefined, "lead_marked_lost", {
+        entityName: lead.company,
+        entityType: "lead",
+        entityId: args.leadId,
+        userName,
+        createdBy: userId,
+      });
+    } else if (args.status === "Unqualified") {
+      await notifyAdmins(ctx, undefined, "lead_marked_unqualified", {
+        entityName: lead.company,
+        entityType: "lead",
+        entityId: args.leadId,
+        userName,
+        createdBy: userId,
+      });
+    } else if (isReopening) {
+      await notifyAdmins(ctx, undefined, "lead_reopened", {
+        entityName: lead.company,
+        entityType: "lead",
+        entityId: args.leadId,
+        userName,
+        createdBy: userId,
+      });
+    }
 
     return args.leadId;
   },
@@ -1476,6 +1559,13 @@ export const convertToDeal = mutation({
       });
     }
 
+    await notifyAdmins(ctx, undefined, "lead_converted", {
+      entityName: lead.company,
+      entityType: "lead",
+      entityId: args.leadId,
+      createdBy: currentUser._id,
+    });
+
     return { leadId: args.leadId, dealId };
   },
 });
@@ -1501,5 +1591,154 @@ export const validateQualification = query({
       budgetKnown: !!l.budgetStatus,
       timelineKnown: !!(l.timeline || l.customFields?.timeline),
     };
+  },
+});
+
+export const mergeLeads = mutation({
+  args: {
+    duplicateLeadId: v.id("leads"),
+    targetLeadId: v.id("leads"),
+    mergeNotes: v.boolean(),
+    mergeActivities: v.boolean(),
+    mergeFiles: v.boolean(),
+    mergeTimeline: v.boolean(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const role = currentUser.role || "employee";
+    if (role !== "admin" && role !== "super_admin") throw new Error("Only Managers and Admins can merge duplicates");
+
+    const duplicateLead = await ctx.db.get(args.duplicateLeadId);
+    const targetLead = await ctx.db.get(args.targetLeadId);
+    if (!duplicateLead || !targetLead) throw new Error("Lead not found");
+
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const now = Date.now();
+    const userId = currentUser._id;
+    const userName = currentUser.name || "System";
+
+    // 1. Merge Notes
+    if (args.mergeNotes) {
+      const notes = await ctx.db
+        .query("notes")
+        .withIndex("by_entity", (q) =>
+          q.eq("entityType", "lead").eq("entityId", args.duplicateLeadId)
+        )
+        .collect();
+      for (const note of notes) {
+        await ctx.db.patch(note._id, { entityId: args.targetLeadId });
+      }
+    }
+
+    // 2. Merge Activities
+    if (args.mergeActivities) {
+      const activities = await ctx.db
+        .query("leadActivities")
+        .withIndex("by_leadId", (q) => q.eq("leadId", args.duplicateLeadId))
+        .collect();
+      for (const act of activities) {
+        await ctx.db.patch(act._id, { leadId: args.targetLeadId });
+      }
+
+      // Also merge reminders if activities are merged
+      const reminders = await ctx.db
+        .query("leadReminders")
+        .withIndex("by_leadId", (q) => q.eq("leadId", args.duplicateLeadId))
+        .collect();
+      for (const rem of reminders) {
+        await ctx.db.patch(rem._id, { leadId: args.targetLeadId });
+      }
+    }
+
+    // 3. Merge Files (Attachments)
+    if (args.mergeFiles) {
+      const files = await ctx.db
+        .query("leadAttachments")
+        .withIndex("by_leadId", (q) => q.eq("leadId", args.duplicateLeadId))
+        .collect();
+      for (const file of files) {
+        await ctx.db.patch(file._id, { leadId: args.targetLeadId });
+      }
+    }
+
+    // 4. Merge Stage Transitions (Timeline)
+    if (args.mergeTimeline) {
+      const transitions = await ctx.db
+        .query("leadStageTransitions")
+        .withIndex("by_leadId", (q) => q.eq("leadId", args.duplicateLeadId))
+        .collect();
+      for (const trans of transitions) {
+        await ctx.db.patch(trans._id, { leadId: args.targetLeadId });
+      }
+    }
+
+    // 5. Update Duplicate Lead
+    const fromStage = duplicateLead.status;
+    await ctx.db.patch(args.duplicateLeadId, {
+      status: "Duplicate",
+      isClosed: true,
+      closedAt: now,
+      closedBy: userId,
+      statusReason: "Merged Duplicate",
+      statusNotes: args.notes || "",
+      mergedIntoLeadId: args.targetLeadId,
+      updatedAt: now,
+    });
+
+    // 6. Record stage transition on duplicate lead
+    await ctx.db.insert("leadStageTransitions", {
+      leadId: args.duplicateLeadId,
+      fromStage,
+      toStage: "Duplicate",
+      userId,
+      userName,
+      transitionedAt: now,
+      data: {
+        mergedIntoLeadId: args.targetLeadId,
+        notes: args.notes,
+      },
+      workspaceId,
+    });
+
+    // 7. Log activity on target lead
+    await ctx.db.insert("leadActivities", {
+      leadId: args.targetLeadId,
+      activityType: "Note",
+      userId,
+      userName,
+      date: new Date(now).toLocaleDateString(),
+      time: new Date(now).toLocaleTimeString(),
+      summary: `System: Merged duplicate lead "${duplicateLead.firstName} ${duplicateLead.lastName}" from ${duplicateLead.company}.`,
+      notes: args.notes || "No details provided.",
+      stageAtTime: targetLead.status,
+      workspaceId,
+      createdAt: now,
+    });
+
+    // 8. Log global activity
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "lead_merged",
+      description: `merged duplicate lead "${duplicateLead.company}" into "${targetLead.company}"`,
+      userId,
+      userName,
+      entityType: "lead",
+      entityId: args.targetLeadId,
+      workspaceId,
+    });
+
+    // 9. Notify Managers
+    await notifyAdmins(ctx, undefined, "lead_merged", {
+      entityName: duplicateLead.company,
+      entityType: "lead",
+      entityId: args.targetLeadId,
+      userName,
+      createdBy: userId,
+    });
+
+    return { duplicateLeadId: args.duplicateLeadId, targetLeadId: args.targetLeadId };
   },
 });

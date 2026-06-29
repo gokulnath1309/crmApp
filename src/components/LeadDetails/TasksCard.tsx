@@ -17,7 +17,8 @@ export function TasksCard({ lead }: TasksCardProps) {
   const users = useQuery(api.users.list);
 
   // Queries/Mutations from api.tasks
-  const tasks = useQuery(api.tasks.list, lead ? { leadId: lead._id } : "skip");
+  const tasksData = useQuery(api.tasks.list, lead ? { leadId: lead._id } : "skip");
+  const tasks = tasksData?.tasks;
   const createTaskMutation = useMutation(api.tasks.create);
   const updateTaskMutation = useMutation(api.tasks.update);
   const deleteTaskMutation = useMutation(api.tasks.remove);

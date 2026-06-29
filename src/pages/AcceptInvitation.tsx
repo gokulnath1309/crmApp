@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/features/auth/AuthProvider";
 
 import { useToast } from "@/components/ui/Toast";
 import { Shield, Loader2, Sparkles, AlertCircle, ArrowRight, CheckCircle2, Mail, UserPlus } from "lucide-react";
@@ -13,7 +13,7 @@ export function AcceptInvitationPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isLoaded: clerkLoaded, isSignedIn } = useClerkAuth();
+  const { isLoaded, isAuthenticated } = useAuth();
 
   const invitation = useQuery(api.users.getInvitationByToken, token ? { token } : "skip");
   const acceptInvitation = useAction(api.users.acceptInvitation);
@@ -38,13 +38,15 @@ export function AcceptInvitationPage() {
   // Derive page state
   const pageState = derivePageState({
     token,
-    clerkLoaded,
-    isSignedIn,
+    isLoaded,
+    isAuthenticated,
     invitation,
     acceptingInProgress,
     acceptError,
     accepted,
   });
+
+  console.log("[AcceptInvitation] pageState:", pageState, "token:", token, "isLoaded:", isLoaded, "isAuthenticated:", isAuthenticated, "invitation:", invitation, "acceptingInProgress:", acceptingInProgress, "acceptError:", acceptError, "accepted:", accepted);
 
   // Clear invalid/expired/consumed tokens to prevent redirect loops
   useEffect(() => {
@@ -59,7 +61,7 @@ export function AcceptInvitationPage() {
   // Auto-accept for authenticated users with valid invitation
   useEffect(() => {
     if (
-      !clerkLoaded || !isSignedIn || !invitation || acceptingInProgress ||
+      !isLoaded || !isAuthenticated || !invitation || acceptingInProgress ||
       accepted || acceptStarted.current || acceptError
     ) return;
 
@@ -92,7 +94,7 @@ export function AcceptInvitationPage() {
 
     performAcceptance();
   }, [
-    clerkLoaded, isSignedIn, invitation, token,
+    isLoaded, isAuthenticated, invitation, token,
     acceptInvitation, navigate, toast,
     acceptingInProgress, accepted, acceptError,
   ]);
@@ -268,14 +270,14 @@ export function AcceptInvitationPage() {
 
 function derivePageState(params: {
   token: string | undefined;
-  clerkLoaded: boolean;
-  isSignedIn: boolean | null;
+  isLoaded: boolean;
+  isAuthenticated: boolean;
   invitation: any;
   acceptingInProgress: boolean;
   acceptError: string | null;
   accepted: boolean;
 }): PageState {
-  const { token, clerkLoaded, isSignedIn, invitation, acceptingInProgress, acceptError, accepted } = params;
+  const { token, isLoaded, isAuthenticated, invitation, acceptingInProgress, acceptError, accepted } = params;
 
   if (accepted) return "redirecting";
   if (acceptError) return "error";
@@ -283,7 +285,7 @@ function derivePageState(params: {
 
   if (!token) return "invalid";
 
-  if (!clerkLoaded) return "loading";
+  if (!isLoaded) return "loading";
 
   if (invitation === undefined) return "loading";
 
@@ -295,7 +297,7 @@ function derivePageState(params: {
   if (isExpired) return "expired";
   if (isAccepted) return "already_accepted";
 
-  if (!isSignedIn) return "needs_auth";
+  if (!isAuthenticated) return "needs_auth";
 
   return "accepting";
 }

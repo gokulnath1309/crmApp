@@ -45,8 +45,20 @@ export const getCurrentUser = query({
     console.log(`[getCurrentUser] t=${t} identity:`, { exists: !!identity, subject: identity?.subject, email: identity?.email });
     const user = await resolveUserReadOnly(ctx);
     if (user) {
-      console.log(`[getCurrentUser] t=${t} Found:`, user._id);
-      return formatUserDoc(user);
+      console.log(`[getCurrentUser] t=${t} Found:`, user._id, "bannerStorageId:", user.bannerStorageId, "profileStorageId:", user.profileStorageId);
+      const doc = formatUserDoc(user);
+      if (user.bannerStorageId) {
+        const url = await ctx.storage.getUrl(user.bannerStorageId);
+        console.log(`[getCurrentUser] t=${t} Resolved bannerStorageId ->`, url);
+        if (url) doc.coverImage = url;
+      }
+      if (user.profileStorageId) {
+        const url = await ctx.storage.getUrl(user.profileStorageId);
+        console.log(`[getCurrentUser] t=${t} Resolved profileStorageId ->`, url);
+        if (url) doc.avatarUrl = url;
+      }
+      console.log(`[getCurrentUser] t=${t} Returning doc:`, { coverImage: doc.coverImage, avatarUrl: doc.avatarUrl });
+      return doc;
     }
 
     if (args.token) {
@@ -157,25 +169,34 @@ export const updateProfile = mutation({
   },
 });
 
+export const generateProfileUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const updateProfileImage = mutation({
   args: {
-    image: v.string(),
+    storageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    console.log("[AUTH] Profile image update started");
     const user = await resolveUser(ctx);
     if (!user) {
-      console.error("[AUTH] Profile image update: No authenticated user");
       throw new Error("Not authenticated");
     }
-    console.log("[AUTH] Profile image update: user resolved", user._id);
+
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (!url) {
+      throw new Error("Failed to retrieve uploaded image");
+    }
 
     await ctx.db.patch(user._id, {
-      image: args.image,
-      avatarUrl: args.image,
+      avatarUrl: url,
+      image: url,
+      profileStorageId: args.storageId,
       updatedAt: Date.now(),
     });
-    console.log("[AUTH] Image updated:", user._id);
 
     await ctx.scheduler.runAfter(0, internal.activities.log, {
       type: "avatar_updated",
@@ -186,7 +207,7 @@ export const updateProfileImage = mutation({
       entityId: user._id,
     });
 
-    return { _id: user._id, avatarUrl: args.image };
+    return { _id: user._id, avatarUrl: url };
   },
 });
 
@@ -833,35 +854,57 @@ export const updateProfileDetails = mutation({
   },
 });
 
+export const generateBannerUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const updateCoverImage = mutation({
   args: {
-    coverImage: v.union(v.string(), v.null()),
+    storageId: v.optional(v.id("_storage")),
+    coverImage: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    console.log("[AUTH] Cover image update started");
     const user = await resolveUser(ctx);
     if (!user) {
-      console.error("[AUTH] Cover image update: No authenticated user");
       throw new Error("Not authenticated");
     }
-    console.log("[AUTH] Cover image update: user resolved", user._id);
 
     const userRole = user.role || "employee";
-    const currentValue = user.coverImage;
-    const newValue = args.coverImage === null ? undefined : args.coverImage;
-    if (currentValue !== newValue) {
+
+    // Remove cover image
+    if (args.storageId === undefined && args.coverImage === null) {
+      console.log("[updateCoverImage] REMOVE path for user", user._id);
       if (!canEditField("coverImage", userRole)) {
         throw new Error("You do not have permission to modify this field.");
       }
+      await ctx.db.patch(user._id, {
+        coverImage: undefined,
+        bannerStorageId: undefined,
+        updatedAt: Date.now(),
+      });
+      return { _id: user._id, coverImage: null };
     }
 
-    await ctx.db.patch(user._id, {
-      coverImage: args.coverImage === null ? undefined : args.coverImage,
-      updatedAt: Date.now(),
-    });
-    console.log("[AUTH] Cover image updated:", user._id);
-
-    if (currentValue !== newValue) {
+    // File upload via storage
+    if (args.storageId !== undefined) {
+      console.log("[updateCoverImage] FILE UPLOAD path, storageId:", args.storageId);
+      if (!canEditField("coverImage", userRole)) {
+        throw new Error("You do not have permission to modify this field.");
+      }
+      const url = await ctx.storage.getUrl(args.storageId);
+      if (!url) {
+        throw new Error("Failed to retrieve uploaded image");
+      }
+      console.log("[updateCoverImage] Resolved URL:", url);
+      await ctx.db.patch(user._id, {
+        coverImage: url,
+        bannerStorageId: args.storageId,
+        updatedAt: Date.now(),
+      });
+      console.log("[updateCoverImage] Patched coverImage + bannerStorageId");
       await ctx.scheduler.runAfter(0, internal.activities.log, {
         type: "cover_updated",
         description: "Updated profile cover",
@@ -870,9 +913,26 @@ export const updateCoverImage = mutation({
         entityType: "user",
         entityId: user._id,
       });
+      return { _id: user._id, coverImage: url };
     }
 
-    return { _id: user._id, coverImage: args.coverImage };
+    // URL paste fallback
+    if (args.coverImage !== undefined) {
+      console.log("[updateCoverImage] URL PASTE path, coverImage:", args.coverImage);
+      if (!canEditField("coverImage", userRole)) {
+        throw new Error("You do not have permission to modify this field.");
+      }
+      const url = args.coverImage;
+      await ctx.db.patch(user._id, {
+        coverImage: url === null ? undefined : url,
+        bannerStorageId: undefined,
+        updatedAt: Date.now(),
+      });
+      return { _id: user._id, coverImage: url };
+    }
+
+    console.log("[updateCoverImage] FALLTHROUGH — no args matched");
+    return { _id: user._id, coverImage: user.coverImage ?? null };
   },
 });
 

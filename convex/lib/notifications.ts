@@ -13,6 +13,10 @@ function buildActionUrl(type: string, entityId: string): string {
     case "lead_assigned":
     case "lead_status_changed":
     case "lead_converted":
+    case "lead_marked_lost":
+    case "lead_marked_unqualified":
+    case "lead_reopened":
+    case "lead_merged":
       return `/leads/${entityId}`;
     case "deal_assigned":
     case "deal_stage_changed":
@@ -38,6 +42,10 @@ function getPriority(type: string): string {
       return NOTIFICATION_PRIORITY.HIGH;
     case "deal_assigned":
     case "lead_converted":
+    case "lead_marked_lost":
+    case "lead_marked_unqualified":
+    case "lead_reopened":
+    case "lead_merged":
       return NOTIFICATION_PRIORITY.MEDIUM;
     default:
       return NOTIFICATION_PRIORITY.LOW;
@@ -52,6 +60,14 @@ function getTitle(type: string, _entityName?: string): string {
       return "Lead Status Updated";
     case "lead_converted":
       return "Lead Converted to Deal";
+    case "lead_marked_lost":
+      return "Lead Marked Lost";
+    case "lead_marked_unqualified":
+      return "Lead Marked Unqualified";
+    case "lead_reopened":
+      return "Lead Reopened";
+    case "lead_merged":
+      return "Duplicate Lead Merged";
     case "deal_assigned":
       return "Deal Assigned";
     case "deal_stage_changed":
@@ -95,6 +111,14 @@ function getMessage(type: string, details: {
       return `Lead "${name}" status changed to ${details.status || "updated"}.`;
     case "lead_converted":
       return `Lead "${name}" has been converted to a deal.`;
+    case "lead_marked_lost":
+      return `Lead "${name}" was marked as Lost by ${user}.`;
+    case "lead_marked_unqualified":
+      return `Lead "${name}" was marked as Unqualified by ${user}.`;
+    case "lead_reopened":
+      return `Lead "${name}" has been reopened by ${user}.`;
+    case "lead_merged":
+      return `Duplicate lead "${name}" was merged by ${user}.`;
     case "deal_assigned":
       return `Deal "${name}" has been assigned to you.`;
     case "deal_stage_changed":
@@ -117,6 +141,44 @@ function getMessage(type: string, details: {
       return `Contact "${name}" has been created.`;
     default:
       return `Update: ${name}`;
+  }
+}
+
+function getIconAndColor(type: string): { icon: string; color: string } {
+  switch (type) {
+    case "deal_won":
+      return { icon: "Award", color: "green" };
+    case "deal_lost":
+      return { icon: "Briefcase", color: "red" };
+    case "deal_created":
+    case "deal_assigned":
+    case "deal_stage_changed":
+      return { icon: "TrendingUp", color: "purple" };
+    case "lead_assigned":
+    case "lead_converted":
+    case "lead_qualified":
+      return { icon: "Target", color: "purple" };
+    case "lead_lost":
+    case "lead_marked_lost":
+    case "lead_marked_unqualified":
+      return { icon: "UserMinus", color: "red" };
+    case "task_assigned":
+    case "task_completed":
+    case "task_overdue":
+      return { icon: "CheckSquare", color: "blue" };
+    case "user_invited":
+    case "employee_invited":
+    case "employee_joined":
+      return { icon: "UserPlus", color: "blue" };
+    case "role_changed":
+      return { icon: "ShieldAlert", color: "orange" };
+    case "security_alert":
+      return { icon: "AlertTriangle", color: "red" };
+    case "system":
+    case "system_maintenance":
+      return { icon: "Settings", color: "orange" };
+    default:
+      return { icon: "Bell", color: "blue" };
   }
 }
 
@@ -150,6 +212,8 @@ export async function createNotification(
   const user = await ctx.db.get(params.userId as Id<"users">);
   const workspaceId = user?.activeWorkspaceId;
 
+  const { icon, color } = getIconAndColor(params.type);
+
   return await ctx.db.insert("notifications", {
     userId: params.userId as any,
     title,
@@ -163,6 +227,10 @@ export async function createNotification(
     createdBy: (params.createdBy || undefined) as any,
     workspaceId,
     createdAt: Date.now(),
+    icon,
+    color,
+    pinned: false,
+    archived: false,
   });
 }
 

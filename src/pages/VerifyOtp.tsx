@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useSignIn } from "@clerk/clerk-react";
+import { setPendingAuthTransition } from "@/routes/AuthGate";
 import { motion } from "motion/react";
 import { Mail, ArrowLeft, KeyRound, CheckCircle, BarChart3 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -90,7 +91,9 @@ export function VerifyOtpPage() {
       });
 
       if (result.status === "complete") {
+        setPendingAuthTransition(true);
         await setActive({ session: result.createdSessionId });
+        navigate("/", { replace: true });
         verifyingRef.current = false;
         toast("success", "Welcome back! Login successful.");
       } else {
@@ -98,6 +101,7 @@ export function VerifyOtpPage() {
         verifyingRef.current = false;
       }
     } catch (err: any) {
+      setPendingAuthTransition(false);
       console.error(err);
       const errMsg = err?.errors?.[0]?.longMessage || err?.message || "Invalid OTP or network error.";
       setError(errMsg);

@@ -12,7 +12,8 @@ import {
   DollarSign,
   Activity,
   Layers,
-  Filter
+  Filter,
+  Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -42,7 +43,7 @@ const STAGE_COLORS: Record<string, string> = {
 export function ReportsPage() {
   const { user: currentUser } = useUser();
   const metrics = useQuery(api.dashboard.getMetrics);
-  const [activeTab, setActiveTab] = useState<"revenue" | "funnel" | "stages">("revenue");
+  const [activeTab, setActiveTab] = useState<"revenue" | "funnel" | "stages" | "leads">("revenue");
   const [selectedCurrency, setSelectedCurrency] = useState<string>("ALL");
 
   // Role guard — ProtectedRoute above handles auth; this only checks role.
@@ -77,10 +78,10 @@ export function ReportsPage() {
   // Prepare Revenue chart data
   const revenueChartData = currencies.map((cur) => ({
     currency: cur,
-    "Closed Revenue": metrics.closedRevenue[cur] || 0,
-    "Weighted Pipeline": metrics.weightedPipelineValue[cur] || 0,
-    "Total Pipeline": metrics.totalPipelineValue[cur] || 0,
-    "Forecast Revenue": metrics.revenueForecast[cur] || 0,
+    "Closed Revenue": (metrics.closedRevenue as any)[cur] || 0,
+    "Weighted Pipeline": (metrics.weightedPipelineValue as any)[cur] || 0,
+    "Total Pipeline": (metrics.totalPipelineValue as any)[cur] || 0,
+    "Forecast Revenue": (metrics.revenueForecast as any)[cur] || 0,
   }));
 
   // Prepare Deal Stage chart data
@@ -92,9 +93,9 @@ export function ReportsPage() {
 
   // Prepare Pie Chart data for active pipeline vs closed revenue for active currency
   const activeCurrencyStats = [
-    { name: "Closed Won", value: metrics.closedRevenue[activeCurrency] || 0, color: "#10b981" },
-    { name: "Weighted Active Pipeline", value: metrics.weightedPipelineValue[activeCurrency] || 0, color: "#8b5cf6" },
-    { name: "Forecast Opportunity", value: metrics.revenueForecast[activeCurrency] || 0, color: "#f97316" },
+    { name: "Closed Won", value: (metrics.closedRevenue as any)[activeCurrency] || 0, color: "#10b981" },
+    { name: "Weighted Active Pipeline", value: (metrics.weightedPipelineValue as any)[activeCurrency] || 0, color: "#8b5cf6" },
+    { name: "Forecast Opportunity", value: (metrics.revenueForecast as any)[activeCurrency] || 0, color: "#f97316" },
   ];
 
   // Calculate conversion rates
@@ -127,6 +128,40 @@ export function ReportsPage() {
     }
     return null;
   };
+
+  // Lead qualification metrics datasets
+  const leadMetrics = metrics.leadMetrics;
+  const funnelData = leadMetrics ? [
+    { name: "New", count: leadMetrics.leadsByStatus.New + leadMetrics.leadsByStatus.Contacted + leadMetrics.leadsByStatus.Qualified + leadMetrics.leadsByStatus.Converted },
+    { name: "Contacted", count: leadMetrics.leadsByStatus.Contacted + leadMetrics.leadsByStatus.Qualified + leadMetrics.leadsByStatus.Converted },
+    { name: "Qualified", count: leadMetrics.leadsByStatus.Qualified + leadMetrics.leadsByStatus.Converted },
+    { name: "Converted", count: leadMetrics.leadsByStatus.Converted },
+  ] : [];
+
+  const unqualifiedData = leadMetrics ? Object.entries(leadMetrics.unqualifiedReasons).map(([reason, count]) => ({
+    reason,
+    count,
+  })) : [];
+
+  const lostData = leadMetrics ? Object.entries(leadMetrics.lostReasons).map(([reason, count]) => ({
+    reason,
+    count,
+  })) : [];
+
+  const agingData = leadMetrics ? Object.entries(leadMetrics.leadAging).map(([age, count]) => ({
+    name: age,
+    value: count,
+  })) : [];
+
+  const spamCount = leadMetrics ? leadMetrics.leadsByStatus.Spam : 0;
+  const duplicateCount = leadMetrics ? leadMetrics.leadsByStatus.Duplicate : 0;
+  const validCount = leadMetrics ? (totalLeads - spamCount - duplicateCount) : 0;
+  
+  const qualityData = [
+    { name: "Valid Leads", value: validCount, color: "#6366f1" },
+    { name: "Spam", value: spamCount, color: "#ef4444" },
+    { name: "Duplicate", value: duplicateCount, color: "#f97316" },
+  ];
 
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -293,6 +328,7 @@ export function ReportsPage() {
           { id: "revenue", label: "Revenue & Forecasts", icon: DollarSign },
           { id: "stages", label: "Pipeline Stage Analysis", icon: Layers },
           { id: "funnel", label: "Conversion Funnel", icon: Activity },
+          { id: "leads", label: "Lead Qualification & Quality", icon: Target },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -310,8 +346,242 @@ export function ReportsPage() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
+      {activeTab === "leads" ? (
+        <div className="w-full space-y-6">
+          {/* Detailed Leads Qualification Dashboard */}
+          {metrics.leadMetrics && (
+            <>
+              {/* Funnel & Employee Conversion Rate Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Funnel Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[400px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Lead Qualification Conversion Funnel
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Visual conversion steps and rates down the lifecycle.
+                    </p>
+                  </div>
+                  <div className="py-4 flex flex-col justify-center gap-4 flex-1 mt-4">
+                    {funnelData.map((stage, i, arr) => {
+                      const maxVal = arr[0].count || 1;
+                      const widthPercent = maxVal > 0 ? (stage.count / maxVal) * 100 : 0;
+                      const prevVal = i > 0 ? arr[i-1].count : 0;
+                      const conversionRate = prevVal > 0 ? (stage.count / prevVal) * 100 : 100;
+                      const colors = ["bg-blue-600", "bg-indigo-600", "bg-violet-600", "bg-emerald-600"];
+
+                      return (
+                        <div key={stage.name} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs font-semibold">
+                            <span className="text-slate-700 dark:text-slate-350">{stage.name} Stage</span>
+                            <div className="flex items-center gap-2">
+                              {i > 0 && (
+                                <span className="text-[10px] text-indigo-650 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded font-mono">
+                                  {conversionRate.toFixed(1)}% conv.
+                                </span>
+                              )}
+                              <span className="text-slate-900 dark:text-white font-bold">{stage.count}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="h-6 flex-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg overflow-hidden border border-slate-100/50 dark:border-slate-700 flex items-center px-1">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(widthPercent, 5)}%` }}
+                                transition={{ duration: 0.6, ease: "easeOut" }}
+                                className={`h-4 rounded-md ${colors[i % colors.length]} flex items-center justify-end px-2`}
+                              >
+                                {widthPercent > 15 && (
+                                  <span className="text-[8px] font-extrabold text-white uppercase tracking-wider">{stage.name}</span>
+                                )}
+                              </motion.div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Employee Conversion Rates Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[400px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Employee Conversion Rates
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Lead to deal conversion rates compared across different employees.
+                    </p>
+                  </div>
+                  {metrics.leadMetrics.employeeConversionRate.length === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-sm text-slate-400">
+                      No conversions logged per employee.
+                    </div>
+                  ) : (
+                    <div className="h-72 w-full mt-4 flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={metrics.leadMetrics.employeeConversionRate} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(203, 213, 225, 0.15)" />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                          <YAxis tickFormatter={(val) => `${val}%`} tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                          <Tooltip formatter={(val) => [`${val}%`, "Conversion Rate"]} />
+                          <Bar dataKey="conversionRate" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Unqualified & Lost Reasons Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Unqualified Reasons Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Unqualified Leads by Reason
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Breakdown of reasons why leads were archived as unqualified.
+                    </p>
+                  </div>
+                  {unqualifiedData.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-sm text-slate-400">
+                      No unqualified leads logged.
+                    </div>
+                  ) : (
+                    <div className="h-56 w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={unqualifiedData} layout="vertical" margin={{ top: 5, right: 10, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(203, 213, 225, 0.15)" />
+                          <XAxis type="number" tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                          <YAxis dataKey="reason" type="category" tickLine={false} axisLine={false} className="text-[10px] font-bold text-slate-500" width={100} />
+                          <Tooltip />
+                          <Bar dataKey="count" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lost Reasons Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Lost Leads by Reason
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Breakdown of reasons why leads were closed as lost.
+                    </p>
+                  </div>
+                  {lostData.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-sm text-slate-400">
+                      No lost leads logged.
+                    </div>
+                  ) : (
+                    <div className="h-56 w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={lostData} layout="vertical" margin={{ top: 5, right: 10, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(203, 213, 225, 0.15)" />
+                          <XAxis type="number" tickLine={false} axisLine={false} className="text-[10px] font-semibold text-slate-400" />
+                          <YAxis dataKey="reason" type="category" tickLine={false} axisLine={false} className="text-[10px] font-bold text-slate-500" width={100} />
+                          <Tooltip />
+                          <Bar dataKey="count" fill="#f97316" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lead Aging & Lead Quality Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Lead Aging Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Lead Aging Distribution
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Time elapsed since creation for active leads in pipeline.
+                    </p>
+                  </div>
+                  {agingData.every(d => d.value === 0) ? (
+                    <div className="h-48 flex items-center justify-center text-sm text-slate-400">
+                      No active leads in pipeline.
+                    </div>
+                  ) : (
+                    <div className="h-56 w-full mt-4 flex items-center justify-center relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={agingData.filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={65}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {agingData.filter(d => d.value > 0).map((_, index) => {
+                              const colors = ["#10b981", "#f97316", "#ef4444"];
+                              return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                            })}
+                          </Pie>
+                          <Tooltip />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: 10, fontWeight: 600 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lead Quality breakdown Card */}
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Lead Database Quality
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Proportion of valid database opportunities vs Spam and Duplicate entries.
+                    </p>
+                  </div>
+                  {qualityData.every(d => d.value === 0) ? (
+                    <div className="h-48 flex items-center justify-center text-sm text-slate-400">
+                      No lead quality metrics available.
+                    </div>
+                  ) : (
+                    <div className="h-56 w-full mt-4 flex items-center justify-center relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={qualityData.filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={65}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {qualityData.filter(d => d.value > 0).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: 10, fontWeight: 600 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
           <AnimatePresence mode="wait">
             {activeTab === "revenue" && (
               <motion.div
@@ -513,6 +783,7 @@ export function ReportsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Reports Breakdown Table */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm space-y-4">
@@ -549,16 +820,16 @@ export function ReportsPage() {
                   <tr key={cur} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
                     <td className="px-6 py-3 text-slate-900 dark:text-white font-extrabold uppercase tracking-wider">{cur}</td>
                     <td className="px-6 py-3 text-right text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(metrics.closedRevenue[cur] || 0, cur)}
+                      {formatCurrency((metrics.closedRevenue as any)[cur] || 0, cur)}
                     </td>
                     <td className="px-6 py-3 text-right text-blue-600 dark:text-blue-400">
-                      {formatCurrency(metrics.totalPipelineValue[cur] || 0, cur)}
+                      {formatCurrency((metrics.totalPipelineValue as any)[cur] || 0, cur)}
                     </td>
                     <td className="px-6 py-3 text-right text-violet-600 dark:text-violet-400">
-                      {formatCurrency(metrics.weightedPipelineValue[cur] || 0, cur)}
+                      {formatCurrency((metrics.weightedPipelineValue as any)[cur] || 0, cur)}
                     </td>
                     <td className="px-6 py-3 text-right text-orange-600 dark:text-orange-400">
-                      {formatCurrency(metrics.revenueForecast[cur] || 0, cur)}
+                      {formatCurrency((metrics.revenueForecast as any)[cur] || 0, cur)}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <button

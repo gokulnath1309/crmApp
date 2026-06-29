@@ -9,6 +9,19 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { InteractionEvidence, type EvidenceItem } from "./InteractionEvidence";
 
+function dataURLtoBlob(dataurl: string): Blob {
+  const arr = dataurl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+
 interface AttachmentPayload {
   fileName: string;
   fileType: string;
@@ -294,6 +307,36 @@ export function LeadTransitionDrawer({
     setIsSubmitting(true);
 
     try {
+      // 1. Upload any custom field files that are in base64 format (start with "data:")
+      const updatedCustomFieldValues = { ...customFieldValues };
+      for (const field of activeCustomFields) {
+        const val = customFieldValues[field.name];
+        if (field.type === "File Upload" && val?.fileUrl?.startsWith("data:")) {
+          try {
+            const blob = dataURLtoBlob(val.fileUrl);
+            const uploadUrl = await generateUploadUrl();
+            const result = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": val.fileType || blob.type },
+              body: blob,
+            });
+            if (!result.ok) {
+              const errText = await result.text();
+              throw new Error(`Failed to upload custom file ${val.fileName}: ${errText}`);
+            }
+            const { storageId } = await result.json();
+            updatedCustomFieldValues[field.name] = {
+              fileName: val.fileName,
+              fileType: val.fileType,
+              fileUrl: "",
+              storageId,
+            };
+          } catch (err: any) {
+            throw new Error(`Failed to upload custom file ${val.fileName}: ${err.message}`);
+          }
+        }
+      }
+
       // Build transitionData incorporating universal opportunity fields & custom field answers
       const transitionData: Record<string, any> = {
         expectedBudget: formData.potentialDealValue ? Number(formData.potentialDealValue) : undefined,
@@ -302,7 +345,7 @@ export function LeadTransitionDrawer({
         expectedClosingDate: formData.expectedClosingDate || undefined,
         probabilityOfSuccess: formData.probabilityOfSuccess ? Number(formData.probabilityOfSuccess) : undefined,
         tags: formData.customTags ? formData.customTags.split(",").map((t: string) => t.trim()).filter(Boolean) : undefined,
-        customFields: customFieldValues, // Dinamic field answers key-value
+        customFields: updatedCustomFieldValues, // Dynamic field answers key-value (with uploaded file storageIds)
       };
 
       // Formulate Activity details
@@ -358,6 +401,33 @@ export function LeadTransitionDrawer({
               size: att.fileSize,
             });
             pendingFilesRef.current.delete(att.id);
+          } else if (att.fileUrl && att.fileUrl.startsWith("data:")) {
+            try {
+              const blob = dataURLtoBlob(att.fileUrl);
+              const uploadUrl = await generateUploadUrl();
+              const result = await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": att.mimeType || blob.type },
+                body: blob,
+              });
+              if (!result.ok) {
+                const errText = await result.text();
+                throw new Error(`Failed to upload draft attachment ${att.fileName}: ${errText}`);
+              }
+              const { storageId } = await result.json();
+              savedAttachments.push({
+                fileName: att.fileName,
+                fileType: att.fileType,
+                fileUrl: "",
+                category: att.category,
+                duration: att.duration,
+                mimeType: att.mimeType,
+                storageId,
+                size: att.fileSize,
+              });
+            } catch (err: any) {
+              throw new Error(`Failed to upload draft attachment ${att.fileName}: ${err.message}`);
+            }
           } else {
             savedAttachments.push({
               fileName: att.fileName,
@@ -387,15 +457,16 @@ export function LeadTransitionDrawer({
         stage: targetStage,
       }));
       activeCustomFields.forEach((field) => {
-        if (field.type === "File Upload" && customFieldValues[field.name]?.fileUrl) {
+        const val = updatedCustomFieldValues[field.name];
+        if (field.type === "File Upload" && val?.storageId) {
           allAttachments.push({
-            fileName: `${field.label}: ${customFieldValues[field.name].fileName}`,
-            fileType: customFieldValues[field.name].fileType,
-            fileUrl: customFieldValues[field.name].fileUrl,
+            fileName: `${field.label}: ${val.fileName}`,
+            fileType: val.fileType,
+            fileUrl: val.fileUrl || "",
             category: "other",
             duration: undefined,
-            mimeType: customFieldValues[field.name].fileType || "application/octet-stream",
-            storageId: undefined,
+            mimeType: val.fileType || "application/octet-stream",
+            storageId: val.storageId,
             size: undefined,
             stage: targetStage,
           });

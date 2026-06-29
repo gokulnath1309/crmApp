@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useSignIn, useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
+import { useSignIn, useAuth, useClerk } from "@clerk/clerk-react";
+import { Link, useNavigate } from "react-router-dom";
+import { setPendingAuthTransition } from "@/routes/AuthGate";
 import {
   Zap, TrendingUp, Users, Brain, Shield, Mail, Star, BarChart3, ArrowUpRight, Menu,
   Eye, EyeOff, Lock, ChevronRight
@@ -229,6 +230,8 @@ function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: (
 function AuthForm() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const { isSignedIn: clerkIsSignedIn } = useAuth();
+  const clerk = useClerk();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -281,8 +284,9 @@ function AuthForm() {
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "";
       if (msg.toLowerCase().includes("already signed in")) {
-        // Clerk frontend is out of sync with backend — reload to re-sync
-        window.location.reload();
+        try { await clerk.signOut(); } catch {}
+        toast("success", "Existing session cleared. Try again.");
+        setGoogleLoading(false);
         return;
       }
       toast("error", msg || "Google sign-in failed");
@@ -291,39 +295,194 @@ function AuthForm() {
   };
 
   const handlePasswordSignIn = async () => {
-    if (!signIn) return;
-    // Let the early return guard in the render handle the redirect
-    if (clerkIsSignedIn) return;
+    const startedAt = performance.now();
+    const timeline: Record<string, unknown> = {};
+
+    // ── Guard clauses ──────────────────────────────────────────────────────
+    if (!signIn) { console.warn("[SignIn] ABORT: signIn not loaded"); return; }
+    if (clerkIsSignedIn) { console.warn("[SignIn] ABORT: already signed in"); return; }
+
     setLoading(true);
     setError(null);
+
+    console.group("===== AUTHENTICATION TIMELINE =====");
+    console.log("[SignIn] Step 0 — User clicked Continue");
+
+    // ── Step 1: Form validation ────────────────────────────────────────────
+    const t1 = performance.now();
+    console.log("[SignIn] Step 1 — Validating form (email:", email, ", pw length:", password.length, ")");
+    timeline.formValidation = { email, passwordLength: password.length };
+
+    if (!isValidEmail) {
+      console.log("[SignIn] Step 1 FAILED — invalid email");
+      setError({ type: 'generic', message: "Please enter a valid email address." });
+      setLoading(false);
+      console.groupEnd();
+      return;
+    }
+    console.log("[SignIn] Step 1 OK — duration:", (performance.now() - t1).toFixed(1) + "ms");
+
+    // ── Step 2: signIn.create() ────────────────────────────────────────────
+    let result: Awaited<ReturnType<NonNullable<typeof signIn>['create']>>;
+    const t2 = performance.now();
+    console.log("[SignIn] Step 2 — Calling signIn.create({ identifier, password }) ...");
     try {
-      const result = await signIn.create({ identifier: email, password });
-      if (result.status === "complete") {
-        if (setActive) {
-          await setActive({ session: result.createdSessionId });
-        }
-        toast("success", "Signed in successfully");
-        return;
-      }
-      setError({ type: 'generic', message: "Sign-in incomplete. Please try again." });
+      result = await signIn.create({ identifier: email, password });
+      console.log("[SignIn] Step 2 SUCCESS — duration:", (performance.now() - t2).toFixed(1) + "ms");
+      console.log("  status:", result.status);
+      console.log("  createdSessionId:", result.createdSessionId);
+      if ('supportedFirstFactors' in result) console.log("  supportedFirstFactors:", result.supportedFirstFactors);
+      timeline.signInCreate = { status: result.status, sessionId: result.createdSessionId };
     } catch (err: any) {
-      console.error("[Auth Error]", err);
+      console.group("❌ FAILURE — signIn.create() threw");
+      console.error("  Full error:", err);
+      console.error("  Status:", err?.status);
+      console.error("  Message:", err?.message);
+      console.error("  Errors:", JSON.stringify(err?.errors, null, 2));
+      console.error("  Code:", err?.errors?.[0]?.code);
+      console.error("  Short Message:", err?.errors?.[0]?.shortMessage);
+      console.error("  Long Message:", err?.errors?.[0]?.longMessage);
+      console.error("  Meta:", err?.meta);
+      console.error("  Stack:", err?.stack);
+      console.groupEnd();
+
+      setPendingAuthTransition(false);
       const code = err?.errors?.[0]?.code;
       const msg = err?.errors?.[0]?.longMessage || err?.message || "";
-      
+
       if (code === "session_exists" || msg.toLowerCase().includes("already signed in")) {
-        // Clerk frontend is out of sync with backend — reload to re-sync
-        window.location.reload();
-        return;
-      }
-      if (code === "form_identifier_not_found" || msg.toLowerCase().includes("no account found") || msg.toLowerCase().includes("couldn't find your account")) {
+        try { await clerk.signOut(); } catch {}
+        setError({ type: 'generic', message: "Existing session cleared. Please try signing in again." });
+      } else if (code === "form_identifier_not_found") {
         setError({ type: 'not_found' });
+      } else if (code === "form_password_incorrect") {
+        setError({ type: 'generic', message: "The email or password you entered is incorrect." });
+      } else if (err?.status === 401) {
+        setError({ type: 'generic', message: "The email or password you entered is incorrect." });
+      } else if (code === "verification_expired") {
+        setError({ type: 'generic', message: "Your verification code has expired. Please request a new one." });
+      } else if (code === "session_expired") {
+        setError({ type: 'generic', message: "Your session has expired. Please sign in again." });
       } else {
-        setError({ type: 'generic', message: msg });
+        setError({ type: 'generic', message: msg || "Something unexpected happened while signing you in." });
       }
-    } finally {
       setLoading(false);
+      console.groupEnd();
+      return;
     }
+
+    // ── Step 2b: Check status ──────────────────────────────────────────────
+    if (result.status !== "complete") {
+      console.log("[SignIn] Step 2b — status !== complete (got:", result.status, ")");
+      timeline.signInCreate = { ...timeline.signInCreate as object, parked: true };
+      setError({ type: 'generic', message: "Additional verification required. Please try again." });
+      setLoading(false);
+      console.groupEnd();
+      return;
+    }
+    console.log("[SignIn] Step 2b — status is 'complete', proceeding");
+
+    // ── Step 3: Before setActive state snapshot ─────────────────────────────
+    console.log("[SignIn] Step 3 — Pre-setActive Clerk SDK snapshot:");
+    console.log("  clerk.session.id:", clerk.session?.id ?? "undefined");
+    console.log("  clerk.user.id:", clerk.user?.id ?? "undefined");
+    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessionId ?? "undefined");
+    console.log("  client sessions:", clerk.client?.sessions?.length ?? 0);
+    console.log("  useAuth() isSignedIn (stale render capture):", clerkIsSignedIn);
+    timeline.beforeSetActive = {
+      sessionId: clerk.session?.id,
+      userId: clerk.user?.id,
+      activeSessionId: clerk.client?.activeSessionId,
+      clientSessionCount: clerk.client?.sessions?.length,
+      reactIsSignedIn: clerkIsSignedIn,
+    };
+
+    // ── Step 4: setActive() ─────────────────────────────────────────────────
+    setPendingAuthTransition(true);
+    const t3 = performance.now();
+    console.log("[SignIn] Step 4 — Calling setActive({ session:", result.createdSessionId, "}) ...");
+    try {
+      await setActive({ session: result.createdSessionId });
+      console.log("[SignIn] Step 4 SUCCESS — duration:", (performance.now() - t3).toFixed(1) + "ms");
+      timeline.setActive = { success: true, durationMs: performance.now() - t3 };
+    } catch (err: any) {
+      console.group("❌ FAILURE — setActive() threw");
+      console.error("  Full error:", err);
+      console.error("  Status:", err?.status);
+      console.error("  Message:", err?.message);
+      console.error("  Errors:", JSON.stringify(err?.errors, null, 2));
+      console.error("  Stack:", err?.stack);
+      console.groupEnd();
+
+      setPendingAuthTransition(false);
+      setError({ type: 'generic', message: "Failed to activate your session. Please try again." });
+      setLoading(false);
+      console.groupEnd();
+      return;
+    }
+
+    // ── Step 5: Post-setActive state snapshot ──────────────────────────────
+    console.log("[SignIn] Step 5 — Post-setActive Clerk SDK snapshot:");
+    console.log("  clerk.session.id:", clerk.session?.id ?? "MISSING");
+    console.log("  clerk.user.id:", clerk.user?.id ?? "MISSING");
+    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessionId ?? "MISSING");
+    console.log("  clerk.client.lastActiveSessionId:", (clerk.client as any)?.lastActiveSessionId ?? "MISSING");
+    console.log("  client sessions:", clerk.client?.sessions?.map(s => ({ id: s.id, status: s.status })));
+
+    timeline.afterSetActive = {
+      sessionId: clerk.session?.id,
+      userId: clerk.user?.id,
+      activeSessionId: clerk.client?.activeSessionId,
+      clientSessions: clerk.client?.sessions?.length,
+    };
+
+    // ── Step 6: State mismatch detection ───────────────────────────────────
+    console.log("[SignIn] Step 6 — State mismatch detection:");
+    const sdkSessionOk = !!clerk.session?.id;
+    const sdkSessionMatches = clerk.session?.id === result.createdSessionId;
+    const reactThinksSignedIn = clerkIsSignedIn; // stale render value — expected false
+    console.log("  Clerk SDK has session.id:", sdkSessionOk);
+    console.log("  SDK session matches createdSessionId:", sdkSessionMatches);
+    console.log("  useAuth() isSignedIn (stale capture):", reactThinksSignedIn);
+
+    if (sdkSessionOk && sdkSessionMatches && !reactThinksSignedIn) {
+      console.warn("  → SDK session IS active but React has NOT re-rendered yet.");
+      console.warn("    This is EXPECTED — React context updates asynchronously.");
+      timeline.stateMismatch = {
+        sdkSessionId: clerk.session?.id,
+        expectedDuringTransition: true,
+        note: "React context not yet updated — normal during setActive flow",
+      };
+    } else if (!sdkSessionOk) {
+      console.error("  ⚠ CRITICAL: SDK session.id is MISSING after setActive()");
+      timeline.stateMismatch = { critical: true, note: "No session in Clerk SDK" };
+    }
+
+    // ── Step 7: navigate() ─────────────────────────────────────────────────
+    const t4 = performance.now();
+    console.log("[SignIn] Step 7 — Calling navigate(\"/\", { replace: true }) ...");
+    try {
+      navigate("/", { replace: true });
+      console.log("[SignIn] Step 7 OK — duration:", (performance.now() - t4).toFixed(1) + "ms");
+      timeline.navigate = { target: "/", replace: true };
+    } catch (err: any) {
+      console.error("[SignIn] Step 7 FAILED — navigate threw:", err);
+      setPendingAuthTransition(false);
+      setError({ type: 'generic', message: "Navigation failed. Please try again." });
+      setLoading(false);
+      console.groupEnd();
+      return;
+    }
+
+    // ── Done ───────────────────────────────────────────────────────────────
+    const totalDuration = (performance.now() - startedAt).toFixed(1);
+    console.log("[SignIn] ✅ Flow complete — total:", totalDuration + "ms");
+    console.log("[SignIn] Timeline summary:", timeline);
+    console.log("=========================================");
+    console.groupEnd();
+
+    toast("success", "Signed in successfully");
+    // loading stays true until re-render; AuthGate will show spinner
   };
 
   return (

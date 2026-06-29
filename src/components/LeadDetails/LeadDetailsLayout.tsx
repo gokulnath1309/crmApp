@@ -24,7 +24,7 @@ import { RightActionPanel } from "./RightActionPanel";
 // Import workflow modals and drawers
 import { ContactInteractionDrawer } from "@/components/ContactInteractionDrawer";
 import { LeadTransitionDrawer } from "@/components/LeadTransitionDrawer";
-import { UnqualifiedModal, LostModal, RequalifyModal } from "@/components/StatusWorkflowModals";
+import { UnqualifiedModal, LostModal, RequalifyModal, SpamModal, DuplicateModal } from "@/components/StatusWorkflowModals";
 
 interface LeadDetailsLayoutProps {
   leadId: string;
@@ -40,6 +40,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const transitions = useQuery(api.leads.listTransitions, { leadId: leadId as any });
   const activities = useQuery(api.leads.listLeadActivities, { leadId: leadId as any });
   const reminders = useQuery(api.leads.listLeadReminders, { leadId: leadId as any });
+  const allLeads = useQuery(api.leads.list);
+  const currentUser = useQuery(api.users.getCurrentUser);
 
   // Mutations
   const transitionLeadMutation = useMutation(api.leads.transitionStage);
@@ -48,6 +50,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const setContactedDataMutation = useMutation(api.leads.setContactedData);
   const convertToDealMutation = useMutation(api.leads.convertToDeal);
   const deleteLeadMutation = useMutation(api.leads.remove);
+  const mergeMutation = useMutation(api.leads.mergeLeads);
+  const createReminderMutation = useMutation(api.leads.createReminder);
 
   // States
   const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "notes" | "files" | "tasks" | "reminders">("overview");
@@ -60,6 +64,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const [isUnqualifiedModalOpen, setIsUnqualifiedModalOpen] = useState(false);
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
   const [isRequalifyModalOpen, setIsRequalifyModalOpen] = useState(false);
+  const [isSpamModalOpen, setIsSpamModalOpen] = useState(false);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [isConvertDealOpen, setIsConvertDealOpen] = useState(false);
   const [convertDealValue, setConvertDealValue] = useState("");
   const [convertDealCurrency, setConvertDealCurrency] = useState("INR");
@@ -67,7 +73,7 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
 
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     targetStatus: string;
-    onConfirm: (extraFields: Record<string, string>) => void;
+    onConfirm: (extraFields: Record<string, any>) => void;
     onCancel?: () => void;
   } | null>(null);
 
@@ -101,6 +107,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
     : null;
 
   const handlePipelineStatusRequest = (targetStage: string) => {
+    const isLeadClosed = ["Lost", "Unqualified", "Spam", "Duplicate"].includes(lead.status) || lead.isClosed;
+
     if (targetStage === "Lost") {
       setPendingStatusChange({
         targetStatus: targetStage,
@@ -111,6 +119,7 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
               status: "Lost",
               lostReason: fields.lostReason,
               lostNotes: fields.lostNotes || "",
+              lostDate: fields.lostDate,
             });
             toast("success", "Lead status updated to Lost");
           } catch (err: any) {
@@ -130,6 +139,13 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
               unqualifiedReason: fields.unqualifiedReason,
               unqualifiedNotes: fields.unqualifiedNotes || "",
             });
+            if (fields.reminderDate) {
+              await createReminderMutation({
+                leadId: lead._id,
+                title: `Review unqualified lead: ${lead.company}`,
+                dueDate: new Date(fields.reminderDate).getTime(),
+              });
+            }
             toast("success", "Lead status updated to Unqualified");
           } catch (err: any) {
             toast("error", err.message || "Failed to update lead status");
@@ -137,19 +153,45 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
         }
       });
       setIsUnqualifiedModalOpen(true);
-    } else if (targetStage === "New" && (lead.status === "Lost" || lead.status === "Unqualified")) {
+    } else if (targetStage === "Spam") {
       setPendingStatusChange({
         targetStatus: targetStage,
         onConfirm: async (fields) => {
           try {
             await changeStatusMutation({
               leadId: lead._id,
-              status: "New",
+              status: "Spam",
+              spamReason: fields.spamReason,
+              spamNotes: fields.spamNotes || "",
+            });
+            toast("success", "Lead marked as Spam");
+          } catch (err: any) {
+            toast("error", err.message || "Failed to mark lead as spam");
+          }
+        }
+      });
+      setIsSpamModalOpen(true);
+    } else if (targetStage === "Duplicate") {
+      setPendingStatusChange({
+        targetStatus: targetStage,
+        onConfirm: async (fields) => {
+          // Confirm callback handled in DuplicateModal below
+        }
+      });
+      setIsDuplicateModalOpen(true);
+    } else if (isLeadClosed && targetStage === "Contacted") {
+      setPendingStatusChange({
+        targetStatus: targetStage,
+        onConfirm: async (fields) => {
+          try {
+            await changeStatusMutation({
+              leadId: lead._id,
+              status: "Contacted",
               requalificationReason: fields.requalificationReason,
             });
-            toast("success", "Lead requalified successfully");
+            toast("success", "Lead reopened successfully");
           } catch (err: any) {
-            toast("error", err.message || "Failed to requalify lead");
+            toast("error", err.message || "Failed to reopen lead");
           }
         }
       });
@@ -224,6 +266,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
         transitions={transitions}
         onTransitionClick={handlePipelineStatusRequest}
         onQuickMarkStatus={handlePipelineStatusRequest}
+        onReopenClick={() => handlePipelineStatusRequest("Contacted")}
+        currentUserRole={currentUser?.role}
       />
 
       {/* ─── Tabs and Sub-layout Grid ─── */}
@@ -260,13 +304,13 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
                 <ContactInformationCard lead={lead} />
                 <NotesCard lead={lead} />
                 <div className="md:col-span-2">
-                  <ActivityTimeline lead={lead} activities={activities} />
+                  <ActivityTimeline lead={lead} activities={activities} transitions={transitions} />
                 </div>
               </div>
             )}
             
             {activeTab === "timeline" && (
-              <ActivityTimeline lead={lead} activities={activities} />
+              <ActivityTimeline lead={lead} activities={activities} transitions={transitions} />
             )}
 
             {activeTab === "notes" && (
@@ -539,6 +583,53 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
           setIsRequalifyModalOpen(false);
           setPendingStatusChange(null);
         }}
+      />
+
+      <SpamModal
+        open={isSpamModalOpen}
+        onClose={() => {
+          setIsSpamModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              spamReason: data.reason,
+              spamNotes: data.notes || "",
+            });
+          }
+          setIsSpamModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <DuplicateModal
+        open={isDuplicateModalOpen}
+        onClose={() => {
+          setIsDuplicateModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={async (data) => {
+          try {
+            await mergeMutation({
+              duplicateLeadId: lead._id,
+              targetLeadId: data.targetLeadId as any,
+              mergeNotes: data.mergeNotes,
+              mergeActivities: data.mergeActivities,
+              mergeFiles: data.mergeFiles,
+              mergeTimeline: data.mergeTimeline,
+              notes: data.notes,
+            });
+            toast("success", "Duplicate lead merged successfully");
+            onBack(); // Go back to list since duplicate is archived
+          } catch (err: any) {
+            toast("error", err.message || "Failed to merge leads");
+          }
+          setIsDuplicateModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        leads={allLeads}
+        currentLeadId={lead._id}
       />
     </div>
   );

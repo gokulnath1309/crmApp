@@ -405,7 +405,7 @@ function WorkspaceSwitcher() {
         className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
       >
         <Building2 className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-        <span className="font-medium truncate max-w-[140px]">{activeWorkspace?.workspaceName || "Workspace"}</span>
+        <span className="font-medium truncate max-w-[140px]">{activeWorkspace?.workspaceName || "Unnamed Workspace"}</span>
         <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
       </button>
 

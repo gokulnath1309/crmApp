@@ -17,7 +17,14 @@ const UserContext = createContext<UserContextValue>({
 export function UserProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isAuthenticated } = useAuth();
   const ensureUserExists = useMutation(api.users.ensureUserExists);
-  const dbUser = useQuery(api.users.getCurrentUser, {});
+
+  const queryArgs = isLoaded && isAuthenticated ? {} : "skip";
+  const dbUser = useQuery(api.users.getCurrentUser, queryArgs);
+
+  if (typeof window !== "undefined") {
+    console.log("[UserProvider] isLoaded:", isLoaded, "isAuthenticated:", isAuthenticated, "queryArgs:", queryArgs, "dbUser:", dbUser);
+  }
+
   const [ensured, setEnsured] = useState(false);
 
   useEffect(() => {
@@ -39,7 +46,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [isLoaded, isAuthenticated, ensureUserExists]);
 
-  const isUserLoading = isAuthenticated && (!ensured || dbUser === undefined);
+  const isUserLoading = isAuthenticated && (dbUser === undefined || dbUser === null);
 
   const user = useMemo((): User | null => {
     if (!isAuthenticated || !dbUser) return null;

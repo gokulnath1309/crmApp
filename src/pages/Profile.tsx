@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@/features/auth/UserProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -8,8 +8,9 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Edit2, User, Mail, Phone, Building, Shield, Target, Calendar, Clock,
-  CheckCircle, Award, Globe, MapPin, Users, X, Upload, Loader2, Check, ToggleLeft, ToggleRight, Lock
+  CheckCircle, Award, Globe, MapPin, Users, X, Upload, Loader2, Check, ToggleLeft, ToggleRight, Lock, Camera
 } from "lucide-react";
+import { uploadProfileImage, uploadBannerImage } from "@/lib/imageUpload";
 
 function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
   const styles = {
@@ -59,11 +60,15 @@ export function ProfilePage() {
   const metrics = useQuery(api.dashboard.getMetrics);
   const allUsers = useQuery(api.users.list);
   const allDeals = useQuery(api.deals.list);
-  const allTasks = useQuery(api.tasks.list, {});
+  const allTasksData = useQuery(api.tasks.list, {});
+  const allTasks = allTasksData?.tasks;
 
   // Mutations
   const updateProfileDetailsMutation = useMutation(api.users.updateProfileDetails);
+  const updateProfileImageMutation = useMutation(api.users.updateProfileImage);
+  const generateProfileUploadUrl = useMutation(api.users.generateProfileUploadUrl);
   const updateCoverImageMutation = useMutation(api.users.updateCoverImage);
+  const generateBannerUploadUrl = useMutation(api.users.generateBannerUploadUrl);
   const inviteUserAction = useAction(api.users.inviteUser);
   const updateUserRoleMutation = useMutation(api.users.updateUserRole);
 
@@ -78,6 +83,7 @@ export function ProfilePage() {
   const [isInviteUserOpen, setIsInviteUserOpen] = useState(false);
   const [isManageRolesOpen, setIsManageRolesOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeProfileTab, setActiveProfileTab] = useState("overview");
 
   // Edit Profile Form State
   const [editName, setEditName] = useState("");
@@ -90,8 +96,15 @@ export function ProfilePage() {
   const [editAvatarUrl, setEditAvatarUrl] = useState("");
   const [editCompany, setEditCompany] = useState("");
 
+  // Upload state
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
   // Cover Image Form State
   const [coverInputUrl, setCoverInputUrl] = useState("");
+  const [pendingBannerId, setPendingBannerId] = useState<string | null>(null);
 
   // Invite User Form State
   const [inviteName, setInviteName] = useState("");
@@ -145,21 +158,40 @@ export function ProfilePage() {
   const myCompletedTasksCount = allTasks?.filter(t => t.assignedTo === user._id && t.status === "Completed").length || 0;
   const myDealsCount = allDeals?.filter(d => d.assignedTo === user._id).length || 0;
 
-  // File Upload Helper to Base64
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+  const handleAvatarFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast("error", "Image size must be less than 5 MB.");
-      return;
+    e.target.value = "";
+    setUploadingAvatar(true);
+    try {
+      const storageId = await uploadProfileImage(file, generateProfileUploadUrl);
+      const result = await updateProfileImageMutation({ storageId });
+      setEditAvatarUrl(result.avatarUrl);
+      toast("success", "Profile picture updated.");
+    } catch (err: any) {
+      toast("error", err.message || "Unable to upload your profile picture.\nPlease try again.");
+    } finally {
+      setUploadingAvatar(false);
     }
+  };
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      callback(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleBannerFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadingBanner(true);
+    try {
+      console.log("[BannerUpload] Starting upload...");
+      const storageId = await uploadBannerImage(file, generateBannerUploadUrl);
+      console.log("[BannerUpload] Upload complete, storageId:", storageId);
+      setPendingBannerId(storageId);
+      setCoverInputUrl(URL.createObjectURL(file));
+    } catch (err: any) {
+      console.error("[BannerUpload] Upload failed:", err);
+      toast("error", err.message || "Banner upload failed.\nPlease check your internet connection.");
+    } finally {
+      setUploadingBanner(false);
+    }
   };
 
   const handleEditProfileSubmit = async (e: React.FormEvent) => {
@@ -220,18 +252,48 @@ export function ProfilePage() {
     }
   };
 
-  const handleCoverSubmit = async (e: React.FormEvent, remove = false) => {
+  const handleCoverSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await updateCoverImageMutation({
-        coverImage: remove ? null : coverInputUrl.trim() || null,
-      });
-      toast("success", remove ? "Successfully removed cover image." : "Successfully updated cover image.");
+      if (pendingBannerId) {
+        console.log("[CoverSave] Saving via storageId:", pendingBannerId);
+        const result = await updateCoverImageMutation({ storageId: pendingBannerId });
+        console.log("[CoverSave] Saved, coverImage:", result.coverImage);
+      } else {
+        const url = coverInputUrl.trim();
+        if (!url) {
+          toast("error", "Please upload or paste a cover image URL.");
+          setIsSubmitting(false);
+          return;
+        }
+        console.log("[CoverSave] Saving via URL paste:", url);
+        await updateCoverImageMutation({ coverImage: url });
+      }
+      toast("success", "Successfully updated cover image.");
       setIsEditCoverOpen(false);
       setCoverInputUrl("");
+      setPendingBannerId(null);
     } catch (err: any) {
+      console.error("[CoverSave] Save failed:", err);
       toast("error", err.message || "Failed to update cover image.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCoverRemove = async () => {
+    setIsSubmitting(true);
+    try {
+      console.log("[CoverRemove] Removing cover image");
+      await updateCoverImageMutation({ coverImage: null });
+      toast("success", "Successfully removed cover image.");
+      setIsEditCoverOpen(false);
+      setCoverInputUrl("");
+      setPendingBannerId(null);
+    } catch (err: any) {
+      console.error("[CoverRemove] Remove failed:", err);
+      toast("error", err.message || "Failed to remove cover image.");
     } finally {
       setIsSubmitting(false);
     }
@@ -349,61 +411,123 @@ export function ProfilePage() {
   return (
     <div className="w-full flex flex-col gap-6 pb-6 p-6">
       {/* Header card */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-hidden">
-        <div 
-          className="h-32 bg-cover bg-center relative transition-all"
-          style={{
-            backgroundImage: user.coverImage ? `url(${user.coverImage})` : undefined,
-            background: user.coverImage ? undefined : "linear-gradient(to right, var(--color-indigo-500), var(--color-violet-500), var(--color-purple-600))"
-          }}
-        >
-          <button 
-            onClick={() => setIsEditCoverOpen(true)}
-            className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/30 hover:bg-black/45 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+        {/* Cover */}
+        <div className="relative">
+          <div 
+            className="h-48 md:h-64 lg:h-[300px] bg-cover bg-center relative rounded-t-2xl overflow-hidden transition-all"
+            style={{
+              backgroundImage: user.coverImage ? `url(${user.coverImage})` : undefined,
+              background: user.coverImage ? undefined : "linear-gradient(to right, var(--color-indigo-500), var(--color-violet-500), var(--color-purple-600))"
+            }}
           >
-            <Edit2 className="w-3.5 h-3.5" /> Edit Cover
-          </button>
-        </div>
-        <div className="px-6 pb-6">
-          <div className="flex items-end justify-between -mt-10 mb-4">
-            <div className="w-20 h-20 bg-cover bg-center rounded-2xl border-[3px] border-white dark:border-slate-800 flex items-center justify-center shadow-xl overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600">
+            <button 
+              onClick={() => setIsEditCoverOpen(true)}
+              className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/30 hover:bg-black/45 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit Cover
+            </button>
+          </div>
+
+          {/* Avatar overlapping cover */}
+          <div className="absolute left-1/2 -translate-x-1/2 lg:left-10 lg:translate-x-0 bottom-[-50px] md:bottom-[-55px] lg:bottom-[-60px] z-10">
+            <div className="w-24 h-24 md:w-[120px] md:h-[120px] lg:w-[140px] lg:h-[140px] rounded-full border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600 relative group">
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-white text-2xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                <span className="text-white text-2xl md:text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full select-none" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   {user.name.split(" ").map(n => n[0]).join("")}
                 </span>
               )}
+              <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                <Camera className="w-5 h-5 text-white" />
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFilePicked} />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Info */}
+        <div className="pt-16 md:pt-20 lg:pt-[88px] px-6 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="text-center lg:text-left flex-1 min-w-0">
+              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {user.name}
+              </h1>
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mt-1">
+                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
+                {user.role === "super_admin" && (
+                  <>
+                    <Chip label="SUPER ADMIN" v="purple" />
+                    {user.email === "gokulnath13092001@gmail.com" && <Chip label="Founder" v="blue" />}
+                  </>
+                )}
+                {user.role === "admin" && <Chip label="ADMIN" v="blue" />}
+                {user.role === "sales_rep" && <Chip label="SALES REP" v="green" />}
+                {user.role === "marketing" && <Chip label="MARKETING" v="orange" />}
+                {user.role === "support" && <Chip label="SUPPORT" v="red" />}
+                {user.role === "employee" && <Chip label="EMPLOYEE" v="neutral" />}
+              </div>
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-2">
+                <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <Building className="w-3.5 h-3.5" /> <span>{user.company || "Acme Corp"}</span>
+                </div>
+                {user.department && (
+                  <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                    <Shield className="w-3.5 h-3.5" /> <span>{user.department}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <MapPin className="w-3.5 h-3.5" /> <span>{user.location || "San Francisco, CA"}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-sm">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${user.isActive !== false ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${user.isActive !== false ? "bg-emerald-500" : "bg-red-500"}`} />
+                    {user.isActive !== false ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              </div>
             </div>
             <button 
               onClick={() => setIsEditProfileOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-650 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer"
+              className="self-center lg:self-start flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-650 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer shrink-0"
             >
               <Edit2 className="w-3.5 h-3.5" /> Edit Profile
             </button>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{user.name}</h1>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <p className="text-sm text-slate-500 dark:text-slate-400 mr-1">{user.email}</p>
-            {user.role === "super_admin" && (
-              <>
-                <Chip label="SUPER ADMIN" v="purple" />
-                {user.email === "gokulnath13092001@gmail.com" && <Chip label="Founder" v="blue" />}
-              </>
-            )}
-            {user.role === "admin" && <Chip label="ADMIN" v="blue" />}
-            {user.role === "sales_rep" && <Chip label="SALES REP" v="green" />}
-            {user.role === "marketing" && <Chip label="MARKETING" v="orange" />}
-            {user.role === "support" && <Chip label="SUPPORT" v="red" />}
-            {user.role === "employee" && <Chip label="EMPLOYEE" v="neutral" />}
-          </div>
-          <div className="flex flex-wrap items-center gap-4 mt-3">
-            <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><Building className="w-3.5 h-3.5" /> {user.company || "Acme Corp"}</div>
-            <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><MapPin className="w-3.5 h-3.5" /> {user.location || "San Francisco, CA"}</div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="border-t border-slate-100 dark:border-slate-700/70 px-6">
+          <div className="flex gap-6 overflow-x-auto scrollbar-none">
+            {[
+              { id: "overview", label: "Overview" },
+              { id: "activity", label: "Activity" },
+              { id: "tasks", label: "Tasks" },
+              { id: "deals", label: "Deals" },
+              { id: "leads", label: "Leads" },
+              { id: "documents", label: "Documents" },
+              { id: "settings", label: "Settings" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveProfileTab(tab.id)}
+                className={`py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                  activeProfileTab === tab.id
+                    ? "border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
+      {/* Tab Content */}
+      {activeProfileTab === "overview" && (
+        <>
       {/* Role-Based Actions & Authority Card */}
       {user.role === "super_admin" && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-5 shadow-sm">
@@ -731,7 +855,10 @@ export function ProfilePage() {
           </>
         )}
       </div>
+        </>
+      )}
 
+      {activeProfileTab === "settings" && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Personal Info */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
@@ -791,8 +918,9 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Activity timeline */}
+      {activeProfileTab === "activity" && (
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center justify-between">
           <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Recent Activity</h2>
@@ -832,6 +960,7 @@ export function ProfilePage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Edit Profile Modal (Drawer Side) */}
       <AnimatePresence>
@@ -871,6 +1000,11 @@ export function ProfilePage() {
                       )}
                     </div>
                     <div className="flex-1 flex gap-2">
+                      {uploadingAvatar ? (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-650 rounded-lg text-[11px] font-semibold text-indigo-500">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                        </div>
+                      ) : (
                       <label 
                         className={`flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors ${
                           !canEditFieldClient("avatarUrl") ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
@@ -882,9 +1016,10 @@ export function ProfilePage() {
                           accept="image/*"
                           disabled={!canEditFieldClient("avatarUrl")}
                           className="hidden" 
-                          onChange={(e) => handleImageUpload(e, setEditAvatarUrl)}
+                          onChange={handleAvatarFilePicked}
                         />
                       </label>
+                      )}
                       {editAvatarUrl && canEditFieldClient("avatarUrl") && (
                         <button 
                           type="button" 
@@ -1213,20 +1348,40 @@ export function ProfilePage() {
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Edit Cover Image</h3>
                 <button onClick={() => setIsEditCoverOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white"><X className="w-5 h-5" /></button>
               </div>
-              <form onSubmit={(e) => handleCoverSubmit(e, false)} className="p-6 space-y-4">
+              <form onSubmit={handleCoverSubmit} className="p-6 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block font-sans">Cover Image Upload</label>
-                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 cursor-pointer text-slate-400 transition-colors">
-                    <Upload className="w-6 h-6" />
-                    <span className="text-xs font-semibold">Click to upload cover image</span>
-                    <span className="text-[10px] text-slate-400">Max size 5 MB</span>
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      className="hidden" 
-                      onChange={(e) => handleImageUpload(e, setCoverInputUrl)}
-                    />
-                  </label>
+                  {uploadingBanner ? (
+                    <div className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 text-indigo-500">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <span className="text-xs font-semibold">Uploading cover image...</span>
+                    </div>
+                  ) : coverInputUrl ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                      <img src={coverInputUrl} alt="Cover preview" className="w-full h-32 object-cover" />
+                      <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 cursor-pointer transition-opacity">
+                        <Upload className="w-6 h-6 text-white" />
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden" 
+                          onChange={handleBannerFilePicked}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 cursor-pointer text-slate-400 transition-colors">
+                      <Upload className="w-6 h-6" />
+                      <span className="text-xs font-semibold">Click to upload cover image</span>
+                      <span className="text-[10px] text-slate-400">Max size 10 MB</span>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        className="hidden" 
+                        onChange={handleBannerFilePicked}
+                      />
+                    </label>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Or Image URL</label>
@@ -1242,15 +1397,15 @@ export function ProfilePage() {
                 <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <button 
                     type="submit" 
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || uploadingBanner}
                     className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-50"
                   >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Cover
+                    {isSubmitting || uploadingBanner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Cover
                   </button>
                   <div className="flex gap-2">
                     <button 
                       type="button" 
-                      onClick={(e) => handleCoverSubmit(e, true)}
+                      onClick={handleCoverRemove}
                       className="flex-1 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/30 text-red-650 dark:text-red-400 text-xs font-semibold rounded-xl cursor-pointer"
                     >
                       Remove Cover

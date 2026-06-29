@@ -17,12 +17,16 @@ export function RightActionPanel({ lead }: RightActionPanelProps) {
   // Queries
   const meetings = useQuery(api.meetings.list, lead ? { leadId: lead._id } : "skip");
   const emails = useQuery(api.emails.list, lead ? { leadId: lead._id } : "skip");
-  const tasks = useQuery(api.tasks.list, lead ? { leadId: lead._id } : "skip");
+  const tasksData = useQuery(api.tasks.list, lead ? { leadId: lead._id } : "skip");
+  const tasks = tasksData?.tasks;
 
   if (!lead) return null;
 
   const ownerUser = users?.find(u => u._id === lead.assignedTo);
   const ownerName = ownerUser?.name || "Unassigned";
+
+  const creatorUser = users?.find(u => u._id === lead.createdBy);
+  const creatorName = creatorUser?.name || "System";
 
   // Compute counts at component scope for use in scoring and display
   const taskCount = tasks?.length || 0;
@@ -133,17 +137,23 @@ export function RightActionPanel({ lead }: RightActionPanelProps) {
             <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-650 rounded-sm">Primary</span>
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-800/40 pt-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 flex items-center justify-center font-bold text-xs">
-                S
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-805 dark:text-slate-155">Sourabh Singh</p>
-                <p className="text-[9px] text-slate-405 font-semibold uppercase">Account Exec</p>
+          {creatorUser && creatorUser._id !== ownerUser?._id && (
+            <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-800/40 pt-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-900 text-slate-600 flex items-center justify-center font-bold text-xs">
+                  {creatorUser.avatarUrl ? (
+                    <img src={creatorUser.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    creatorName.charAt(0)
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-805 dark:text-slate-155">{creatorName}</p>
+                  <p className="text-[9px] text-slate-400 font-semibold uppercase">Lead Creator</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

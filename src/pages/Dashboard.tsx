@@ -106,6 +106,7 @@ export function DashboardPage() {
   const { user } = useUser();
   const isLoading = false;
   const metrics = useQuery(api.dashboard.getMetrics);
+  const currentUser = useQuery(api.users.getCurrentUser);
   const teamMetrics = useQuery(api.teams.getDashboardMetrics, {});
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
@@ -181,6 +182,75 @@ export function DashboardPage() {
           data={sp4}
         />
       </div>
+
+      {/* Lead Qualification Metrics Section (Visible to Admins / Managers) */}
+      {currentUser && (currentUser.role === "super_admin" || currentUser.role === "admin" || currentUser.role === "manager") && metrics.leadMetrics && (
+        <>
+          <div className="pt-2">
+            <h2 className="text-md font-bold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <Target className="w-4 h-4 text-indigo-500" />
+              Lead Qualification & Funnel Analytics
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time status breakdown, qualification conversion velocity and conversion health.</p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card className="p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Qualification Rate</p>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {Math.round(metrics.leadMetrics.qualificationRate)}%
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">Leads qualifying into sales stage</p>
+            </Card>
+
+            <Card className="p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Conversion Rate</p>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {Math.round(metrics.leadMetrics.conversionRate)}%
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">Leads converted to active deals</p>
+            </Card>
+
+            <Card className="p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Avg Response Time</p>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {metrics.leadMetrics.avgResponseTimeMin} min
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">Average time to first contact</p>
+            </Card>
+
+            <Card className="p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Closed & Archived</p>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {Object.entries(metrics.leadMetrics.leadsByStatus)
+                    .filter(([s]) => ["Converted", "Unqualified", "Lost", "Spam", "Duplicate"].includes(s))
+                    .reduce((sum, [, val]) => sum + (val as number), 0)}
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">Inactive and terminal leads</p>
+            </Card>
+          </div>
+
+          <Card className="p-5 border border-slate-100 dark:border-slate-800">
+            <h3 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Lead Lifecycle Breakdown</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {Object.entries(metrics.leadMetrics.leadsByStatus).map(([status, count]) => (
+                <div key={status} className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{status}</p>
+                  <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">{count as number}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>
+      )}
 
       {/* Teams Section */}
       {teamMetrics && teamMetrics.totalTeams > 0 && (

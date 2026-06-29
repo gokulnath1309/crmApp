@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatCurrency } from "@/lib/currency";
 import { ContactInteractionDrawer } from "@/components/ContactInteractionDrawer";
 import { LeadTransitionDrawer } from "@/components/LeadTransitionDrawer";
-import { UnqualifiedModal, LostModal, RequalifyModal } from "@/components/StatusWorkflowModals";
+import { UnqualifiedModal, LostModal, RequalifyModal, SpamModal, DuplicateModal } from "@/components/StatusWorkflowModals";
 const LeadDetailsDrawer = React.lazy(() => import("@/components/LeadDetails/LeadDetailsLayout"));
 import { LeadStatusSelect } from "@/components/LeadStatusSelect";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -124,6 +124,7 @@ function LeadsPageContent() {
   const transitionLeadStageMutation = useMutation(api.leads.transitionStage);
   const contactInteractionMutation = useMutation(api.leads.contactInteraction);
   const changeStatusMutation = useMutation(api.leads.changeStatus);
+  const mergeMutation = useMutation(api.leads.mergeLeads);
 
   // ─── UI Modal & Drawer States ───
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -138,10 +139,14 @@ function LeadsPageContent() {
   const [isUnqualifiedModalOpen, setIsUnqualifiedModalOpen] = useState(false);
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
   const [isRequalifyModalOpen, setIsRequalifyModalOpen] = useState(false);
+  const [isSpamModalOpen, setIsSpamModalOpen] = useState(false);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"active" | "closed">("active");
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     targetStatus: string;
     onConfirm: (extraFields: Record<string, string>) => void;
     onCancel?: () => void;
+    leadId?: string;
   } | null>(null);
 
   // Contact Interaction Drawer State
@@ -156,16 +161,23 @@ function LeadsPageContent() {
     targetStatus: string,
     currentStatus: string,
     onConfirm: (extraFields: Record<string, string>) => void,
-    onCancel?: () => void
+    onCancel?: () => void,
+    leadId?: string
   ) => {
     if (targetStatus === "Unqualified") {
-      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel, leadId });
       setIsUnqualifiedModalOpen(true);
     } else if (targetStatus === "Lost") {
-      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel, leadId });
       setIsLostModalOpen(true);
-    } else if ((currentStatus === "Unqualified" || currentStatus === "Lost") && targetStatus === "New") {
-      setPendingStatusChange({ targetStatus, onConfirm, onCancel });
+    } else if (targetStatus === "Spam") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel, leadId });
+      setIsSpamModalOpen(true);
+    } else if (targetStatus === "Duplicate") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel, leadId });
+      setIsDuplicateModalOpen(true);
+    } else if (["Unqualified", "Lost", "Spam", "Duplicate"].includes(currentStatus) && targetStatus === "Contacted") {
+      setPendingStatusChange({ targetStatus, onConfirm, onCancel, leadId });
       setIsRequalifyModalOpen(true);
     } else if (targetStatus === "Contacted" && currentStatus === "New") {
       // Open contact interaction drawer instead of inline status change
@@ -534,11 +546,18 @@ function LeadsPageContent() {
         Converted: "purple",
         Lost: "red",
         Unqualified: "red",
+        Spam: "red",
+        Duplicate: "orange",
       }[s] as any ?? "neutral"
     );
   };
 
   const isLoading = leads === undefined;
+
+  const filteredLeads = (leads || []).filter((lead: any) => {
+    const isActive = ["New", "Contacted", "Qualified"].includes(lead.status);
+    return activeTab === "active" ? isActive : !isActive;
+  });
 
   if (selectedLead && isDetailsOpen) {
     return (
@@ -603,6 +622,30 @@ function LeadsPageContent() {
         </div>
       </div>
 
+      {/* ─── Active vs Closed pipeline tabs ─── */}
+      <div className="flex border-b border-slate-100 dark:border-slate-800/80 mb-2">
+        <button
+          onClick={() => setActiveTab("active")}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "active"
+              ? "border-indigo-650 text-indigo-650 dark:text-indigo-400 font-extrabold"
+              : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-655"
+          }`}
+        >
+          Active Pipeline
+        </button>
+        <button
+          onClick={() => setActiveTab("closed")}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "closed"
+              ? "border-indigo-650 text-indigo-650 dark:text-indigo-400 font-extrabold"
+              : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-655"
+          }`}
+        >
+          Closed & Archived
+        </button>
+      </div>
+
       {/* ─── Search & Quick Filters ─── */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
@@ -640,12 +683,21 @@ function LeadsPageContent() {
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500"
               >
                 <option value="all">All Statuses</option>
-                <option value="New">🆕 New</option>
-                <option value="Contacted">📞 Contacted</option>
-                <option value="Qualified">✅ Qualified</option>
-                <option value="Converted">🏆 Converted</option>
-                <option value="Lost">❌ Lost</option>
-                <option value="Unqualified">🚫 Unqualified</option>
+                {activeTab === "active" ? (
+                  <>
+                    <option value="New">🆕 New</option>
+                    <option value="Contacted">📞 Contacted</option>
+                    <option value="Qualified">✅ Qualified</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="Converted">🏆 Converted</option>
+                    <option value="Lost">❌ Lost</option>
+                    <option value="Unqualified">🚫 Unqualified</option>
+                    <option value="Spam">⚠️ Spam</option>
+                    <option value="Duplicate">👥 Duplicate</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -743,7 +795,7 @@ function LeadsPageContent() {
           <Skeleton className="h-24 w-full rounded-2xl" />
           <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
-      ) : leads.length === 0 ? (
+      ) : filteredLeads.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-12 text-center shadow-sm">
           <EmptyState
             title="No leads found"
@@ -762,7 +814,7 @@ function LeadsPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
-                {leads.map(l => (
+                {filteredLeads.map(l => (
                   <tr
                     key={l._id}
                     onClick={() => { setSelectedLead(l); setIsDetailsOpen(true); }}
@@ -1113,6 +1165,52 @@ function LeadsPageContent() {
           setIsRequalifyModalOpen(false);
           setPendingStatusChange(null);
         }}
+      />
+
+      <SpamModal
+        open={isSpamModalOpen}
+        onClose={() => {
+          setIsSpamModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              spamReason: data.reason,
+              spamNotes: data.notes || "",
+            });
+          }
+          setIsSpamModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <DuplicateModal
+        open={isDuplicateModalOpen}
+        onClose={() => {
+          setIsDuplicateModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={async (data) => {
+          try {
+            await mergeMutation({
+              duplicateLeadId: (selectedLead?._id || pendingStatusChange?.leadId) as any,
+              targetLeadId: data.targetLeadId as any,
+              mergeNotes: data.mergeNotes,
+              mergeActivities: data.mergeActivities,
+              mergeFiles: data.mergeFiles,
+              mergeTimeline: data.mergeTimeline,
+              notes: data.notes,
+            });
+            toast("success", "Duplicate lead merged successfully");
+          } catch (err: any) {
+            toast("error", err.message || "Failed to merge leads");
+          }
+          setIsDuplicateModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        leads={leads}
+        currentLeadId={selectedLead?._id || pendingStatusChange?.leadId || ""}
       />
 
       <ContactInteractionDrawer
