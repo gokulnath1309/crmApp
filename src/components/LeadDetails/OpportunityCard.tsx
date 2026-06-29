@@ -2,8 +2,7 @@ import React, { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  Briefcase, DollarSign, Percent, AlertCircle, Calendar, 
-  Sparkles, Star, Tag, X, Plus, Check, Pencil 
+  Briefcase, Star, X, Plus, Pencil 
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { formatCurrency } from "@/lib/currency";
@@ -15,7 +14,7 @@ interface OpportunityCardProps {
 export function OpportunityCard({ lead }: OpportunityCardProps) {
   const { toast } = useToast();
   const patchLeadMutation = useMutation(api.leads.patchLead);
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Inline edit state
   const [editingField, setEditingField] = useState<string | null>(null);

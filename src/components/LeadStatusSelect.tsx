@@ -11,12 +11,12 @@ export interface StatusOption {
 }
 
 const statusOptions: StatusOption[] = [
-  { value: "New", label: "New", emoji: "🆕", color: "#6366f1", description: "Newly created lead" },
-  { value: "Contacted", label: "Contacted", emoji: "📞", color: "#f59e0b", description: "First outreach completed" },
-  { value: "Qualified", label: "Qualified", emoji: "✅", color: "#10b981", description: "Lead meets qualification criteria" },
-  { value: "Converted", label: "Converted", emoji: "🏆", color: "#059669", description: "Lead converted to deal" },
-  { value: "Lost", label: "Lost", emoji: "❌", color: "#ef4444", description: "Deal closed lost" },
-  { value: "Unqualified", label: "Unqualified", emoji: "🚫", color: "#6b7280", description: "Lead does not meet criteria" },
+  { value: "New", label: "New", emoji: "🆕", color: "purple", description: "Newly created lead" },
+  { value: "Contacted", label: "Contacted", emoji: "📞", color: "orange", description: "First outreach completed" },
+  { value: "Qualified", label: "Qualified", emoji: "✅", color: "green", description: "Lead meets qualification criteria" },
+  { value: "Converted", label: "Converted", emoji: "🏆", color: "green", description: "Lead converted to deal" },
+  { value: "Lost", label: "Lost", emoji: "❌", color: "red", description: "Deal closed lost" },
+  { value: "Unqualified", label: "Unqualified", emoji: "🚫", color: "neutral", description: "Lead does not meet criteria" },
 ];
 
 const allowedTransitions: Record<string, string[]> = {

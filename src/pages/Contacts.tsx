@@ -6,7 +6,7 @@ import ExcelJS from "exceljs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 interface Contact {
@@ -103,7 +103,6 @@ export function ContactsPage() {
 
 function ContactsPageContent() {
   const { toast } = useToast();
-  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Convex Hooks
@@ -269,7 +268,7 @@ function ContactsPageContent() {
         error = "Email is required";
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         error = "Please enter a valid email address";
-      } else if (contacts.some(c => c.id !== editingContactId && c.email.toLowerCase() === value.trim().toLowerCase())) {
+      } else if (contacts?.some(c => c.id !== editingContactId && c.email.toLowerCase() === value.trim().toLowerCase())) {
         error = "A contact with this email already exists";
       }
     } else if ((name === "phone" || name === "workPhone") && value) {
@@ -1892,26 +1891,6 @@ function ContactsSkeleton() {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function EmptyContactsState({ onCreateClick }: { onCreateClick: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl shadow-sm text-center max-w-xl mx-auto mt-6">
-      <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4 shadow-inner">
-        <User className="w-8 h-8" />
-      </div>
-      <h3 className="text-lg font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No contacts yet</h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">
-        Create your first contact to start managing relationships.
-      </p>
-      <button
-        onClick={onCreateClick}
-        className="mt-6 flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 dark:shadow-indigo-900/30 cursor-pointer"
-      >
-        <Plus className="w-4 h-4" /> Create Contact
-      </button>
     </div>
   );
 }

@@ -1,5 +1,4 @@
-import React from "react";
-import { Check, CheckSquare, Bookmark, Pin, Trash2, X, Archive } from "lucide-react";
+import { Check, CheckSquare, Pin, Trash2, X, Archive } from "lucide-react";
 
 interface BulkActionToolbarProps {
   selectedCount: number;

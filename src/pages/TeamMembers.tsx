@@ -13,7 +13,7 @@ import { Dropdown, DropdownItem, DropdownDivider } from "@/components/ui/Dropdow
 import { useUser } from "@/features/auth/UserProvider";
 import { getPermissions } from "@/lib/permissions";
 import {
-  ArrowLeft, Users, Plus, MoreHorizontal, UserX, ExternalLink, UserPlus,
+  ArrowLeft, Users, MoreHorizontal, UserX, ExternalLink, UserPlus,
 } from "lucide-react";
 
 export function TeamMembersPage() {

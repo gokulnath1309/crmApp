@@ -1,4 +1,3 @@
-import React from "react";
 import { 
   UserPlus, 
   ClipboardList, 
@@ -51,7 +50,7 @@ export function Workflow() {
         staggerChildren: 0.15
       }
     }
-  };
+  } as const;
 
   const stepVariants = {
     hidden: { opacity: 0, scale: 0.8, y: 20 },
@@ -61,7 +60,7 @@ export function Workflow() {
       y: 0,
       transition: { duration: 0.5, ease: "easeOut" }
     }
-  };
+  } as const;
 
   const lineVariants = {
     hidden: { width: "0%" },
@@ -69,7 +68,7 @@ export function Workflow() {
       width: "100%", 
       transition: { duration: 1.5, ease: "easeInOut", delay: 0.2 } 
     }
-  };
+  } as const;
 
   return (
     <section className={styles.workflowSection}>

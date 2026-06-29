@@ -10,7 +10,7 @@ import { useUser } from "@/features/auth/UserProvider";
 import { getPermissions } from "@/lib/permissions";
 import {
   ArrowLeft, Users, Target, Briefcase, CheckSquare,
-  DollarSign, Calendar, UserCircle, Building2, Activity,
+  DollarSign, Calendar, UserCircle, Activity,
 } from "lucide-react";
 
 export function TeamOverviewPage() {
@@ -59,11 +59,11 @@ export function TeamOverviewPage() {
 
   const stats = [
     { label: "Members", value: team.memberCount, icon: Users, color: "bg-indigo-500" },
-    { label: "Open Leads", value: metrics.openLeads, icon: Target, color: "bg-violet-500" },
-    { label: "Open Deals", value: metrics.openDeals, icon: Briefcase, color: "bg-emerald-500" },
-    { label: "Revenue", value: `$${(metrics.totalRevenue || 0).toLocaleString()}`, icon: DollarSign, color: "bg-amber-500" },
-    { label: "Pending Tasks", value: metrics.pendingTasks, icon: CheckSquare, color: "bg-rose-500" },
-    { label: "Total Leads", value: metrics.totalLeads, icon: Target, color: "bg-cyan-500" },
+    { label: "Open Leads", value: metrics?.openLeads ?? 0, icon: Target, color: "bg-violet-500" },
+    { label: "Open Deals", value: metrics?.openDeals ?? 0, icon: Briefcase, color: "bg-emerald-500" },
+    { label: "Revenue", value: `$${((metrics?.totalRevenue ?? 0) || 0).toLocaleString()}`, icon: DollarSign, color: "bg-amber-500" },
+    { label: "Pending Tasks", value: metrics?.pendingTasks ?? 0, icon: CheckSquare, color: "bg-rose-500" },
+    { label: "Total Leads", value: metrics?.totalLeads ?? 0, icon: Target, color: "bg-cyan-500" },
   ];
 
   return (

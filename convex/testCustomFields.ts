@@ -1,5 +1,4 @@
 import { mutation } from "./_generated/server";
-import { v } from "convex/values";
 
 export const runTest = mutation({
   args: {},
@@ -100,7 +99,7 @@ export const runTest = mutation({
     leadPatch.value = Number(transitionData.expectedBudget);
     leadPatch.priority = transitionData.priority;
 
-    const mergedCustomFields = {
+    const mergedCustomFields: Record<string, any> = {
       // (old custom fields empty)
       ...(transitionData.customFields || {}),
     };

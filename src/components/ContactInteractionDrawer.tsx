@@ -939,7 +939,6 @@ export function ContactInteractionDrawer({
                       files={attachments}
                       onFilesChange={setAttachments}
                       onFilesSelected={handleFilesSelected}
-                      targetStage="Contacted"
                     />
                   </div>
                 )}

@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import { hasPermission } from "./rbac";
 
 function toCamelCase(str: string): string {
   const cleaned = str.replace(/[^a-zA-Z0-9 ]/g, "");

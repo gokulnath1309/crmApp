@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
 import { canAccessContact } from "./rbac";
 

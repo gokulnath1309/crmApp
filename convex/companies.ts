@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import type { Id } from "./_generated/dataModel";
 
 export const list = query({
   args: {

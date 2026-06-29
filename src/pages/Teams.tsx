@@ -8,9 +8,8 @@ import { CreateTeamModal } from "@/components/teams/CreateTeamModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import {
-  Users, Plus, Search, Archive, SlidersHorizontal,
+  Users, Plus, Search, Archive,
 } from "lucide-react";
 
 export function TeamsPage() {

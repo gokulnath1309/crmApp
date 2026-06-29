@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  FileText, Plus, Trash2, Clock, CheckCircle2, History, RotateCcw,
-  Sparkles, Save, User, Loader2 
+  FileText, Plus, Trash2, History, RotateCcw,
+  User, Loader2 
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -13,7 +13,6 @@ interface NotesCardProps {
 
 export function NotesCard({ lead }: NotesCardProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
 
   // Queries/Mutations from api.notes
   const notes = useQuery(api.notes.list, lead ? { entityType: "lead", entityId: lead._id } : "skip");
@@ -329,7 +328,7 @@ export function NotesCard({ lead }: NotesCardProps) {
               ) : noteVersions.length === 0 ? (
                 <p className="text-xs text-slate-405 italic py-4 text-center">No older versions saved yet.</p>
               ) : (
-                noteVersions.map((ver, idx) => (
+                noteVersions.map((ver) => (
                   <div key={ver._id} className="p-3 bg-slate-50 dark:bg-slate-905 border border-slate-100/60 dark:border-slate-800/40 rounded-xl relative group">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">

@@ -3,10 +3,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { 
   X, ChevronDown, ChevronUp, FileText, Paperclip, 
-  Trash2, Plus, Calendar, Clock, User, AlertCircle, Sparkles, CheckCircle2, Info,
+  AlertCircle, Sparkles, CheckCircle2, Info,
   Mic, Loader2
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { InteractionEvidence, type EvidenceItem } from "./InteractionEvidence";
 
 function dataURLtoBlob(dataurl: string): Blob {
@@ -825,7 +825,7 @@ export function LeadTransitionDrawer({
                     className="w-full h-11 px-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs rounded-xl outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
                   >
                     <option value="">Do Not Reassign</option>
-                    {users?.map((u) => (
+                    {users?.filter((u): u is NonNullable<typeof u> => !!u).map((u) => (
                       <option key={u._id} value={u._id}>{u.name || u.email}</option>
                     ))}
                   </select>
@@ -1040,7 +1040,6 @@ export function LeadTransitionDrawer({
                   files={attachments}
                   onFilesChange={setAttachments}
                   onFilesSelected={handleFilesSelected}
-                  targetStage={targetStage}
                 />
               </div>
             )}

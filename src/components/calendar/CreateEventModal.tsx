@@ -9,7 +9,6 @@ import { useToast } from "../ui/Toast";
 import {
   Calendar, Phone, Repeat, CheckSquare, Monitor,
   MapPin, GraduationCap, User, Umbrella, MoreHorizontal,
-  Video, Link as LinkIcon
 } from "lucide-react";
 
 const EVENT_TYPES = [

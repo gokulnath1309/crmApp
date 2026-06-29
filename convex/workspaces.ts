@@ -275,7 +275,7 @@ export const updateWorkspace = mutation({
     // Log activity
     await ctx.scheduler.runAfter(0, internal.activities.log, {
       type: "workspace_updated",
-      description: `renamed workspace from "${workspace.name}" to "${trimmed}"`,
+      description: `renamed workspace from "${(workspace as any).name}" to "${trimmed}"`,
       userId: currentUser._id,
       userName: currentUser.name || "System",
       entityType: "workspace",

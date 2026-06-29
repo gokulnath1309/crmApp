@@ -1,12 +1,12 @@
-import React, { useState } from "react";
-import { Settings, BellOff, VolumeX, Mail, CheckSquare, ShieldCheck, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { Settings, BellOff, ChevronRight } from "lucide-react";
 
 interface QuickActionsProps {
   onOpenSettings: () => void;
   onMarkAllRead: () => void;
 }
 
-export function QuickActions({ onOpenSettings, onMarkAllRead }: QuickActionsProps) {
+export function QuickActions({ onOpenSettings }: QuickActionsProps) {
   const [dndActive, setDndActive] = useState(false);
 
   return (

@@ -1,4 +1,3 @@
-import React from "react";
 import { Check } from "lucide-react";
 import { motion } from "motion/react";
 import type { FeatureItem } from "./featuresData";
@@ -18,7 +17,7 @@ export function FeatureCard({ feature }: FeatureCardProps) {
       y: 0,
       transition: { duration: 0.5, ease: "easeOut" }
     }
-  };
+  } as const;
 
   return (
     <motion.div

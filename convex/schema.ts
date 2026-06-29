@@ -417,6 +417,11 @@ export default defineSchema({
     emailStatus: v.optional(v.string()),
     emailSentAt: v.optional(v.number()),
     emailError: v.optional(v.string()),
+    name: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    managerId: v.optional(v.id("users")),
+    permissions: v.optional(v.array(v.string())),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_email", ["email"])
     .index("by_inviteToken", ["inviteToken"])

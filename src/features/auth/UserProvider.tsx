@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "./AuthProvider";
@@ -25,25 +25,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     console.log("[UserProvider] isLoaded:", isLoaded, "isAuthenticated:", isAuthenticated, "queryArgs:", queryArgs, "dbUser:", dbUser);
   }
 
-  const [ensured, setEnsured] = useState(false);
-
   useEffect(() => {
-    if (!isLoaded || !isAuthenticated) {
-      setEnsured(false);
-      return;
-    }
+    if (!isLoaded || !isAuthenticated) return;
 
-    let cancelled = false;
     ensureUserExists()
-      .then(() => {
-        if (!cancelled) setEnsured(true);
-      })
       .catch((err) => {
         console.error("[UserProvider] ensureUserExists failed:", err);
-        if (!cancelled) setEnsured(true);
       });
-
-    return () => { cancelled = true; };
   }, [isLoaded, isAuthenticated, ensureUserExists]);
 
   const isUserLoading = isAuthenticated && (dbUser === undefined || dbUser === null);
@@ -63,8 +51,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       isActive: dbUser.isActive ?? true,
       lastLogin: dbUser.lastLogin,
       avatarUrl: dbUser.avatarUrl,
-      createdAt: dbUser.createdAt ?? dbUser._creationTime,
-      updatedAt: dbUser.updatedAt ?? dbUser._creationTime,
+      createdAt: dbUser.createdAt ?? Date.now(),
+      updatedAt: dbUser.updatedAt ?? Date.now(),
       emailVerified: dbUser.emailVerified ?? false,
       coverImage: dbUser.coverImage,
       company: dbUser.company,
@@ -75,7 +63,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       phone: dbUser.phone,
       workspaceId: dbUser.activeWorkspaceId,
       activeWorkspaceId: dbUser.activeWorkspaceId,
-      membershipId: dbUser.membershipId,
+
       isOwner: dbUser.isOwner,
     };
   }, [isAuthenticated, dbUser]);

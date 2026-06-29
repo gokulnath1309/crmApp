@@ -106,7 +106,7 @@ export function DashboardPage() {
   const { user } = useUser();
   const isLoading = false;
   const metrics = useQuery(api.dashboard.getMetrics);
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
   const teamMetrics = useQuery(api.teams.getDashboardMetrics, {});
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";

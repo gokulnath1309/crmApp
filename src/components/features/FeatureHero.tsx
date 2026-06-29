@@ -1,4 +1,3 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import styles from "../../pages/Features.module.css";
@@ -18,7 +17,7 @@ export function FeatureHero() {
         delayChildren: 0.1,
       },
     },
-  };
+  } as const;
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -27,7 +26,7 @@ export function FeatureHero() {
       y: 0,
       transition: { duration: 0.6, ease: "easeOut" },
     },
-  };
+  } as const;
 
   return (
     <motion.section

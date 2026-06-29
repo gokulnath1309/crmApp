@@ -1,4 +1,3 @@
-import React from "react";
 import { Link2, ShieldAlert, Cpu } from "lucide-react";
 import { motion } from "motion/react";
 import styles from "../../pages/Features.module.css";
@@ -29,7 +28,7 @@ export function Advantages() {
         staggerChildren: 0.15
       }
     }
-  };
+  } as const;
 
   const cardVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -38,7 +37,7 @@ export function Advantages() {
       y: 0,
       transition: { duration: 0.6, ease: "easeOut" }
     }
-  };
+  } as const;
 
   return (
     <section className={styles.advantagesSection}>

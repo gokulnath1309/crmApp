@@ -265,13 +265,13 @@ export const create = mutation({
       const isAlreadyMember = await ctx.db
         .query("teamMembers")
         .withIndex("by_team_employee", (q) =>
-          q.eq("teamId", teamId).eq("employeeId", args.teamLeadId)
+          q.eq("teamId", teamId).eq("employeeId", args.teamLeadId!)
         )
         .first();
       if (!isAlreadyMember) {
         await ctx.db.insert("teamMembers", {
           teamId,
-          employeeId: args.teamLeadId,
+          employeeId: args.teamLeadId!,
           joinedAt: now,
         });
       }
@@ -340,13 +340,13 @@ export const update = mutation({
       const isMember = await ctx.db
         .query("teamMembers")
         .withIndex("by_team_employee", (q) =>
-          q.eq("teamId", args.teamId).eq("employeeId", args.teamLeadId)
+          q.eq("teamId", args.teamId).eq("employeeId", args.teamLeadId!)
         )
         .first();
       if (!isMember) {
         await ctx.db.insert("teamMembers", {
           teamId: args.teamId,
-          employeeId: args.teamLeadId,
+          employeeId: args.teamLeadId!,
           joinedAt: Date.now(),
         });
       }
@@ -680,7 +680,7 @@ export const getEmployees = query({
       })
     );
 
-    return employees.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+    return employees.filter((e): e is NonNullable<typeof e> => e !== null).sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -724,7 +724,7 @@ export const getAvailableEmployees = query({
       })
     );
 
-    return available.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+    return available.filter((e): e is NonNullable<typeof e> => e !== null).sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

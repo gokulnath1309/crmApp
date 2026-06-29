@@ -4,164 +4,12 @@ import { useSignIn, useAuth, useClerk } from "@clerk/clerk-react";
 import { Link, useNavigate } from "react-router-dom";
 import { setPendingAuthTransition } from "@/routes/AuthGate";
 import {
-  Zap, TrendingUp, Users, Brain, Shield, Mail, Star, BarChart3, ArrowUpRight, Menu,
+  Shield, Mail, Star, BarChart3,
   Eye, EyeOff, Lock, ChevronRight
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 import LoginWithOtpButton, { type AuthError } from "@/components/auth/LoginWithOtpButton";
-
-// ─── Static data ───────────────────────────────────────────────────────────────
-
-const navLinks = [
-  { label: "Features", href: "#" },
-  { label: "Solutions", href: "#" },
-  { label: "Pricing", href: "#" },
-  { label: "Resources", href: "#" },
-];
-
-const features = [
-  { icon: Zap, title: "AI Lead Scoring", description: "Prioritize leads with machine learning models trained on your closed deals." },
-  { icon: TrendingUp, title: "Pipeline Tracking", description: "Visualize every stage of your sales pipeline with real-time updates." },
-  { icon: Users, title: "Team Collaboration", description: "Share notes, assign tasks, and close deals together seamlessly." },
-  { icon: Brain, title: "AI Insights", description: "Get smart recommendations on next actions and forecast accuracy." },
-];
-
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
-function FeatureCard({ icon: Icon, title, description, index }: { icon: typeof Zap; title: string; description: string; index: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.1 * index, ease: [0.25, 0.4, 0.25, 1] }}
-      className="group bg-white rounded-[20px] border border-gray-200 p-5 cursor-default transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5"
-    >
-      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">
-        <Icon className="w-5 h-5 text-indigo-600" />
-      </div>
-      <h3 className="text-[17px] font-bold text-gray-900 mb-1.5">{title}</h3>
-      <p className="text-[14px] text-gray-500 leading-relaxed">{description}</p>
-    </motion.div>
-  );
-}
-
-function DashboardPreview() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
-      className="bg-white rounded-[28px] border border-indigo-50 shadow-[0_20px_60px_rgba(79,70,229,0.12)] p-6 w-full"
-    >
-      <div className="flex items-center gap-1.5 mb-5">
-        <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-        <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-        <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-        <div className="flex-1 ml-2 h-2.5 bg-gray-100 rounded-md" />
-      </div>
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        {[
-          ["Total Leads", "1,284", "+12.5%", true],
-          ["Revenue", "$485,200", "+8.3%", true],
-          ["Contacts", "3,847", "+5.1%", true],
-          ["Tasks Due", "24", "6 overdue", false],
-        ].map(([label, value, change, isUp]) => (
-          <div key={String(label)} className="bg-gray-50/80 rounded-2xl p-3.5 border border-gray-100">
-            <div className="text-[11px] font-medium text-gray-400 mb-1">{label}</div>
-            <div className="text-lg font-bold text-gray-900 tracking-tight">{value}</div>
-            <div className={`flex items-center gap-0.5 text-[11px] font-semibold mt-0.5 ${isUp ? "text-emerald-600" : "text-red-500"}`}>
-              <ArrowUpRight className={`w-3 h-3 ${!isUp ? "rotate-90" : ""}`} />
-              {change}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue Pipeline</span>
-          <span className="text-[11px] font-medium text-indigo-600">This Month</span>
-        </div>
-        <div className="flex items-end gap-1.5 h-[60px]">
-          {[35, 52, 41, 68, 55, 82, 71, 88, 76, 94, 63, 78].map((h, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-[3px] transition-all duration-300 hover:opacity-80"
-              style={{
-                height: `${h}%`,
-                background: i === 11
-                  ? "linear-gradient(180deg, #4f46e5 0%, #6366f1 100%)"
-                  : "linear-gradient(180deg, #c7d2fe 0%, #a5b4fc 100%)",
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function TrustPill() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
-      className="inline-flex items-center gap-4 bg-white rounded-2xl px-5 py-4 shadow-lg shadow-gray-200/60 border border-gray-100"
-    >
-      <div className="flex -space-x-2.5">
-        {["bg-indigo-400", "bg-violet-400", "bg-emerald-400", "bg-amber-400"].map((c, i) => (
-          <div key={i} className={`w-7 h-7 rounded-full ${c} border-2 border-white shadow-sm`} />
-        ))}
-        <div className="w-7 h-7 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-          <span className="text-[9px] font-bold text-gray-500">+12K</span>
-        </div>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-gray-900">Trusted by 12,000+ teams</p>
-        <div className="flex items-center gap-1 mt-0.5">
-          {Array(5).fill(0).map((_, i) => (
-            <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
-          ))}
-          <span className="text-[11px] font-medium text-gray-400 ml-1">4.9/5</span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function NavBar() {
-  return (
-    <motion.nav
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
-      className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-gray-100/50"
-    >
-      <div className="max-w-[1440px] mx-auto flex items-center justify-between h-16 px-8 lg:px-16">
-        <div className="flex items-center gap-1.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-500 flex items-center justify-center shadow-md shadow-indigo-200">
-            <BarChart3 className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-lg font-extrabold text-gray-900 tracking-tight ml-1">CRM Pro</span>
-        </div>
-        <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <a key={link.label} href={link.href} className="text-[14px] font-medium text-gray-500 hover:text-gray-900 transition-colors">
-              {link.label}
-            </a>
-          ))}
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="hidden sm:inline-flex h-10 px-5 rounded-xl border-2 border-indigo-200 text-indigo-600 font-semibold text-[13px] transition-all duration-200 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-md">
-            Request a Demo
-          </button>
-          <Menu className="w-5 h-5 text-gray-500 md:hidden" />
-        </div>
-      </div>
-    </motion.nav>
-  );
-}
 
 function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: () => void }) {
   if (!error) return null;
@@ -386,13 +234,13 @@ function AuthForm() {
     console.log("[SignIn] Step 3 — Pre-setActive Clerk SDK snapshot:");
     console.log("  clerk.session.id:", clerk.session?.id ?? "undefined");
     console.log("  clerk.user.id:", clerk.user?.id ?? "undefined");
-    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessionId ?? "undefined");
+    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessions?.[0]?.id ?? "undefined");
     console.log("  client sessions:", clerk.client?.sessions?.length ?? 0);
     console.log("  useAuth() isSignedIn (stale render capture):", clerkIsSignedIn);
     timeline.beforeSetActive = {
       sessionId: clerk.session?.id,
       userId: clerk.user?.id,
-      activeSessionId: clerk.client?.activeSessionId,
+      activeSessionId: clerk.client?.activeSessions?.[0]?.id,
       clientSessionCount: clerk.client?.sessions?.length,
       reactIsSignedIn: clerkIsSignedIn,
     };
@@ -425,14 +273,14 @@ function AuthForm() {
     console.log("[SignIn] Step 5 — Post-setActive Clerk SDK snapshot:");
     console.log("  clerk.session.id:", clerk.session?.id ?? "MISSING");
     console.log("  clerk.user.id:", clerk.user?.id ?? "MISSING");
-    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessionId ?? "MISSING");
+    console.log("  clerk.client.activeSessionId:", clerk.client?.activeSessions?.[0]?.id ?? "MISSING");
     console.log("  clerk.client.lastActiveSessionId:", (clerk.client as any)?.lastActiveSessionId ?? "MISSING");
     console.log("  client sessions:", clerk.client?.sessions?.map(s => ({ id: s.id, status: s.status })));
 
     timeline.afterSetActive = {
       sessionId: clerk.session?.id,
       userId: clerk.user?.id,
-      activeSessionId: clerk.client?.activeSessionId,
+      activeSessionId: clerk.client?.activeSessions?.[0]?.id,
       clientSessions: clerk.client?.sessions?.length,
     };
 

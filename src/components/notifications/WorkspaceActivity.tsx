@@ -1,13 +1,12 @@
-import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Users, Activity, Eye, ShieldAlert } from "lucide-react";
+import { Users, Activity } from "lucide-react";
 
 export function WorkspaceActivity() {
   const users = useQuery(api.users.list);
   const activities = useQuery(api.activities.list, { limit: 5 });
 
-  const activeUsers = users?.filter(u => u.isActive) || [];
+  const activeUsers = users?.filter((u: any) => u.isActive) || [];
 
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs space-y-6">
@@ -20,7 +19,7 @@ export function WorkspaceActivity() {
           <p className="text-xs text-slate-400 italic">No other active users.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {activeUsers.map(user => {
+            {activeUsers.map((user: any) => {
               const name = user.name || "User";
               const initials = name.charAt(0).toUpperCase();
               return (

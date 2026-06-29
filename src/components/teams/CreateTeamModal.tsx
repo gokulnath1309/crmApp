@@ -6,8 +6,7 @@ import { Select, type SelectOption } from "@/components/ui/Select";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useToast } from "@/components/ui/Toast";
-import { Spinner } from "@/components/ui/Spinner";
-import { Check, X, Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const TEAM_COLORS = [
@@ -94,7 +93,7 @@ export function CreateTeamModal({ open, onClose, onSuccess }: CreateTeamModalPro
     }
 
     try {
-      const result = await createTeam({
+      await createTeam({
         name: name.trim(),
         description: description.trim() || undefined,
         department: department || undefined,

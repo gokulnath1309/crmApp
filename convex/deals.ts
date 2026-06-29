@@ -433,7 +433,6 @@ export const remove = mutation({
     if (!currentUser || currentUser.role !== "super_admin") {
       throw new Error("Unauthorized: Only Super Admins can delete deals");
     }
-    const userId = currentUser._id;
     const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
 
     const existing = await ctx.db.get(args.id);

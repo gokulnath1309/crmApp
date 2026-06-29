@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { FEATURES, CATEGORIES } from "./featuresData";

@@ -1,11 +1,9 @@
-import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  ShieldAlert, Sparkles, Heart, Users, Clock, Mail, 
-  CheckSquare, ArrowUpRight, Award 
+  Users, Clock, Mail, 
+  CheckSquare, ArrowUpRight
 } from "lucide-react";
-import { formatCurrency } from "@/lib/currency";
 
 interface RightActionPanelProps {
   lead: any;
@@ -22,10 +20,10 @@ export function RightActionPanel({ lead }: RightActionPanelProps) {
 
   if (!lead) return null;
 
-  const ownerUser = users?.find(u => u._id === lead.assignedTo);
+  const ownerUser = users?.find((u: any) => u._id === lead.assignedTo);
   const ownerName = ownerUser?.name || "Unassigned";
 
-  const creatorUser = users?.find(u => u._id === lead.createdBy);
+  const creatorUser = users?.find((u: any) => u._id === lead.createdBy);
   const creatorName = creatorUser?.name || "System";
 
   // Compute counts at component scope for use in scoring and display

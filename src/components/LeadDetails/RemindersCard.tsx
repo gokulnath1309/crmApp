@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  BellRing, Plus, Clock, Trash2, Calendar, CheckSquare,
-  Square, AlertCircle, RefreshCw, ChevronDown, Check, Loader2 
+  BellRing, Plus, Calendar,
+  Square, ChevronDown, Loader2 
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -13,7 +13,7 @@ interface RemindersCardProps {
 
 export function RemindersCard({ lead }: RemindersCardProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Queries/Mutations from api.leads
   const reminders = useQuery(api.leads.listLeadReminders, lead ? { leadId: lead._id } : "skip");

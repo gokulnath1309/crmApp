@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { motion, useMotionValue, useSpring } from "motion/react";
 import styles from "../pages/LandingPage.module.css";
 

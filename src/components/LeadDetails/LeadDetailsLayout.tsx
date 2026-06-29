@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
@@ -40,8 +40,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const transitions = useQuery(api.leads.listTransitions, { leadId: leadId as any });
   const activities = useQuery(api.leads.listLeadActivities, { leadId: leadId as any });
   const reminders = useQuery(api.leads.listLeadReminders, { leadId: leadId as any });
-  const allLeads = useQuery(api.leads.list);
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const allLeads = useQuery(api.leads.list, {});
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Mutations
   const transitionLeadMutation = useMutation(api.leads.transitionStage);
@@ -174,7 +174,7 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
     } else if (targetStage === "Duplicate") {
       setPendingStatusChange({
         targetStatus: targetStage,
-        onConfirm: async (fields) => {
+        onConfirm: async (_fields) => {
           // Confirm callback handled in DuplicateModal below
         }
       });

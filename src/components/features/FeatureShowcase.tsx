@@ -1,22 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   CheckCircle2, 
   ArrowRight, 
-  User, 
   Mail, 
   Phone, 
   Building, 
-  Plus, 
-  Calendar,
-  MessageSquare,
-  Shield,
-  Layers,
   ChevronDown,
-  Play,
   Check,
-  Zap,
-  Lock,
-  UserCheck
 } from "lucide-react";
 import { motion } from "motion/react";
 import styles from "../../pages/Features.module.css";
@@ -621,7 +611,7 @@ export function FeatureShowcase() {
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.7, cubicBezier: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             >
               {/* Visual Mockup Column */}
               <div className={styles.showcaseVisual}>

@@ -250,7 +250,7 @@ export const list = query({
       })
     );
 
-    return users.filter(Boolean);
+    return users.filter((u): u is NonNullable<typeof u> => u != null);
   },
 });
 
@@ -474,7 +474,7 @@ export const cancelInvitation = mutation({
 
     await ctx.db.insert("activities", {
       type: "invite_revoked",
-      description: `revoked invitation for ${invitation.fullName || invitation.email}`,
+      description: `revoked invitation for ${invitation.email}`,
       userId: currentUser._id,
       userName: currentUser.name || "System",
       entityType: "user",
@@ -502,7 +502,7 @@ export const inviteUser = action({
     permissions: v.optional(v.array(v.string())),
     token: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // ── STEP 1: Authenticate & Authorise ──────────────────────────────────────
     const identity = await ctx.auth.getUserIdentity();
     console.log("[inviteUser] Step 1 — Identity:", {
@@ -563,7 +563,7 @@ export const inviteUser = action({
       workspaceId: workspaceId,
       token: args.token?.slice(0, 8) + "...",
     });
-    const { invitationId } = await ctx.runMutation(internal.users.createInvitationRecord, {
+    const { invitationId } = await (ctx.runMutation(internal.users.createInvitationRecord, {
       callerUserId: callerUser._id,
       callerName: callerUser.name || callerUser.email || "Admin",
       callerWorkspaceId: workspaceId,
@@ -577,7 +577,7 @@ export const inviteUser = action({
       managerId: args.managerId,
       permissions: args.permissions,
       token: args.token,
-    });
+    }) as any);
     console.log("[inviteUser] Step 3 ✅ — Invitation record created:", invitationId);
 
     // ── STEP 4: Send email via Resend ─────────────────────────────────────────
@@ -1027,9 +1027,9 @@ export const getInvitationByToken = query({
     const company = await ctx.db.get(invitation.workspaceId);
     const inviter = await ctx.db.get(invitation.invitedBy);
     let managerName = undefined;
-    if (invitation.managerId) {
-      const manager = await ctx.db.get(invitation.managerId);
-      managerName = manager?.name || manager?.email;
+    if ((invitation as any).managerId) {
+      const manager = await ctx.db.get((invitation as any).managerId);
+      managerName = (manager as any)?.name || (manager as any)?.email;
     }
 
     return {
@@ -1068,16 +1068,17 @@ export const acceptInvitationMutation = internalMutation({
     }
 
     // Accept invitation: update user properties
-    await ctx.db.patch(currentUser._id, {
+    const updateFields: Record<string, any> = {
       activeWorkspaceId: invitation.workspaceId,
       role: invitation.role,
-      department: invitation.department,
-      jobTitle: invitation.jobTitle,
-      managerId: invitation.managerId,
-      permissions: invitation.permissions,
       isActive: true,
       updatedAt: Date.now(),
-    });
+    };
+    if ((invitation as any).department) updateFields.department = (invitation as any).department;
+    if ((invitation as any).jobTitle) updateFields.jobTitle = (invitation as any).jobTitle;
+    if ((invitation as any).managerId) updateFields.managerId = (invitation as any).managerId;
+    if ((invitation as any).permissions) updateFields.permissions = (invitation as any).permissions;
+    await ctx.db.patch(currentUser._id, updateFields);
 
     // Create membership for the new workspace
     const existingMembership = await ctx.db
@@ -1148,11 +1149,11 @@ export const acceptInvitationMutation = internalMutation({
 
 export const acceptInvitation = action({
   args: { token: v.string() },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // 1. Run the mutation internally
-    const result = await ctx.runMutation(internal.users.acceptInvitationMutation, {
+    const result = await (ctx.runMutation(internal.users.acceptInvitationMutation, {
       token: args.token,
-    });
+    }) as any);
 
     // 2. Call Clerk Backend API to add user to Clerk Organization if clerkOrgId exists
     const apiKey = process.env.CLERK_SECRET_KEY;

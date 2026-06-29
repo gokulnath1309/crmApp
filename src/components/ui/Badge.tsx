@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import type { ReactNode } from "react";
 
 const variants = {
   default: "bg-surface-container-high text-on-surface-variant",
@@ -18,7 +19,7 @@ interface BadgeProps {
   variant?: keyof typeof variants;
   size?: keyof typeof sizes;
   className?: string;
-  children: string;
+  children: ReactNode;
 }
 
 export function Badge({

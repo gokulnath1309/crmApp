@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@/features/auth/UserProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -99,8 +99,7 @@ export function ProfilePage() {
   // Upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
+
 
   // Cover Image Form State
   const [coverInputUrl, setCoverInputUrl] = useState("");
@@ -152,7 +151,7 @@ export function ProfilePage() {
     );
   }
 
-  const subordinates = allUsers?.filter(u => u.managerId === user._id) || [];
+  const subordinates = allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u.managerId === user._id) || [];
 
   // Counts calculated across lists
   const myCompletedTasksCount = allTasks?.filter(t => t.assignedTo === user._id && t.status === "Completed").length || 0;
@@ -165,7 +164,7 @@ export function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const storageId = await uploadProfileImage(file, generateProfileUploadUrl);
-      const result = await updateProfileImageMutation({ storageId });
+      const result = await updateProfileImageMutation({ storageId: storageId as any });
       setEditAvatarUrl(result.avatarUrl);
       toast("success", "Profile picture updated.");
     } catch (err: any) {
@@ -258,7 +257,7 @@ export function ProfilePage() {
     try {
       if (pendingBannerId) {
         console.log("[CoverSave] Saving via storageId:", pendingBannerId);
-        const result = await updateCoverImageMutation({ storageId: pendingBannerId });
+        const result = await updateCoverImageMutation({ storageId: pendingBannerId as any });
         console.log("[CoverSave] Saved, coverImage:", result.coverImage);
       } else {
         const url = coverInputUrl.trim();
@@ -363,7 +362,7 @@ export function ProfilePage() {
   };
 
   const handleUserSelectForRoleEdit = (userId: string) => {
-    const selected = allUsers?.find(u => u._id === userId);
+    const selected = allUsers?.find((u): u is NonNullable<typeof u> => u != null && u._id === userId);
     if (selected) {
       setSelectedRoleUserId(userId);
       setSelectedUserRole(selected.role || "employee");
@@ -760,11 +759,11 @@ export function ProfilePage() {
             </Link>
             <Link to="/employees" className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm block hover:border-indigo-500 transition-colors">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Admins</span>
-              <span className="text-xl font-extrabold text-slate-900 dark:text-white mt-1 block">{allUsers?.filter(u => u.role === "admin" || u.role === "super_admin").length || 0}</span>
+              <span className="text-xl font-extrabold text-slate-900 dark:text-white mt-1 block">{allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).length || 0}</span>
             </Link>
             <Link to="/employees" className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm block hover:border-indigo-500 transition-colors">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Employees</span>
-              <span className="text-xl font-extrabold text-slate-900 dark:text-white mt-1 block">{allUsers?.filter(u => u.role === "employee").length || 0}</span>
+              <span className="text-xl font-extrabold text-slate-900 dark:text-white mt-1 block">{allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u.role === "employee").length || 0}</span>
             </Link>
             <Link to="/reports" className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm block hover:border-indigo-500 transition-colors col-span-2">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Revenue</span>
@@ -1145,7 +1144,7 @@ export function ProfilePage() {
                       }`}
                     >
                       <option value="">No Manager</option>
-                      {allUsers?.filter(u => u.role === "admin" || u.role === "super_admin").map((mgr) => (
+                      {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).map((mgr) => (
                         <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
                       ))}
                     </select>
@@ -1574,7 +1573,7 @@ export function ProfilePage() {
                     className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                   >
                     <option value="">No Manager</option>
-                    {allUsers?.filter(u => u.role === "admin" || u.role === "super_admin").map((mgr) => (
+                    {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).map((mgr) => (
                       <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
                     ))}
                   </select>
@@ -1626,7 +1625,7 @@ export function ProfilePage() {
                     className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                   >
                     <option value="">-- Choose Employee --</option>
-                    {allUsers?.filter(u => u._id !== user._id).map((emp) => (
+                    {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== user._id).map((emp) => (
                       <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
                     ))}
                   </select>
@@ -1669,7 +1668,7 @@ export function ProfilePage() {
                       >
                         <option value="">No Manager</option>
                         {allUsers
-                          ?.filter(u => u._id !== selectedRoleUserId && (u.role === "admin" || u.role === "super_admin"))
+                          ?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== selectedRoleUserId && (u.role === "admin" || u.role === "super_admin"))
                           .map((mgr) => (
                             <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
                           ))}

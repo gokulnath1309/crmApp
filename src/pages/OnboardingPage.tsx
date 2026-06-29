@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense, type ComponentType } from "react";
+import { useState, useCallback, lazy, Suspense, type ComponentType } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Building, ArrowRight, Loader2, Sparkles, UserPlus, LogIn, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";

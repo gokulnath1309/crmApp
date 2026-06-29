@@ -14,7 +14,7 @@ interface ContactInformationCardProps {
 export function ContactInformationCard({ lead }: ContactInformationCardProps) {
   const { toast } = useToast();
   const patchLeadMutation = useMutation(api.leads.patchLead);
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Inline edit state
   const [editingField, setEditingField] = useState<string | null>(null);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { X, Check, Bell, Mail, Shield, CheckSquare, Target, DollarSign, Smartphone } from "lucide-react";

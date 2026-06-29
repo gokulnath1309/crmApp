@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  Phone, Mail, MessageSquare, Video, FileText, CheckCircle2,
-  Sparkles, Loader2, Play 
+  Phone, Mail, MessageSquare, Video, FileText,
+  Sparkles, Loader2 
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -13,7 +13,6 @@ interface QuickActionsProps {
 
 export function QuickActions({ lead }: QuickActionsProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
 
   // Mutations
   const createActivityMutation = useMutation(api.leads.transitionStage); // We can repurpose activity logging by using transitionStage with fromStage == toStage, or we can write a dedicated mutation. Let's see: leads.ts transitionStage mutation takes transitionData and activityDetails. Wait, do we have a direct activity logging mutation?

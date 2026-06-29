@@ -5,10 +5,11 @@ import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/components/ui/Toast";
 import {
-  Users, UserCheck, Shield, ToggleLeft, ToggleRight, Plus, Search,
+  UserCheck, ToggleLeft, ToggleRight, Plus, Search,
   X, Check, Edit2, Loader2, Mail, Building, ShieldAlert, Clock, Copy, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
 
 const departmentOptions = ["Sales", "Marketing", "Customer Success", "Support", "Product", "Finance", "HR"];
 const permissionOptions = [
@@ -31,7 +32,9 @@ export function EmployeesPage() {
   const users = useQuery(api.users.list);
   const invitations = useQuery(api.workspaceInvitations.listInvitations);
   const metrics = useQuery(api.workspaceInvitations.getInvitationMetrics);
-  const allInvitations = [...(invitations || [])].sort((a, b) => (b.invitedAt || b.createdAt) - (a.invitedAt || a.createdAt));
+  const allInvitations = [...(invitations || [])].sort((a, b) => (b.sentAt || b.createdAt) - (a.sentAt || a.createdAt));
+  const emailSentInvites = invitations?.filter(i => i.status === "email_sent").length || 0;
+  const failedInvites = invitations?.filter(i => i.status === "failed" || i.status === "email_failed").length || 0;
 
   const inviteUserAction = useAction(api.users.inviteUser);
   const cancelInvitationMutation = useMutation(api.users.cancelInvitation);
@@ -58,7 +61,7 @@ export function EmployeesPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isSuperAdmin = currentUser.role === "super_admin";
+  const isSuperAdmin = currentUser!.role === "super_admin";
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,7 +178,7 @@ export function EmployeesPage() {
   const toggleUserActiveStatus = async (userToToggle: any) => {
     try {
       await updateUserRoleMutation({
-        id: userToToggle._id,
+        id: userToToggle._id as any,
         isActive: !userToToggle.isActive,
       });
       toast(
@@ -205,7 +208,7 @@ export function EmployeesPage() {
   };
 
   // Scoped user list: admin only sees subordinates, super_admin sees all
-  const filteredUsers = (users || []).filter((u) => {
+  const filteredUsers = (users || []).filter((u: any) => {
     // Search filter
     const matchesSearch =
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -217,16 +220,15 @@ export function EmployeesPage() {
     if (isSuperAdmin) return true;
     
     // Admin only sees subordinates
-    return u.managerId === currentUser._id || u._id === currentUser._id;
+    return u.managerId === currentUser!._id || u._id === currentUser!._id;
   });
 
   // Calculate local user counts
   const totalCount = filteredUsers.length;
-  const adminCount = filteredUsers.filter((u) => u.role === "admin" || u.role === "super_admin").length;
-  const deactivatedCount = filteredUsers.filter((u) => u.isActive === false).length;
+  const deactivatedCount = filteredUsers.filter((u) => u?.isActive === false).length;
 
   // Potential managers list (super admins and admins)
-  const managerOptions = (users || []).filter((u) => u.role === "super_admin" || u.role === "admin");
+  const managerOptions = (users || []).filter((u: any) => u.role === "super_admin" || u.role === "admin");
 
   return (
     <div className="space-y-6 max-w-7xl pb-6 p-6">
@@ -254,8 +256,8 @@ export function EmployeesPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Members", value: metrics?.activeEmployees ?? totalCount - deactivatedCount, icon: UserCheck, bg: "bg-emerald-500" },
-          { label: "Pending Invites", value: (metrics?.pendingInvites ?? 0) + (metrics?.emailSentInvites ?? 0), icon: Mail, bg: "bg-indigo-500" },
-          { label: "Failed Invites", value: metrics?.failedInvites ?? 0, icon: ShieldAlert, bg: "bg-red-500" },
+          { label: "Pending Invites", value: (metrics?.pendingInvites ?? 0) + emailSentInvites, icon: Mail, bg: "bg-indigo-500" },
+          { label: "Failed Invites", value: failedInvites, icon: ShieldAlert, bg: "bg-red-500" },
           { label: "Expired Invites", value: metrics?.expiredInvites ?? 0, icon: Clock, bg: "bg-slate-500" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
@@ -278,7 +280,7 @@ export function EmployeesPage() {
             { id: "access", label: "Access Settings" },
             { id: "invitations", label: `Invitations (${allInvitations.length})` },
             { id: "pending", label: `Pending (${metrics?.pendingInvites ?? 0})` },
-            { id: "failed", label: `Failed (${metrics?.failedInvites ?? 0})` },
+            { id: "failed", label: `Failed (${failedInvites})` },
             { id: "expired", label: `Expired (${metrics?.expiredInvites ?? 0})` },
             { id: "cancelled", label: "Cancelled" },
           ].map((tab) => (
@@ -315,8 +317,8 @@ export function EmployeesPage() {
               No employees match your search criteria.
             </div>
           ) : (
-            filteredUsers.map((u) => {
-              const manager = users?.find(m => m._id === u.managerId);
+            filteredUsers.map((u: any) => {
+              const manager = users?.find((m: any) => m._id === u.managerId);
               return (
                 <div
                   key={u._id}
@@ -385,7 +387,7 @@ export function EmployeesPage() {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       {/* Allow deactivation for subordinates (admins) and all except self (super admins) */}
-                      {((isSuperAdmin && u._id !== currentUser._id) || (currentUser.role === "admin" && u.managerId === currentUser._id)) && (
+                      {((isSuperAdmin && u._id !== currentUser!._id) || (currentUser!.role === "admin" && u.managerId === currentUser!._id)) && (
                         <button
                           onClick={() => toggleUserActiveStatus(u)}
                           title={u.isActive !== false ? "Deactivate employee" : "Activate employee"}
@@ -517,7 +519,7 @@ export function EmployeesPage() {
                     <React.Fragment key={inv._id}>
                       <tr className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
                         <td className="px-5 py-3.5 font-semibold text-slate-900 dark:text-white">
-                          {inv.fullName || "—"}
+                          {inv.name || "—"}
                         </td>
                         <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{inv.email}</td>
                         <td className="px-5 py-3.5 capitalize">{inv.role}</td>
@@ -536,7 +538,7 @@ export function EmployeesPage() {
                           {inviter?.name || "Unknown"}
                         </td>
                         <td className="px-5 py-3.5 text-slate-500 text-[10px]">
-                          {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
+                          {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           {showActions && (
@@ -631,7 +633,7 @@ export function EmployeesPage() {
             invitations
               .filter(i => i.status === "pending" || i.status === "email_sent")
               .map((inv) => {
-                const manager = users?.find(m => m._id === inv.managerId);
+                const manager = users?.find((m: any) => m._id === inv.managerId);
                 const daysRemaining = Math.max(0, Math.ceil((inv.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)));
                 const isEmailSent = inv.status === "email_sent";
                 return (
@@ -647,7 +649,7 @@ export function EmployeesPage() {
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.fullName || "Unnamed"}
+                              {inv.name || "Unnamed"}
                             </h4>
                             <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
                               {inv.email}
@@ -782,7 +784,7 @@ export function EmployeesPage() {
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.fullName || "Unnamed"}
+                              {inv.name || "Unnamed"}
                             </h4>
                             <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
                               {inv.email}
@@ -804,7 +806,7 @@ export function EmployeesPage() {
 
                     <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
                       <span className="text-[10px] text-slate-400">
-                        Failed: {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
+                        Failed: {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -861,7 +863,7 @@ export function EmployeesPage() {
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.fullName || "Unnamed"}
+                              {inv.name || "Unnamed"}
                             </h4>
                             <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
                               {inv.email}
@@ -891,7 +893,7 @@ export function EmployeesPage() {
 
                     <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
                       <span className="text-[10px] text-slate-400">
-                        Sent: {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
+                        Sent: {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -948,7 +950,7 @@ export function EmployeesPage() {
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.fullName || "Unnamed"}
+                              {inv.name || "Unnamed"}
                             </h4>
                             <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
                               {inv.email}
@@ -970,7 +972,7 @@ export function EmployeesPage() {
                         <div>
                           <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Cancelled On</span>
                           <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {inv.updatedAt ? new Date(inv.updatedAt).toLocaleDateString() : "—"}
+                            {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}
                           </span>
                         </div>
                       </div>
@@ -1057,7 +1059,7 @@ export function EmployeesPage() {
                     className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                   >
                     <option value="">No Manager (Reporting Line Ends)</option>
-                    {managerOptions.map((m) => (
+                    {managerOptions.map((m: any) => (
                       <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
                     ))}
                   </select>
@@ -1164,8 +1166,8 @@ export function EmployeesPage() {
                     >
                       <option value="">No Manager (Reporting Line Ends)</option>
                       {managerOptions
-                        .filter(opt => opt._id !== selectedUser._id) // cannot report to self
-                        .map((m) => (
+                        .filter((opt: any) => opt._id !== selectedUser._id) // cannot report to self
+                        .map((m: any) => (
                           <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
                         ))}
                     </select>

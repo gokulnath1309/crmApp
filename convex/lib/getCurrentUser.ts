@@ -92,7 +92,7 @@ export async function resolveUser(ctx: MutationCtx): Promise<any> {
         };
         if (!user.clerkId) patch.clerkId = identity.subject;
         if (isSuperAdminEmail) {
-          patch.activeWorkspaceId = user.activeWorkspaceId || user.workspaceId;
+          patch.activeWorkspaceId = user.activeWorkspaceId || (user as any).workspaceId;
         }
         await ctx.db.patch(user._id, patch);
         const updated = await ctx.db.get(user._id);

@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  CheckCircle, Plus, Calendar, AlertTriangle, User, Trash2,
-  Clock, CheckSquare, Square, MoreVertical, Loader2 
+  CheckCircle, Plus, Calendar, User, Trash2,
+  CheckSquare, Square, Loader2 
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -13,7 +13,7 @@ interface TasksCardProps {
 
 export function TasksCard({ lead }: TasksCardProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
   const users = useQuery(api.users.list);
 
   // Queries/Mutations from api.tasks
@@ -216,7 +216,7 @@ export function TasksCard({ lead }: TasksCardProps) {
                   className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                 >
                   <option value="">Myself</option>
-                  {users?.filter(u => u._id !== currentUser?._id).map(u => (
+                  {users?.filter((u): u is NonNullable<typeof u> => !!u).filter(u => u._id !== currentUser?._id).map(u => (
                     <option key={u._id} value={u._id}>{u.name}</option>
                   ))}
                 </select>
@@ -263,7 +263,7 @@ export function TasksCard({ lead }: TasksCardProps) {
         ) : (
           currentTasks.map((task) => {
             const isCompleted = task.status === "Completed";
-            const assigneeUser = users?.find(u => u._id === task.assignedTo);
+            const assigneeUser = users?.find((u): u is NonNullable<typeof u> => !!u && u._id === task.assignedTo);
             const assigneeName = assigneeUser?.name || "Unassigned";
 
             return (
@@ -321,7 +321,7 @@ export function TasksCard({ lead }: TasksCardProps) {
                     className="h-6 px-1 bg-white border border-slate-200 text-[9px] rounded-lg text-slate-655 outline-none cursor-pointer"
                   >
                     <option value="">Reassign...</option>
-                    {users?.map(u => (
+                    {users?.filter((u): u is NonNullable<typeof u> => !!u).map(u => (
                       <option key={u._id} value={u._id}>{u.name}</option>
                     ))}
                   </select>

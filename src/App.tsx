@@ -46,11 +46,6 @@ if (!publishableKey) {
 function ClerkWithRouter({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
-  const clerkNavigate = useCallback((to: string) => {
-    navigate(to);
-    return Promise.resolve();
-  }, [navigate]);
-
   const routerPush = useCallback((to: string) => {
     navigate(to);
   }, [navigate]);
@@ -62,7 +57,6 @@ function ClerkWithRouter({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={publishableKey}
-      navigate={clerkNavigate}
       routerPush={routerPush}
       routerReplace={routerReplace}
       signInUrl="/signin"

@@ -1,8 +1,7 @@
-import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  DollarSign, Percent, AlertTriangle, User, Calendar, 
+  DollarSign, Percent, AlertTriangle, User as UserIcon, Calendar, 
   History, BellRing 
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
@@ -18,7 +17,7 @@ export function LeadOverviewCards({ lead, lastActivity, nextReminder }: LeadOver
 
   if (!lead) return null;
 
-  const ownerUser = users?.find(u => u._id === lead.assignedTo);
+  const ownerUser = users?.find((u: any) => u._id === lead.assignedTo);
   const ownerName = ownerUser?.name || "Unassigned";
   const ownerAvatar = ownerUser?.avatarUrl;
 
@@ -115,7 +114,7 @@ export function LeadOverviewCards({ lead, lastActivity, nextReminder }: LeadOver
           {ownerAvatar ? (
             <img src={ownerAvatar} alt={ownerName} className="w-4 h-4 rounded-full object-cover" />
           ) : (
-            <User className="w-4 h-4 text-slate-350" />
+            <UserIcon className="w-4 h-4 text-slate-350" />
           )}
         </div>
         <div className="mt-2.5 min-w-0">

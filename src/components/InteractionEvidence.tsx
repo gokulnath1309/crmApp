@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import {
   Paperclip, Trash2, Download, Play, Pause, FileText,
   Image as ImageIcon, FileSpreadsheet, Film, Archive,
-  AlertCircle, Music, Mic, Volume2, Loader2,
+  AlertCircle, Music, Mic,
   ChevronDown, ChevronUp
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -25,8 +25,6 @@ interface InteractionEvidenceProps {
   files: EvidenceItem[];
   onFilesChange: (files: EvidenceItem[]) => void;
   onFilesSelected?: (files: Array<{ id: string; file: File }>) => void;
-  targetStage: string;
-  currentUserId?: string;
 }
 
 const CATEGORIES = [
@@ -66,8 +64,6 @@ const SUPPORTED_MIME_PREFIXES = [
 
 const AUDIO_EXTENSIONS = ["mp3", "wav", "m4a", "aac", "ogg"];
 const VIDEO_EXTENSIONS = ["mp4", "mov", "avi", "webm"];
-const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "svg", "webp"];
-
 function getFileExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() || "";
 }
@@ -120,21 +116,6 @@ function guessCategoryFromFilename(filename: string): string {
   return "other";
 }
 
-function getCategoryIcon(category: string): React.ReactNode {
-  const icons: Record<string, React.ReactNode> = {
-    "call-recording": <Phone className="w-3.5 h-3.5" />,
-    "voice-note": <Mic className="w-3.5 h-3.5" />,
-    "proposal": <FileText className="w-3.5 h-3.5" />,
-    "contract": <FileText className="w-3.5 h-3.5" />,
-    "email": <Mail className="w-3.5 h-3.5" />,
-    "quote": <FileText className="w-3.5 h-3.5" />,
-    "meeting-recording": <Video className="w-3.5 h-3.5" />,
-    "site-visit": <MapPin className="w-3.5 h-3.5" />,
-    "other": <FileText className="w-3.5 h-3.5" />,
-  };
-  return icons[category] || <FileText className="w-3.5 h-3.5" />;
-}
-
 function getFileTypeIcon(filename: string, mimeType: string): React.ReactNode {
   if (isAudioFile(filename, mimeType)) return <Music className="w-5 h-5 text-violet-500" />;
   if (isVideoFile(filename, mimeType)) return <Film className="w-5 h-5 text-amber-500" />;
@@ -147,12 +128,11 @@ function getFileTypeIcon(filename: string, mimeType: string): React.ReactNode {
   return <FileText className="w-5 h-5 text-slate-500" />;
 }
 
-function AudioPreview({ fileUrl, fileName, duration: initialDuration }: { fileUrl: string; fileName: string; duration?: number }) {
+function AudioPreview({ fileUrl, duration: initialDuration }: { fileUrl: string; duration?: number }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration || 0);
-  const [showControls, setShowControls] = useState(false);
 
   const handleTimeUpdate = useCallback(() => {
     if (audioRef.current) {
@@ -189,8 +169,6 @@ function AudioPreview({ fileUrl, fileName, duration: initialDuration }: { fileUr
   return (
     <div
       className="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3"
-      onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => setShowControls(false)}
     >
       <audio
         ref={audioRef}
@@ -237,34 +215,9 @@ function generateId(): string {
   return `ev_${Date.now()}_${itemCounter}`;
 }
 
-const Phone = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-  </svg>
-);
 
-const Mail = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect width="20" height="16" x="2" y="4" rx="2" />
-    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-  </svg>
-);
 
-const Video = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="23 7 16 12 23 17 23 7" />
-    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-  </svg>
-);
-
-const MapPin = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
-
-export function InteractionEvidence({ files, onFilesChange, onFilesSelected, targetStage, currentUserId }: InteractionEvidenceProps) {
+export function InteractionEvidence({ files, onFilesChange, onFilesSelected }: InteractionEvidenceProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -476,7 +429,6 @@ export function InteractionEvidence({ files, onFilesChange, onFilesSelected, tar
               file={file}
               onRemove={removeFile}
               onCategoryChange={updateCategory}
-              currentUserId={currentUserId}
             />
           ))}
         </div>
@@ -497,7 +449,6 @@ export function InteractionEvidence({ files, onFilesChange, onFilesSelected, tar
               file={file}
               onRemove={removeFile}
               onCategoryChange={updateCategory}
-              currentUserId={currentUserId}
             />
           ))}
         </div>
@@ -524,10 +475,9 @@ interface EvidenceRowProps {
   file: EvidenceItem;
   onRemove: (id: string) => void;
   onCategoryChange: (id: string, category: string) => void;
-  currentUserId?: string;
 }
 
-function EvidenceRow({ file, onRemove, onCategoryChange, currentUserId }: EvidenceRowProps) {
+function EvidenceRow({ file, onRemove, onCategoryChange }: EvidenceRowProps) {
   const [expanded, setExpanded] = useState(false);
   const isAudio = isAudioFile(file.fileName, file.mimeType);
 
@@ -608,7 +558,7 @@ function EvidenceRow({ file, onRemove, onCategoryChange, currentUserId }: Eviden
       {/* Audio Player */}
       {isAudio && (
         <div className="px-3.5 pb-3.5">
-          <AudioPreview fileUrl={file.fileUrl} fileName={file.fileName} duration={file.duration} />
+          <AudioPreview fileUrl={file.fileUrl} duration={file.duration} />
         </div>
       )}
 

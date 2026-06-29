@@ -1,5 +1,4 @@
-import React from "react";
-import { Inbox, Calendar, Star, Pin, Archive, ChevronRight } from "lucide-react";
+import { Inbox, Calendar, Pin, Archive, ChevronRight } from "lucide-react";
 
 interface QuickFiltersProps {
   currentFilter: string;

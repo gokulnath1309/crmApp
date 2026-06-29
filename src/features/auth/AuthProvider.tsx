@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { isLoaded: clerkLoaded, isSignedIn, userId: clerkUserId, signOut: clerkSignOut } = useClerkAuth();
+  const { isLoaded: clerkLoaded, userId: clerkUserId, signOut: clerkSignOut } = useClerkAuth();
   const clerk = useClerk();
   const { isLoading: convexAuthLoading, isAuthenticated: convexAuthIsAuthenticated } = useConvexAuth();
 

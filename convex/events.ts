@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
 import { hasPermission } from "./rbac";
 import { internal } from "./_generated/api";
@@ -318,7 +318,7 @@ export const move = mutation({
   },
 });
 
-export const notifyEventAssigned = mutation({
+export const notifyEventAssigned = internalMutation({
   args: {
     eventId: v.id("events"),
     title: v.string(),

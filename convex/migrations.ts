@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 export const migrateAllData = mutation({
   args: {},
@@ -14,7 +15,7 @@ export const migrateAllData = mutation({
         name: company.name,
         industry: company.industry,
         companySize: company.employeeCount,
-        createdBy: company.ownerUserId,
+        createdBy: company.ownerUserId as Id<"users">,
         createdAt: company.createdAt || Date.now(),
         status: company.status === "inactive" ? "inactive" : "active",
       });
@@ -23,13 +24,14 @@ export const migrateAllData = mutation({
     }
 
     // 2. Migrate Memberships
-    const memberships = await ctx.db.query("memberships").collect();
+    let memberships: any[] = [];
+    try { memberships = await (ctx.db as any).query("memberships").collect(); } catch (e) { console.warn("[migration] memberships table not found, skipping"); }
     for (const m of memberships) {
       const workspaceId = companyToWorkspaceMap.get(m.companyId);
       if (!workspaceId) continue;
 
       const user = await ctx.db.get(m.userId);
-      if (!user || !user.clerkId) continue;
+      if (!user || !(user as any).clerkId) continue;
 
       let newRole = "EMPLOYEE";
       if (m.role === "super_admin" || m.role === "owner") newRole = "SUPER_ADMIN";
@@ -37,8 +39,8 @@ export const migrateAllData = mutation({
 
       await ctx.db.insert("workspaceMembers", {
         workspaceId: workspaceId as any,
-        clerkUserId: user.clerkId,
-        userId: user._id,
+        clerkUserId: (user as any).clerkId,
+        userId: user._id as any,
         role: newRole,
         department: m.department,
         status: m.isActive === false ? "inactive" : "active",
@@ -49,8 +51,8 @@ export const migrateAllData = mutation({
     // 3. Update Users
     const users = await ctx.db.query("users").collect();
     for (const u of users) {
-      if (u.activeCompanyId) {
-        const workspaceId = companyToWorkspaceMap.get(u.activeCompanyId);
+      if ((u as any).activeCompanyId) {
+        const workspaceId = companyToWorkspaceMap.get((u as any).activeCompanyId);
         if (workspaceId) {
           await ctx.db.patch(u._id, { activeWorkspaceId: workspaceId as any });
         }

@@ -73,7 +73,7 @@ const QUICK_FILTERS = [
 
 const EVENT_TYPES_FILTER = [
   { value: "", label: "All Types" },
-  ...Object.entries(EVENT_TYPE_CONFIG).map(([k, v]) => ({ value: k, label: k })),
+  ...Object.entries(EVENT_TYPE_CONFIG).map(([k]) => ({ value: k, label: k })),
 ];
 
 const PRIORITY_FILTER = [
@@ -208,7 +208,6 @@ function CalendarPage() {
   const handleDrop = useCallback(async (e: React.DragEvent, day: number | null) => {
     e.preventDefault();
     if (!draggedEvent || day === null) return;
-    const d = new Date(year, month, day);
     const newStart = new Date(draggedEvent.start);
     newStart.setFullYear(year, month, day);
     const duration = draggedEvent.end - draggedEvent.start;
@@ -491,14 +490,14 @@ function CalendarPage() {
         onSave={onSave}
         event={editEvent || (duplicateEvent ? { ...duplicateEvent, _id: undefined, title: `${duplicateEvent.title} (Copy)` } : undefined)}
         defaultDate={defaultDate}
-        users={users || []}
+        users={users?.filter((u): u is NonNullable<typeof u> => u !== null) || []}
       />
 
       {/* Event Details Drawer */}
       {viewEvent && (
         <EventDetailsDrawer
           event={viewEvent}
-          users={users || []}
+        users={(users?.filter((u): u is NonNullable<typeof u> => u != null) || []).map(u => ({ _id: u._id, name: u.name, email: u.email }))}
           onClose={() => setViewEvent(null)}
           onEdit={(ev) => { setViewEvent(null); openEditModal(ev); }}
           onDelete={() => setViewEvent(null)}

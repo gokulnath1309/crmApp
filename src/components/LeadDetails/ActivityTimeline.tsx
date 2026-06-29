@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
-  History, Search, Filter, Pin, Trash2, Edit3, ChevronDown, 
-  ChevronUp, Check, Phone, Mail, MessageSquare, Video, 
-  Sparkles, FileText, Calendar, Plus, Clock, User 
+  History, Search, Pin, Trash2, Edit3, ChevronDown, 
+  ChevronUp, Phone, Mail, MessageSquare, Video, 
+  Sparkles, FileText, Plus, Clock, User as UserIcon, AlertCircle
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -16,7 +16,7 @@ interface ActivityTimelineProps {
 
 export function ActivityTimeline({ lead, activities, transitions }: ActivityTimelineProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
   const users = useQuery(api.users.list);
 
   // Mutations
@@ -282,7 +282,7 @@ export function ActivityTimeline({ lead, activities, transitions }: ActivityTime
             className="w-full bg-transparent border-0 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
           >
             <option value="All">Everyone</option>
-            {users?.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+            {users?.map((u: any) => <option key={u._id} value={u._id}>{u.name}</option>)}
           </select>
         </div>
         <div>
@@ -441,7 +441,7 @@ export function ActivityTimeline({ lead, activities, transitions }: ActivityTime
                     {/* Metadata Footer */}
                     <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
                       <span className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-slate-350" />
+                        <UserIcon className="w-3 h-3 text-slate-350" />
                         By: {act.userName}
                       </span>
                       <span className="flex items-center gap-1">

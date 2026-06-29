@@ -14,7 +14,7 @@ interface FilesCardProps {
 export function FilesCard({ lead }: FilesCardProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Queries/Mutations
   const files = useQuery(api.leads.listLeadAttachments, lead ? { leadId: lead._id } : "skip");

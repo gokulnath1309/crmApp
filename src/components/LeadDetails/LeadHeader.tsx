@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useState } from "react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
   Building, Edit, Trash2, Share2, MoreHorizontal, Check, 
-  Sparkles, Calendar, Clock, User, ShieldAlert
+  Sparkles, Calendar, Clock, User as UserIcon
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { getPermissions } from "@/lib/permissions";
@@ -17,7 +17,7 @@ interface LeadHeaderProps {
 
 export function LeadHeader({ lead, onEdit, onDelete, onStatusChangeClick }: LeadHeaderProps) {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
   const users = useQuery(api.users.list);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -25,7 +25,7 @@ export function LeadHeader({ lead, onEdit, onDelete, onStatusChangeClick }: Lead
   if (!lead) return null;
 
   const permissions = getPermissions(currentUser);
-  const ownerUser = users?.find(u => u._id === lead.assignedTo);
+  const ownerUser = users?.find((u: any) => u._id === lead.assignedTo);
   const ownerName = ownerUser?.name || "Unassigned";
 
   // Permission Logic
@@ -102,7 +102,7 @@ export function LeadHeader({ lead, onEdit, onDelete, onStatusChangeClick }: Lead
               Updated: {new Date(lead.updatedAt).toLocaleDateString()}
             </span>
             <span className="flex items-center gap-1">
-              <User className="w-3.5 h-3.5 text-slate-300" />
+              <UserIcon className="w-3.5 h-3.5 text-slate-300" />
               Owner: <strong className="text-slate-700 dark:text-slate-300">{ownerName}</strong>
             </span>
           </div>

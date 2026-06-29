@@ -7,11 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Select, type SelectOption } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { useUser } from "@/features/auth/UserProvider";
 import { getPermissions } from "@/lib/permissions";
-import { Check, X, ArrowLeft, Archive, Trash2 } from "lucide-react";
+import { Check, ArrowLeft, Archive, Trash2 } from "lucide-react";
 
 const TEAM_COLORS = [
   "#6366f1", "#8b5cf6", "#a855f7", "#ec4899", "#ef4444",

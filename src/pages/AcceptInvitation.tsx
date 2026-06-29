@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { useAuth } from "@/features/auth/AuthProvider";
 
 import { useToast } from "@/components/ui/Toast";
-import { Shield, Loader2, Sparkles, AlertCircle, ArrowRight, CheckCircle2, Mail, UserPlus } from "lucide-react";
+import { Shield, Loader2, Sparkles, AlertCircle, ArrowRight, CheckCircle2, UserPlus } from "lucide-react";
 
 type PageState = "loading" | "invalid" | "expired" | "already_accepted" | "needs_auth" | "accepting" | "redirecting" | "error";
 

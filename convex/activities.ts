@@ -10,7 +10,6 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUserReadOnly(ctx);
-    const userId = currentUser?._id;
     const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
     if (!currentUser || currentUser.isActive === false || !workspaceId) {
       return [];
@@ -47,7 +46,7 @@ export const log = internalMutation({
     let workspaceId = args.workspaceId;
     if (!workspaceId && args.userId) {
       const user = await ctx.db.get(args.userId);
-      workspaceId = user?.workspaceId;
+      workspaceId = user?.activeWorkspaceId;
     }
 
     const activityId = await ctx.db.insert("activities", {

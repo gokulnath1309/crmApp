@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
-  Building, Filter, Plus, Search, X, User,
+  Building, Filter, Plus, Search, X, User as UserIcon,
   Loader2, Edit, Trash2, Download, Sparkles,
   Clock, ArrowRight, History, UserCheck, XCircle, CheckCircle2,
   Briefcase, Percent
@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Select } from "@/components/ui/Select";
 import { formatCurrency } from "@/lib/currency";
 import { DealStageSelect, dealStageOptions } from "@/components/DealStageSelect";
+
 import { ClosedLostModal, ClosedWonSuccessModal } from "@/components/DealWorkflowModals";
 
 const currencyOptions = [
@@ -509,7 +510,7 @@ export function DealsPage() {
         const row = worksheet.getRow(rowIndex + 3);
         row.height = 20;
 
-        const assignedName = users?.find(u => u._id === d.assignedTo)?.name || "Unassigned";
+        const assignedName = users?.find((u: any) => u._id === d.assignedTo)?.name || "Unassigned";
 
         const data = [
           d.title,
@@ -781,7 +782,7 @@ export function DealsPage() {
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-705 dark:text-slate-300 outline-none focus:border-indigo-500"
               >
                 <option value="all">All Owners</option>
-                {users?.map(u => (
+                {users?.map((u: any) => (
                   <option key={u._id} value={u._id}>{u.name}</option>
                 ))}
               </select>
@@ -878,11 +879,11 @@ export function DealsPage() {
                 {/* Cards Container */}
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[550px] pr-1.5 scrollbar-thin">
                   {columnDeals.map(d => {
-                    const assignedUser = users?.find(u => u._id === d.assignedTo);
+                    const assignedUser = users?.find((u: any) => u._id === d.assignedTo);
                     const ownerInitials = assignedUser
                       ? assignedUser.name
                           .split(" ")
-                          .map(n => n[0])
+                          .map((n: string) => n[0])
                           .join("")
                           .toUpperCase()
                           .slice(0, 2)
@@ -1029,7 +1030,7 @@ export function DealsPage() {
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
                     >
                       <option value="">Select User...</option>
-                      {users?.map(u => (
+                      {users?.map((u: any) => (
                         <option key={u._id} value={u._id}>{u.name}</option>
                       ))}
                     </select>
@@ -1128,13 +1129,13 @@ export function DealsPage() {
                     </div>
                   )}
                   <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <User className="w-4 h-4 text-slate-400" />
+                    <UserIcon className="w-4 h-4 text-slate-400" />
                     <span>Probability: <strong className="text-slate-900 dark:text-white">{selectedDeal.probability ?? 10}%</strong></span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
                     <UserCheck className="w-4 h-4 text-slate-400" />
                     <span>
-                      Owner: <strong className="text-slate-900 dark:text-white">{users?.find(u => u._id === selectedDeal.assignedTo)?.name || "Unassigned"}</strong>
+                      Owner: <strong className="text-slate-900 dark:text-white">{users?.find((u: any) => u._id === selectedDeal.assignedTo)?.name || "Unassigned"}</strong>
                     </span>
                   </div>
                 </div>

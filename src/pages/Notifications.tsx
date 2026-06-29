@@ -32,7 +32,7 @@ export function NotificationsPage() {
   const [activeTab, setActiveTab] = useState<string>("all");
 
   // Queries
-  const currentUser = useQuery(api.users.getCurrentUser);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
   const notifications = useQuery(api.notifications.list, { 
     filter: activeTab,
     search: searchQuery || undefined 

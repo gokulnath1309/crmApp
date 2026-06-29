@@ -216,6 +216,8 @@ export const retryInvitationAction = action({
 
     console.log("[Resend Invite] Invitation found", { email: invitationData.email });
 
+    const invitationInfo = invitationData as { email: string; role: string; department?: string; workspaceName: string; };
+
     // 2. Generate fresh token
     const newInviteToken = crypto.randomUUID();
     console.log("[Resend Invite] Generating invitation link", { token: newInviteToken });
@@ -224,12 +226,12 @@ export const retryInvitationAction = action({
     console.log("[Resend Invite] Sending email", { to: invitationData.email });
     try {
       const emailResult = await ctx.runAction(api.email.sendInvitationEmail, {
-        email: invitationData.email,
+        email: invitationInfo.email,
         name: "User",
-        role: invitationData.role,
-        department: invitationData.department,
+        role: invitationInfo.role,
+        department: invitationInfo.department,
         managerName: "Admin",
-        companyName: invitationData.workspaceName,
+        companyName: invitationInfo.workspaceName,
         token: newInviteToken,
       });
 
