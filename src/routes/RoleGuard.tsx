@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { getPermissions } from "@/lib/permissions";
@@ -13,19 +14,23 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ children, allowedRoles, requiredPermission }: RoleGuardProps) {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const { user, isUserLoading: isLoading } = useUser();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const permissions = getPermissions(user);
 
-  let isAllowed = true;
+  // Default to NOT allowed when user hasn't loaded yet.
+  // The isLoading check below shows a spinner, but we must pre-set isAllowed
+  // to false here so we never briefly render children for an unauthorized user.
+  let isAllowed = !!user;
 
-  if (allowedRoles && user) {
+  if (user && allowedRoles) {
     isAllowed = isAllowed && allowedRoles.includes(user.role || "");
   }
 
-  if (requiredPermission && user) {
+  if (user && requiredPermission) {
     const key = requiredPermission as keyof typeof permissions;
     isAllowed = isAllowed && !!permissions[key];
   }

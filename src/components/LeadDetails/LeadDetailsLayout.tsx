@@ -1,0 +1,546 @@
+import React, { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { 
+  ArrowLeft, FileText, History, Info, Paperclip, CheckCircle, 
+  BellRing, Loader2, DollarSign
+} from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+
+// Import Reusable Sub-components
+import { LeadHeader } from "./LeadHeader";
+import { LeadOverviewCards } from "./LeadOverviewCards";
+import { PipelineProgress } from "./PipelineProgress";
+import { ContactInformationCard } from "./ContactInformationCard";
+import { OpportunityCard } from "./OpportunityCard";
+import { ActivityTimeline } from "./ActivityTimeline";
+import { NotesCard } from "./NotesCard";
+import { FilesCard } from "./FilesCard";
+import { TasksCard } from "./TasksCard";
+import { RemindersCard } from "./RemindersCard";
+import { QuickActions } from "./QuickActions";
+import { RightActionPanel } from "./RightActionPanel";
+
+// Import workflow modals and drawers
+import { ContactInteractionDrawer } from "@/components/ContactInteractionDrawer";
+import { LeadTransitionDrawer } from "@/components/LeadTransitionDrawer";
+import { UnqualifiedModal, LostModal, RequalifyModal } from "@/components/StatusWorkflowModals";
+
+interface LeadDetailsLayoutProps {
+  leadId: string;
+  onBack: () => void;
+  onLeadDelete?: () => void;
+}
+
+export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsLayoutProps) {
+  const { toast } = useToast();
+  
+  // Realtime Subscriptions
+  const lead = useQuery(api.leads.get, { id: leadId as any });
+  const transitions = useQuery(api.leads.listTransitions, { leadId: leadId as any });
+  const activities = useQuery(api.leads.listLeadActivities, { leadId: leadId as any });
+  const reminders = useQuery(api.leads.listLeadReminders, { leadId: leadId as any });
+
+  // Mutations
+  const transitionLeadMutation = useMutation(api.leads.transitionStage);
+  const changeStatusMutation = useMutation(api.leads.changeStatus);
+  const contactInteractionMutation = useMutation(api.leads.contactInteraction);
+  const setContactedDataMutation = useMutation(api.leads.setContactedData);
+  const convertToDealMutation = useMutation(api.leads.convertToDeal);
+  const deleteLeadMutation = useMutation(api.leads.remove);
+
+  // States
+  const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "notes" | "files" | "tasks" | "reminders">("overview");
+  
+  // Workflow Dialog States
+  const [isTransitionDrawerOpen, setIsTransitionDrawerOpen] = useState(false);
+  const [isContactDrawerOpen, setIsContactDrawerOpen] = useState(false);
+  const [isContactQualifyMode, setIsContactQualifyMode] = useState(false);
+  const [transitionTargetStage, setTransitionTargetStage] = useState("");
+  const [isUnqualifiedModalOpen, setIsUnqualifiedModalOpen] = useState(false);
+  const [isLostModalOpen, setIsLostModalOpen] = useState(false);
+  const [isRequalifyModalOpen, setIsRequalifyModalOpen] = useState(false);
+  const [isConvertDealOpen, setIsConvertDealOpen] = useState(false);
+  const [convertDealValue, setConvertDealValue] = useState("");
+  const [convertDealCurrency, setConvertDealCurrency] = useState("INR");
+  const [isConverting, setIsConverting] = useState(false);
+
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    targetStatus: string;
+    onConfirm: (extraFields: Record<string, string>) => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  if (lead === undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-400">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-650" />
+        <p className="text-sm font-semibold">Loading Lead Workspace...</p>
+      </div>
+    );
+  }
+
+  if (lead === null) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-500">
+        <h3 className="font-bold text-base text-slate-900 dark:text-white">Lead Not Found</h3>
+        <p className="text-xs">The lead may have been deleted or moved.</p>
+        <button 
+          onClick={onBack} 
+          className="mt-2 h-9 px-4 bg-indigo-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+        >
+          Return to Leads
+        </button>
+      </div>
+    );
+  }
+
+  const lastActivity = activities && activities.length > 0 ? activities[0] : null;
+  const nextReminder = reminders && reminders.filter(r => !r.isCompleted).length > 0
+    ? reminders.filter(r => !r.isCompleted).sort((a, b) => a.dueDate - b.dueDate)[0]
+    : null;
+
+  const handlePipelineStatusRequest = (targetStage: string) => {
+    if (targetStage === "Lost") {
+      setPendingStatusChange({
+        targetStatus: targetStage,
+        onConfirm: async (fields) => {
+          try {
+            await changeStatusMutation({
+              leadId: lead._id,
+              status: "Lost",
+              lostReason: fields.lostReason,
+              lostNotes: fields.lostNotes || "",
+            });
+            toast("success", "Lead status updated to Lost");
+          } catch (err: any) {
+            toast("error", err.message || "Failed to update lead status");
+          }
+        }
+      });
+      setIsLostModalOpen(true);
+    } else if (targetStage === "Unqualified") {
+      setPendingStatusChange({
+        targetStatus: targetStage,
+        onConfirm: async (fields) => {
+          try {
+            await changeStatusMutation({
+              leadId: lead._id,
+              status: "Unqualified",
+              unqualifiedReason: fields.unqualifiedReason,
+              unqualifiedNotes: fields.unqualifiedNotes || "",
+            });
+            toast("success", "Lead status updated to Unqualified");
+          } catch (err: any) {
+            toast("error", err.message || "Failed to update lead status");
+          }
+        }
+      });
+      setIsUnqualifiedModalOpen(true);
+    } else if (targetStage === "New" && (lead.status === "Lost" || lead.status === "Unqualified")) {
+      setPendingStatusChange({
+        targetStatus: targetStage,
+        onConfirm: async (fields) => {
+          try {
+            await changeStatusMutation({
+              leadId: lead._id,
+              status: "New",
+              requalificationReason: fields.requalificationReason,
+            });
+            toast("success", "Lead requalified successfully");
+          } catch (err: any) {
+            toast("error", err.message || "Failed to requalify lead");
+          }
+        }
+      });
+      setIsRequalifyModalOpen(true);
+    } else if (targetStage === "Contacted" && lead.status === "New") {
+      setIsContactQualifyMode(false);
+      setIsContactDrawerOpen(true);
+    } else if (targetStage === "Qualified" && lead.status === "Contacted") {
+      setIsContactQualifyMode(true);
+      setIsContactDrawerOpen(true);
+    } else if (targetStage === "Converted" && lead.status === "Qualified") {
+      setIsConvertDealOpen(true);
+      setConvertDealValue("");
+    } else {
+      setTransitionTargetStage(targetStage);
+      setIsTransitionDrawerOpen(true);
+    }
+  };
+
+  const handleDeleteLead = async () => {
+    if (!confirm(`Are you sure you want to delete lead "${lead.company}" permanently?`)) return;
+    try {
+      await deleteLeadMutation({ id: lead._id });
+      toast("success", "Lead deleted successfully");
+      if (onLeadDelete) onLeadDelete();
+      onBack();
+    } catch (err: any) {
+      toast("error", err.message || "Failed to delete lead");
+    }
+  };
+
+  const tabs: { id: typeof activeTab; label: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", icon: <Info className="w-3.5 h-3.5" /> },
+    { id: "timeline", label: "Timeline", icon: <History className="w-3.5 h-3.5" /> },
+    { id: "notes", label: "Notes", icon: <FileText className="w-3.5 h-3.5" /> },
+    { id: "files", label: "Files", icon: <Paperclip className="w-3.5 h-3.5" /> },
+    { id: "tasks", label: "Tasks", icon: <CheckCircle className="w-3.5 h-3.5" /> },
+    { id: "reminders", label: "Reminders", icon: <BellRing className="w-3.5 h-3.5" /> },
+  ];
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto px-4 pb-12 select-none">
+      
+      {/* ─── Back to list Header ─── */}
+      <div className="flex items-center">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer text-xs font-bold uppercase tracking-wider bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 px-4 py-2.5 rounded-xl shadow-xs"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Leads Table
+        </button>
+      </div>
+
+      {/* ─── Lead Identity Header ─── */}
+      <LeadHeader 
+        lead={lead} 
+        onEdit={() => {}} // Edit handled from Leads.tsx
+        onDelete={handleDeleteLead}
+        onStatusChangeClick={() => {}}
+      />
+
+      {/* ─── Quick overview metrics ─── */}
+      <LeadOverviewCards 
+        lead={lead} 
+        lastActivity={lastActivity} 
+        nextReminder={nextReminder}
+      />
+
+      {/* ─── Horizontal Stage Pipeline ─── */}
+      <PipelineProgress 
+        lead={lead}
+        transitions={transitions}
+        onTransitionClick={handlePipelineStatusRequest}
+        onQuickMarkStatus={handlePipelineStatusRequest}
+      />
+
+      {/* ─── Tabs and Sub-layout Grid ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        
+        {/* Left Side Tab Container (2/3 width) */}
+        <div className="lg:col-span-2 space-y-6 flex flex-col h-full">
+          
+          {/* Tab selector */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700/50 overflow-x-auto whitespace-nowrap scrollbar-none gap-2 pb-0.5">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 h-10 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                    isActive 
+                      ? "border-indigo-600 text-indigo-650 dark:text-indigo-400" 
+                      : "border-transparent text-slate-400 hover:text-slate-650"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sub-tab Rendering */}
+          <div className="flex-1">
+            {activeTab === "overview" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <ContactInformationCard lead={lead} />
+                <NotesCard lead={lead} />
+                <div className="md:col-span-2">
+                  <ActivityTimeline lead={lead} activities={activities} />
+                </div>
+              </div>
+            )}
+            
+            {activeTab === "timeline" && (
+              <ActivityTimeline lead={lead} activities={activities} />
+            )}
+
+            {activeTab === "notes" && (
+              <NotesCard lead={lead} />
+            )}
+
+            {activeTab === "files" && (
+              <FilesCard lead={lead} />
+            )}
+
+            {activeTab === "tasks" && (
+              <TasksCard lead={lead} />
+            )}
+
+            {activeTab === "reminders" && (
+              <RemindersCard lead={lead} />
+            )}
+          </div>
+        </div>
+
+        {/* Right Side Control Panel (1/3 width) */}
+        <div className="space-y-6">
+          <QuickActions lead={lead} />
+          <OpportunityCard lead={lead} />
+          <RightActionPanel lead={lead} />
+        </div>
+      </div>
+
+      {/* ─── WORKFLOW MODALS AND DRAWERS ─── */}
+
+      {/* Contact Interaction Drawer (New→Contacted / Contacted→Qualified) */}
+      <ContactInteractionDrawer
+        isOpen={isContactDrawerOpen}
+        onClose={() => {
+          setIsContactDrawerOpen(false);
+          setIsContactQualifyMode(false);
+        }}
+        lead={lead as any}
+        onConfirm={async (data) => {
+          try {
+            if (isContactQualifyMode) {
+              await setContactedDataMutation({
+                leadId: lead._id,
+                businessType: data.transitionData.businessType,
+                buyingAuthority: data.transitionData.buyingAuthority,
+                currentSituation: data.transitionData.currentSituation,
+                businessChallenges: data.transitionData.businessChallenges,
+                goalsObjectives: data.transitionData.goalsObjectives,
+                currentProcess: data.transitionData.currentProcess,
+                painPoints: data.transitionData.painPoints,
+                requirementsSummary: data.transitionData.requirementsSummary,
+                expectedOutcome: data.transitionData.expectedOutcome,
+                competitors: data.transitionData.competitors,
+                urgency: data.transitionData.urgency,
+                budgetStatus: data.transitionData.budgetStatus,
+                timeline: data.transitionData.timeline,
+                decisionMaker: data.transitionData.decisionMaker,
+                decisionMakerName: data.transitionData.decisionMakerName,
+                decisionMakerRole: data.transitionData.decisionMakerRole,
+                preferredCommunication: data.transitionData.preferredCommunication,
+                preferredContactTime: data.transitionData.preferredContactTime,
+                preferredFollowUpMethod: data.transitionData.preferredFollowUpMethod,
+                conversationSummary: data.transitionData.conversationSummary,
+                nextFollowUpDate: data.transitionData.nextFollowUpDate,
+                meetingScheduled: data.transitionData.meetingScheduled,
+                notes: data.transitionData.additionalNotes,
+                isQualified: true,
+                attachments: data.attachments as any,
+              });
+              toast("success", "Lead qualified successfully");
+            } else {
+              await contactInteractionMutation({
+                leadId: lead._id,
+                businessType: data.transitionData.businessType,
+                buyingAuthority: data.transitionData.buyingAuthority,
+                currentSituation: data.transitionData.currentSituation,
+                businessChallenges: data.transitionData.businessChallenges,
+                goalsObjectives: data.transitionData.goalsObjectives,
+                currentProcess: data.transitionData.currentProcess,
+                painPoints: data.transitionData.painPoints,
+                requirementsSummary: data.transitionData.requirementsSummary,
+                expectedOutcome: data.transitionData.expectedOutcome,
+                competitors: data.transitionData.competitors,
+                urgency: data.transitionData.urgency,
+                budgetStatus: data.transitionData.budgetStatus,
+                timeline: data.transitionData.timeline,
+                decisionMaker: data.transitionData.decisionMaker,
+                decisionMakerName: data.transitionData.decisionMakerName,
+                decisionMakerRole: data.transitionData.decisionMakerRole,
+                preferredCommunication: data.transitionData.preferredCommunication,
+                preferredContactTime: data.transitionData.preferredContactTime,
+                preferredFollowUpMethod: data.transitionData.preferredFollowUpMethod,
+                conversationSummary: data.transitionData.conversationSummary,
+                nextFollowUpDate: data.transitionData.nextFollowUpDate,
+                meetingScheduled: data.transitionData.meetingScheduled,
+                notes: data.transitionData.additionalNotes,
+                status: "Contacted",
+                attachments: data.attachments as any,
+              });
+              toast("success", "Lead moved to Contacted stage");
+            }
+          } catch (err: any) {
+            toast("error", err.message || "Failed to process interaction");
+          }
+        }}
+      />
+
+      {/* Lead Transition Drawer (fallback for other stages) */}
+      <LeadTransitionDrawer
+        isOpen={isTransitionDrawerOpen}
+        onClose={() => {
+          setIsTransitionDrawerOpen(false);
+          setTransitionTargetStage("");
+        }}
+        lead={lead as any}
+        targetStage={transitionTargetStage}
+        onConfirm={async (data) => {
+          try {
+            await transitionLeadMutation({
+              leadId: lead._id,
+              toStage: transitionTargetStage,
+              transitionData: data.transitionData,
+              activityDetails: data.activityDetails as any,
+              reminderDetails: data.reminderDetails,
+              attachments: data.attachments as any,
+            });
+            toast("success", `Lead transitioned to ${transitionTargetStage}`);
+          } catch (err: any) {
+            toast("error", err.message || "Failed to transition lead");
+          }
+        }}
+      />
+
+      {/* Convert To Deal Modal */}
+      {isConvertDealOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setIsConvertDealOpen(false)} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Convert to Deal</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {lead.company} — {lead.firstName} {lead.lastName}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Expected Deal Value
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={convertDealValue}
+                    onChange={e => setConvertDealValue(e.target.value)}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    placeholder="0"
+                  />
+                  <select
+                    value={convertDealCurrency}
+                    onChange={e => setConvertDealCurrency(e.target.value)}
+                    className="w-24 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="INR">INR</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                  </select>
+                </div>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
+                <p className="flex items-center gap-2">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  This will create a deal record, mark the lead as Converted, and move it to read-only mode.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setIsConvertDealOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setIsConverting(true);
+                  try {
+                    await convertToDealMutation({
+                      leadId: lead._id,
+                      dealValue: convertDealValue ? Number(convertDealValue) : undefined,
+                      dealCurrency: convertDealCurrency,
+                    });
+                    toast("success", "Lead converted to deal successfully");
+                    setIsConvertDealOpen(false);
+                  } catch (err: any) {
+                    toast("error", err.message || "Failed to convert lead");
+                  } finally {
+                    setIsConverting(false);
+                  }
+                }}
+                disabled={isConverting}
+                className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-lg hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 transition-all shadow-sm"
+              >
+                {isConverting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Converting...
+                  </span>
+                ) : (
+                  "Convert to Deal"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <UnqualifiedModal
+        open={isUnqualifiedModalOpen}
+        onClose={() => {
+          setIsUnqualifiedModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              unqualifiedReason: data.reason,
+              unqualifiedNotes: data.notes || "",
+            });
+          }
+          setIsUnqualifiedModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <LostModal
+        open={isLostModalOpen}
+        onClose={() => {
+          setIsLostModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              lostReason: data.reason,
+              lostNotes: data.notes || "",
+            });
+          }
+          setIsLostModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+
+      <RequalifyModal
+        open={isRequalifyModalOpen}
+        onClose={() => {
+          setIsRequalifyModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+        onConfirm={(data) => {
+          if (pendingStatusChange) {
+            pendingStatusChange.onConfirm({
+              requalificationReason: data.reason,
+            });
+          }
+          setIsRequalifyModalOpen(false);
+          setPendingStatusChange(null);
+        }}
+      />
+    </div>
+  );
+}
+export default LeadDetailsLayout;

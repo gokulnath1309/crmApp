@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useSignIn } from "@clerk/clerk-react";
-import { useNavigate, Link } from "react-router-dom";
+import { useSignIn, useAuth } from "@clerk/clerk-react";
+import { Link } from "react-router-dom";
 import {
   Zap, TrendingUp, Users, Brain, Shield, Mail, Star, BarChart3, ArrowUpRight, Menu,
   Eye, EyeOff, Lock, ChevronRight
@@ -202,6 +202,8 @@ function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: (
     );
   }
 
+  if (!error.message) return null;
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0, marginTop: 0 }}
@@ -213,9 +215,8 @@ function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: (
           <Shield className="w-4 h-4 text-red-600" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-red-900">Something went wrong</h4>
           <p className="text-[13px] text-red-700/90 mt-1 leading-relaxed">
-            {error.message || "We couldn't complete your request right now. Please try again in a few moments."}
+            {error.message}
           </p>
         </div>
       </div>
@@ -227,7 +228,7 @@ function ErrorAlert({ error, onTryAnother }: { error: AuthError, onTryAnother: (
 
 function AuthForm() {
   const { signIn, setActive, isLoaded } = useSignIn();
-  const navigate = useNavigate();
+  const { isSignedIn: clerkIsSignedIn } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -243,25 +244,56 @@ function AuthForm() {
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const canSubmitPassword = isValidEmail && password.length > 0 && !loading;
 
+  // Wait for Clerk session state to settle before rendering
+  if (!isLoaded || clerkIsSignedIn === undefined) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Already signed in — never render the form or call signIn.create()
+  if (clerkIsSignedIn) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-500">You are already signed in. Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   // ── Auth handlers ──
 
   const handleGoogleLogin = async () => {
     if (!signIn) return;
+    // Let the early return guard in the render handle the redirect
+    if (clerkIsSignedIn) return;
     setGoogleLoading(true);
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}/dashboard`,
+        redirectUrlComplete: `${window.location.origin}/sso-callback`,
       });
     } catch (err: any) {
-      toast("error", err?.longMessage || err?.message || "Google sign-in failed");
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "";
+      if (msg.toLowerCase().includes("already signed in")) {
+        // Clerk frontend is out of sync with backend — reload to re-sync
+        window.location.reload();
+        return;
+      }
+      toast("error", msg || "Google sign-in failed");
       setGoogleLoading(false);
     }
   };
 
   const handlePasswordSignIn = async () => {
     if (!signIn) return;
+    // Let the early return guard in the render handle the redirect
+    if (clerkIsSignedIn) return;
     setLoading(true);
     setError(null);
     try {
@@ -271,32 +303,28 @@ function AuthForm() {
           await setActive({ session: result.createdSessionId });
         }
         toast("success", "Signed in successfully");
-        navigate("/dashboard", { replace: true });
-      } else {
-        setError({ type: 'generic', message: "Sign-in incomplete. Please try again." });
+        return;
       }
+      setError({ type: 'generic', message: "Sign-in incomplete. Please try again." });
     } catch (err: any) {
       console.error("[Auth Error]", err);
       const code = err?.errors?.[0]?.code;
       const msg = err?.errors?.[0]?.longMessage || err?.message || "";
       
+      if (code === "session_exists" || msg.toLowerCase().includes("already signed in")) {
+        // Clerk frontend is out of sync with backend — reload to re-sync
+        window.location.reload();
+        return;
+      }
       if (code === "form_identifier_not_found" || msg.toLowerCase().includes("no account found") || msg.toLowerCase().includes("couldn't find your account")) {
         setError({ type: 'not_found' });
       } else {
-        setError({ type: 'generic', message: "We couldn't complete your request right now. Please try again in a few moments." });
+        setError({ type: 'generic', message: msg });
       }
     } finally {
       setLoading(false);
     }
   };
-
-  if (!isLoaded) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <>

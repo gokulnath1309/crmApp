@@ -172,6 +172,34 @@ export function DealsPage() {
     }
   }, [isFormOpen]);
 
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      resetForm();
+      setIsFormOpen(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const dealId = searchParams.get("dealId");
+    if (dealId && deals) {
+      const match = deals.find((d) => d._id === dealId);
+      if (match) {
+        setSelectedDeal(match);
+        setIsDetailsOpen(true);
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete("dealId");
+          return next;
+        }, { replace: true });
+      }
+    }
+  }, [searchParams, deals, setSearchParams]);
+
   const validateField = (name: string, value: any) => {
     let err = "";
     if (name === "title" && !value.trim()) err = "Deal Title is required";

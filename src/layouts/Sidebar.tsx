@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useQuery } from "convex/react";
@@ -9,7 +10,7 @@ import { api } from "../../convex/_generated/api";
 import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Bell, Settings,
   LogOut, Target, ChevronLeft, ChevronRight, X, BarChart2, Sun, Moon,
-  Building2, CreditCard, UserCircle,
+  Building2, CreditCard, UserCircle, Calendar,
 } from "lucide-react";
 
 interface NavItem {
@@ -44,9 +45,12 @@ const navItems: NavItem[] = [
   { label: "Tasks", href: "/tasks", icon: CheckSquare, roles: ["super_admin", "admin"] },
   { label: "My Tasks", href: "/tasks", icon: CheckSquare, roles: ["sales_rep", "employee", "support"] },
 
+  // Calendar
+  { label: "Calendar", href: "/calendar", icon: Calendar, roles: ["super_admin", "admin", "sales_rep", "marketing", "support", "employee"] },
+
   // Management / Admin only
   { label: "Employees", href: "/employees", icon: Users, roles: ["super_admin", "admin"] },
-  { label: "Teams", href: "/teams", icon: Users, roles: ["super_admin"] },
+  { label: "Teams", href: "/teams", icon: Users, roles: ["super_admin", "admin"] },
   { label: "Reports", href: "/reports", icon: BarChart2, roles: ["super_admin"] },
   
   // Marketing Campaigns & Analytics
@@ -74,7 +78,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse }: SidebarProps) {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { user } = useUser();
   const isMobile = useMediaQuery("(max-width: 1023px)");
   const [dark, toggleDark] = useDarkMode();
 

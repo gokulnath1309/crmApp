@@ -45,6 +45,7 @@ export function hasPermission(
     admin: [
       "canInviteUsers",
       "canManageEmployees",
+      "canManageTeams",
       "canAssignLeads",
       "canAssignDeals",
       "canAssignTasks",
@@ -106,12 +107,13 @@ export async function canAccessLead(
   leadIdOrLead: Id<"leads"> | Doc<"leads">
 ): Promise<boolean> {
   const user = await getEffectiveUser(ctx, userId);
-  if (!user || !user.companyId) return false;
+  const workspaceId = user?.activeWorkspaceId;
+  if (!user || !workspaceId) return false;
 
   const lead = typeof leadIdOrLead === "string" ? await ctx.db.get(leadIdOrLead) : leadIdOrLead;
   if (!lead) return false;
 
-  if (lead.companyId !== user.companyId) return false;
+  if (lead.workspaceId !== workspaceId) return false;
 
   if (hasPermission(user, "canViewAllData")) return true;
 
@@ -126,12 +128,13 @@ export async function canAccessContact(
   contactIdOrContact: Id<"contacts"> | Doc<"contacts">
 ): Promise<boolean> {
   const user = await getEffectiveUser(ctx, userId);
-  if (!user || !user.companyId) return false;
+  const workspaceId = user?.activeWorkspaceId;
+  if (!user || !workspaceId) return false;
 
   const contact = typeof contactIdOrContact === "string" ? await ctx.db.get(contactIdOrContact) : contactIdOrContact;
   if (!contact) return false;
 
-  if (contact.companyId !== user.companyId) return false;
+  if (contact.workspaceId !== workspaceId) return false;
 
   if (hasPermission(user, "canViewAllData")) return true;
 
@@ -146,12 +149,13 @@ export async function canAccessDeal(
   dealIdOrDeal: Id<"deals"> | Doc<"deals">
 ): Promise<boolean> {
   const user = await getEffectiveUser(ctx, userId);
-  if (!user || !user.companyId) return false;
+  const workspaceId = user?.activeWorkspaceId;
+  if (!user || !workspaceId) return false;
 
   const deal = typeof dealIdOrDeal === "string" ? await ctx.db.get(dealIdOrDeal) : dealIdOrDeal;
   if (!deal) return false;
 
-  if (deal.companyId !== user.companyId) return false;
+  if (deal.workspaceId !== workspaceId) return false;
 
   if (hasPermission(user, "canViewAllData")) return true;
 
@@ -166,12 +170,13 @@ export async function canAccessTask(
   taskIdOrTask: Id<"tasks"> | Doc<"tasks">
 ): Promise<boolean> {
   const user = await getEffectiveUser(ctx, userId);
-  if (!user || !user.companyId) return false;
+  const workspaceId = user?.activeWorkspaceId;
+  if (!user || !workspaceId) return false;
 
   const task = typeof taskIdOrTask === "string" ? await ctx.db.get(taskIdOrTask) : taskIdOrTask;
   if (!task) return false;
 
-  if (task.companyId !== user.companyId) return false;
+  if (task.workspaceId !== workspaceId) return false;
 
   if (hasPermission(user, "canViewAllData")) return true;
 

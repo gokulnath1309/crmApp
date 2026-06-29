@@ -9,6 +9,10 @@ export interface User {
 export interface PermissionSet {
   canInviteUsers: boolean;
   canManageEmployees: boolean;
+  canManageTeams: boolean;
+  canCreateTeam: boolean;
+  canDeleteTeam: boolean;
+  canArchiveTeam: boolean;
   canAssignLeads: boolean;
   canAssignDeals: boolean;
   canAssignTasks: boolean;
@@ -24,6 +28,10 @@ export function getPermissions(user: User | null | undefined): PermissionSet {
   const fallback: PermissionSet = {
     canInviteUsers: false,
     canManageEmployees: false,
+    canManageTeams: false,
+    canCreateTeam: false,
+    canDeleteTeam: false,
+    canArchiveTeam: false,
     canAssignLeads: false,
     canAssignDeals: false,
     canAssignTasks: false,
@@ -49,6 +57,10 @@ export function getPermissions(user: User | null | undefined): PermissionSet {
   return {
     canInviteUsers: isSuperAdmin || isAdmin || hasOverride("canInviteUsers"),
     canManageEmployees: isSuperAdmin || isAdmin || hasOverride("canManageEmployees"),
+    canManageTeams: isSuperAdmin || isAdmin || hasOverride("canManageTeams"),
+    canCreateTeam: isSuperAdmin || isAdmin || hasOverride("canCreateTeam"),
+    canDeleteTeam: isSuperAdmin || hasOverride("canDeleteTeam"),
+    canArchiveTeam: isSuperAdmin || isAdmin || hasOverride("canArchiveTeam"),
     canAssignLeads: isSuperAdmin || isAdmin || isMarketing || hasOverride("canAssignLeads"),
     canAssignDeals: isSuperAdmin || isAdmin || hasOverride("canAssignDeals"),
     canAssignTasks: isSuperAdmin || isAdmin || hasOverride("canAssignTasks"),

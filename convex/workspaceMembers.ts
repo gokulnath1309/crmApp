@@ -28,14 +28,22 @@ export const hasMemberships = query({
 export const listWorkspaces = query({
   args: {},
   handler: async (ctx) => {
+    const t = Date.now();
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) return [];
+    console.log(`[listWorkspaces] t=${t} Identity:`, { exists: !!identity, subject: identity?.subject });
+    if (!identity?.subject) {
+      console.log(`[listWorkspaces] t=${t} No identity, returning null`);
+      return null;
+    }
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
-    if (!user) return [];
+    if (!user) {
+      console.log(`[listWorkspaces] t=${t} No user found for clerkId, returning []`);
+      return [];
+    }
 
     const memberships = await ctx.db
       .query("workspaceMembers")
@@ -52,10 +60,12 @@ export const listWorkspaces = query({
           workspaceName: workspace?.name ?? "Unknown",
           role: m.role,
           isActive: user.activeWorkspaceId === m.workspaceId,
+          clerkOrgId: workspace?.clerkOrgId,
         };
       })
     );
 
+    console.log(`[listWorkspaces] t=${t} Returning ${workspaces.length} workspaces`);
     return workspaces;
   },
 });

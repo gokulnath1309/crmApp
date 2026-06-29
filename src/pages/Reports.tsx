@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/currency";
 import {
@@ -40,14 +40,13 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export function ReportsPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser } = useUser();
   const metrics = useQuery(api.dashboard.getMetrics);
   const [activeTab, setActiveTab] = useState<"revenue" | "funnel" | "stages">("revenue");
   const [selectedCurrency, setSelectedCurrency] = useState<string>("ALL");
 
-  // Guard routing
-  if (!currentUser) return <Navigate to="/signin" replace />;
-  if (currentUser.role !== "super_admin" && currentUser.role !== "admin") {
+  // Role guard — ProtectedRoute above handles auth; this only checks role.
+  if (currentUser && currentUser.role !== "super_admin" && currentUser.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }
 

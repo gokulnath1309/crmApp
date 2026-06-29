@@ -1,19 +1,28 @@
+"use node";
+
 declare const process: { env: Record<string, string | undefined> };
 
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
-// Validate and retrieve RESEND_API_KEY from environment variables
-const getResendClient = () => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+// Validate and retrieve SMTP credentials from environment variables
+const getTransporter = () => {
+  const email = process.env.SMTP_EMAIL;
+  const password = process.env.SMTP_PASSWORD;
+  if (!email || !password) {
     throw new Error(
-      "RESEND_API_KEY environment variable is missing on Convex backend. " +
-      "Please set it on the Convex Dashboard under Settings > Environment Variables."
+      "SMTP_EMAIL or SMTP_PASSWORD environment variable is missing on Convex backend. " +
+      "Please set them on the Convex Dashboard under Settings > Environment Variables."
     );
   }
-  return new Resend(apiKey);
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: email,
+      pass: password,
+    },
+  });
 };
 
 export const sendTestEmail = action({
@@ -24,39 +33,25 @@ export const sendTestEmail = action({
     const { to } = args;
     console.info(`[sendTestEmail] Preparing to send test email to: ${to}`);
 
-    let resend;
+    let transporter;
     try {
-      resend = getResendClient();
+      transporter = getTransporter();
     } catch (err) {
-      console.error(`[sendTestEmail] Client init error:`, err);
+      console.error(`[sendTestEmail] Transporter init error:`, err);
       throw err;
     }
 
     try {
-      // Why onboarding@resend.dev is used for development:
-      // Resend allows sending emails using onboarding@resend.dev to the single email associated
-      // with the API Key creator's account for testing without setting up or verifying a custom domain.
-      //
-      // How to replace with a custom verified domain in production:
-      // 1. Purchase/own a domain (e.g., example.com).
-      // 2. Add and verify your domain in the Resend dashboard under the "Domains" tab (requires adding MX/TXT DNS records).
-      // 3. Change "onboarding@resend.dev" to your own custom sender address, e.g., "CRM Pro <noreply@example.com>".
-      const response = await resend.emails.send({
-        from: "CRM Pro <onboarding@resend.dev>",
-        to: [to],
+      const info = await transporter.sendMail({
+        from: `"CRM Pro" <${process.env.SMTP_EMAIL}>`,
+        to,
         subject: "CRM Pro Test Email",
-        text: "Hello from CRM Pro. Resend is configured correctly.",
+        text: "Hello from CRM Pro. Nodemailer is configured correctly.",
       });
 
-      console.info(`[sendTestEmail] Resend API Response:`, response);
-
-      if (response.error) {
-        console.error(`[sendTestEmail] Resend error details:`, response.error);
-        throw new Error(`Failed to send test email: ${response.error.message}`);
-      }
-
-      console.info(`[sendTestEmail] Test email sent successfully. Message ID: ${response.data?.id}`);
-      return { success: true, messageId: response.data?.id };
+      console.info(`[sendTestEmail] Nodemailer sendMail Response:`, info);
+      console.info(`[sendTestEmail] Test email sent successfully. Message ID: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error(`[sendTestEmail] Fatal error sending test email:`, error);
       throw new Error(error instanceof Error ? error.message : "Internal error sending test email");
@@ -75,18 +70,18 @@ export const sendOtpEmail = action({
     // Log OTP for development validation purposes
     console.info(`[sendOtpEmail] [DEV ONLY] OTP Code: ${otp}`);
 
-    let resend;
+    let transporter;
     try {
-      resend = getResendClient();
+      transporter = getTransporter();
     } catch (err) {
-      console.error(`[sendOtpEmail] Client init error:`, err);
+      console.error(`[sendOtpEmail] Transporter init error:`, err);
       throw err;
     }
 
     try {
-      const response = await resend.emails.send({
-        from: "CRM Pro <onboarding@resend.dev>",
-        to: [email],
+      const info = await transporter.sendMail({
+        from: `"CRM Pro" <${process.env.SMTP_EMAIL}>`,
+        to: email,
         subject: "CRM Pro Email Verification Code",
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px; max-width: 480px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
@@ -111,15 +106,8 @@ export const sendOtpEmail = action({
         `,
       });
 
-      console.info(`[sendOtpEmail] Resend API Response:`, response);
-
-      if (response.error) {
-        console.error(`[sendOtpEmail] Resend error details:`, response.error);
-        throw new Error(`Failed to send OTP verification email: ${response.error.message}`);
-      }
-
-      console.info(`[sendOtpEmail] OTP email sent successfully. Message ID: ${response.data?.id}`);
-      return { success: true, messageId: response.data?.id };
+      console.info(`[sendOtpEmail] OTP email sent successfully. Message ID: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error(`[sendOtpEmail] Fatal error sending OTP email:`, error);
       throw new Error(error instanceof Error ? error.message : "Internal error sending OTP email");
@@ -141,18 +129,18 @@ export const sendPasswordResetEmail = action({
     const baseUrl = process.env.SITE_URL ?? "http://localhost:5173";
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-    let resend;
+    let transporter;
     try {
-      resend = getResendClient();
+      transporter = getTransporter();
     } catch (err) {
-      console.error(`[sendPasswordResetEmail] Client init error:`, err);
+      console.error(`[sendPasswordResetEmail] Transporter init error:`, err);
       throw err;
     }
 
     try {
-      const response = await resend.emails.send({
-        from: "CRM Pro <onboarding@resend.dev>",
-        to: [email],
+      const info = await transporter.sendMail({
+        from: `"CRM Pro" <${process.env.SMTP_EMAIL}>`,
+        to: email,
         subject: "CRM Pro Password Reset",
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
@@ -185,15 +173,8 @@ export const sendPasswordResetEmail = action({
         `,
       });
 
-      console.info(`[sendPasswordResetEmail] Resend API Response:`, response);
-
-      if (response.error) {
-        console.error(`[sendPasswordResetEmail] Resend error:`, response.error);
-        throw new Error(`Failed to send reset email: ${response.error.message}`);
-      }
-
-      console.info(`[sendPasswordResetEmail] Reset email sent. Message ID: ${response.data?.id}`);
-      return { success: true, messageId: response.data?.id };
+      console.info(`[sendPasswordResetEmail] Reset email sent. Message ID: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error(`[sendPasswordResetEmail] Fatal error:`, error);
       throw new Error(error instanceof Error ? error.message : "Internal error sending reset email");
@@ -204,20 +185,21 @@ export const sendPasswordResetEmail = action({
 export const checkResendConfig = action({
   args: {},
   handler: async () => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
+    const email = process.env.SMTP_EMAIL;
+    const password = process.env.SMTP_PASSWORD;
+    if (!email || !password) {
       return {
         configured: false,
         keyPresent: false,
-        message: "RESEND_API_KEY is missing from environment variables.",
+        message: "SMTP_EMAIL or SMTP_PASSWORD is missing from environment variables.",
       };
     }
     return {
       configured: true,
       keyPresent: true,
-      keyPrefix: apiKey.substring(0, 5) + "...",
-      keyLength: apiKey.length,
-      message: "RESEND_API_KEY is configured.",
+      keyPrefix: email.substring(0, 4) + "...",
+      keyLength: email.length,
+      message: "SMTP is configured.",
     };
   },
 });
@@ -240,19 +222,19 @@ export const sendInvitationEmail = action({
     const baseUrl = process.env.SITE_URL ?? "http://localhost:5173";
     const inviteUrl = `${baseUrl}/invite/${token}`;
 
-    let resend;
+    let transporter;
     try {
-      resend = getResendClient();
+      transporter = getTransporter();
     } catch (err: any) {
-      console.error(`[sendInvitationEmail] Client init error:`, err);
-      throw new Error(`Resend API Key configuration error: ${err.message}`);
+      console.error(`[sendInvitationEmail] Transporter init error:`, err);
+      throw new Error(`SMTP configuration error: ${err.message}`);
     }
 
     try {
-      console.log(`[sendInvitationEmail] Invoking Resend send for ${email}...`);
-      const response = await resend.emails.send({
-        from: "CRM Pro <onboarding@resend.dev>",
-        to: [email],
+      console.log(`[sendInvitationEmail] Invoking Nodemailer sendMail for ${email}...`);
+      const info = await transporter.sendMail({
+        from: `"CRM Pro" <${process.env.SMTP_EMAIL}>`,
+        to: email,
         subject: `You're invited to join ${company} on CRMPro`,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
@@ -296,17 +278,12 @@ export const sendInvitationEmail = action({
         `,
       });
 
-      console.log("[sendInvitationEmail] Resend API Response:", response);
-      if (response.error) {
-        console.error("[sendInvitationEmail] Resend API error details:", response.error);
-        throw new Error(response.error.message || "Failed to send email via Resend");
-      }
-      console.log(`[sendInvitationEmail] Email sent successfully! Msg ID: ${response.data?.id}`);
-      return { success: true, messageId: response.data?.id };
+      console.log("[sendInvitationEmail] Nodemailer sendMail Response:", info);
+      console.log(`[sendInvitationEmail] Email sent successfully! Msg ID: ${info.messageId}`);
+      return { success: true, messageId: info.messageId, smtpResponse: info.response };
     } catch (error: any) {
-      console.error("[sendInvitationEmail] Resend API Exception:", error);
+      console.error("[sendInvitationEmail] Nodemailer Exception:", error);
       throw error;
     }
   },
 });
-

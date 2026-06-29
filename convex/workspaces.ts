@@ -222,3 +222,95 @@ export const remove = mutation({
     return args.id;
   },
 });
+
+export const syncClerkWorkspace = mutation({
+  args: {
+    clerkOrgId: v.string(),
+    name: v.string(),
+    industry: v.optional(v.string()),
+    employeeCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.subject) {
+      throw new Error("Unauthorized: Clerk identity not found");
+    }
+
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) {
+      throw new Error("Unauthorized: User not found in database");
+    }
+
+    const userId = currentUser._id;
+    const now = Date.now();
+
+    // Try to find existing workspace by clerkOrgId
+    let workspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_clerkOrgId", (q) => q.eq("clerkOrgId", args.clerkOrgId))
+      .first();
+
+    let workspaceId;
+    if (workspace) {
+      workspaceId = workspace._id;
+      // Optionally update name if it changed
+      if (workspace.name !== args.name.trim()) {
+        await ctx.db.patch(workspaceId, { name: args.name.trim() });
+      }
+    } else {
+      // Create new workspace
+      workspaceId = await ctx.db.insert("workspaces", {
+        name: args.name.trim(),
+        industry: args.industry?.trim(),
+        companySize: args.employeeCount,
+        createdBy: userId,
+        status: "active",
+        createdAt: now,
+        clerkOrgId: args.clerkOrgId,
+      });
+
+      // Log activity
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: "workspace_created",
+        description: `created workspace "${args.name.trim()}"`,
+        userId,
+        userName: currentUser.name || "Founder",
+        entityType: "workspace",
+        entityId: workspaceId,
+        workspaceId,
+      });
+    }
+
+    // Check if membership exists for this user and workspace
+    const existingMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", userId).eq("workspaceId", workspaceId)
+      )
+      .first();
+
+    if (!existingMembership) {
+      // Create membership
+      await ctx.db.insert("workspaceMembers", {
+        workspaceId,
+        clerkUserId: identity.subject,
+        userId,
+        role: "SUPER_ADMIN",
+        department: "Management",
+        status: "active",
+        joinedAt: now,
+      });
+    } else if (existingMembership.status !== "active") {
+      await ctx.db.patch(existingMembership._id, { status: "active" });
+    }
+
+    // Set as active workspace for the user
+    if (currentUser.activeWorkspaceId !== workspaceId) {
+      await ctx.db.patch(userId, {
+        activeWorkspaceId: workspaceId,
+      });
+    }
+
+    return workspaceId;
+  },
+});

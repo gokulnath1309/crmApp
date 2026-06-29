@@ -5,7 +5,7 @@ import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { canEditField } from "./rbac";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import { notifyUser, notifyAdmins } from "./lib/notifications";
+import { notifyUser } from "./lib/notifications";
 
 function formatUserDoc(user: any) {
   return {
@@ -31,7 +31,7 @@ function formatUserDoc(user: any) {
     bio: user.bio,
     jobTitle: user.jobTitle,
     phone: user.phone,
-    workspaceId: user.workspaceId,
+    workspaceId: user.activeWorkspaceId,
     activeWorkspaceId: user.activeWorkspaceId,
     isOwner: user.isOwner,
   };
@@ -40,9 +40,12 @@ function formatUserDoc(user: any) {
 export const getCurrentUser = query({
   args: { token: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const t = Date.now();
+    const identity = await ctx.auth.getUserIdentity();
+    console.log(`[getCurrentUser] t=${t} identity:`, { exists: !!identity, subject: identity?.subject, email: identity?.email });
     const user = await resolveUserReadOnly(ctx);
     if (user) {
-      console.log("[getCurrentUser] Found via lib helper:", user._id);
+      console.log(`[getCurrentUser] t=${t} Found:`, user._id);
       return formatUserDoc(user);
     }
 
@@ -52,12 +55,12 @@ export const getCurrentUser = query({
         .withIndex("by_authToken", (q) => q.eq("authToken", args.token))
         .unique();
       if (legacyUser) {
-        console.log("[getCurrentUser] Found by legacy token:", legacyUser._id);
+        console.log(`[getCurrentUser] t=${t} Found by legacy token:`, legacyUser._id);
         return formatUserDoc(legacyUser);
       }
     }
 
-    console.log("[getCurrentUser] Not found, returning null");
+    console.log(`[getCurrentUser] t=${t} Not found, returning null`);
     return null;
   },
 });
@@ -74,7 +77,7 @@ export const getUserById = query({
       role: user.role ?? "employee",
       department: user.department,
       jobTitle: user.jobTitle,
-      workspaceId: user.workspaceId,
+      workspaceId: user.activeWorkspaceId,
       avatarUrl: user.image ?? user.avatarUrl,
     };
   },
@@ -230,148 +233,11 @@ export const list = query({
   },
 });
 
-export const syncUser = mutation({
+export const ensureUserExists = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      console.warn("[syncUser] Called without authenticated identity");
-      return null;
-    }
-
-    const clerkId = identity.subject;
-    const email = identity.email?.trim().toLowerCase();
-
-    // Try by clerkId first
-    let user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
-      .unique();
-
-    if (!user && email) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const usersByEmail = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
-        .collect();
-
-      if (usersByEmail.length === 1) {
-        user = usersByEmail[0];
-      } else if (usersByEmail.length > 1) {
-        console.warn("[syncUser] Multiple users for email, deduplicating:", email);
-        const withClerkId = usersByEmail.find((u) => u.clerkId === clerkId);
-        if (withClerkId) {
-          user = withClerkId;
-        } else {
-          const withPassword = usersByEmail.find((u) => u.passwordHash);
-          user = withPassword || usersByEmail[0];
-          for (const dup of usersByEmail) {
-            if (dup._id !== user._id) {
-              console.warn("[syncUser] Deleting duplicate user:", dup._id);
-              await ctx.db.delete(dup._id);
-            }
-          }
-        }
-      }
-    }
-
-    const now = Date.now();
-    const isSuperAdminEmail = email === "gokulnath13092001@gmail.com";
-
-    // Check if there is an active pending or email_sent invitation for this email
-    let invitation = null;
-    if (email) {
-      invitation = await ctx.db
-        .query("workspaceInvitations")
-        .withIndex("by_email", (q) => q.eq("email", email))
-        .filter((q) =>
-          q.or(
-            q.eq(q.field("status"), "pending"),
-            q.eq(q.field("status"), "email_sent")
-          )
-        )
-        .first();
-    }
-
-    let workspaceId = invitation ? invitation.workspaceId : undefined;
-    let role = invitation ? invitation.role : (isSuperAdminEmail ? "super_admin" : "employee");
-    let department = invitation ? invitation.department : (isSuperAdminEmail ? "Management" : undefined);
-    let jobTitle = invitation ? invitation.jobTitle : (isSuperAdminEmail ? "Founder" : undefined);
-    let managerId = invitation ? invitation.managerId : undefined;
-    let isOwner = false;
-
-    if (!user) {
-      console.log("[syncUser] Creating new user for:", email);
-      const newUserId = await ctx.db.insert("users", {
-        clerkId,
-        email,
-        name: identity.name || identity.givenName || "User",
-        role,
-        workspaceId,
-        activeWorkspaceId: workspaceId,
-        department,
-        jobTitle,
-        managerId,
-        isOwner,
-        isActive: true,
-        avatarUrl: identity.pictureUrl,
-        createdAt: now,
-        updatedAt: now,
-        lastLogin: now,
-        lastLoginAt: now,
-      });
-
-      const newUser = await ctx.db.get(newUserId);
-      if (newUser) {
-        user = newUser;
-        if (invitation) {
-          await ctx.db.patch(invitation._id, {
-            status: "accepted",
-            acceptedAt: now,
-            acceptedByClerkId: clerkId,
-          });
-        }
-        if (workspaceId) {
-          // Notify admins of the tenant that user has joined
-          await notifyAdmins(ctx, undefined, "user_invited", {
-            entityName: newUser.name || newUser.email,
-            userName: newUser.name || "System",
-            entityType: "user",
-            entityId: newUserId,
-          });
-        }
-      }
-    } else {
-      const patch: any = { lastLogin: now, lastLoginAt: now, updatedAt: now };
-      if (!user.clerkId) {
-        console.log("[syncUser] Backfilling clerkId for user:", user._id);
-        patch.clerkId = clerkId;
-      }
-      if (invitation) {
-        patch.workspaceId = invitation.workspaceId;
-        patch.activeWorkspaceId = invitation.workspaceId;
-        patch.role = invitation.role;
-        patch.department = invitation.department;
-        patch.jobTitle = invitation.jobTitle;
-        patch.managerId = invitation.managerId;
-        patch.isActive = true;
-        
-        await ctx.db.patch(invitation._id, {
-          status: "accepted",
-          acceptedAt: now,
-          acceptedByClerkId: clerkId,
-        });
-      } else if (isSuperAdminEmail && !user.workspaceId) {
-        patch.role = "super_admin";
-        patch.department = "Management";
-        patch.jobTitle = "Founder";
-        patch.isActive = true;
-      }
-      await ctx.db.patch(user._id, patch);
-      user = await ctx.db.get(user._id);
-    }
-
-    return user;
+    const user = await resolveUser(ctx);
+    return user ? formatUserDoc(user) : null;
   },
 });
 
@@ -408,8 +274,16 @@ export const createInvitationRecord = internalMutation({
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
-    if (existingUser && existingUser.workspaceId === args.callerWorkspaceId) {
-      throw new Error("User with this email is already a member of your company");
+    if (existingUser) {
+      const existingMembership = await ctx.db
+        .query("workspaceMembers")
+        .withIndex("by_user_workspace", (q) =>
+          q.eq("userId", existingUser._id).eq("workspaceId", args.callerWorkspaceId)
+        )
+        .first();
+      if (existingMembership && existingMembership.status === "active") {
+        throw new Error("User with this email is already a member of your company");
+      }
     }
 
     // Check for existing pending (not yet expired) invitation
@@ -466,14 +340,27 @@ export const updateInvitationEmailStatus = internalMutation({
     status: v.string(), // "email_sent" | "email_failed"
     emailStatus: v.string(), // "sent" | "failed"
     emailError: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+    smtpResponse: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const patch: any = {
       status: args.status,
       emailStatus: args.emailStatus,
+      lastDeliveryStatus: args.emailStatus,
     };
     if (args.emailStatus === "sent") {
+      patch.sentAt = Date.now();
       patch.emailSentAt = Date.now();
+      if (args.messageId) {
+        patch.messageId = args.messageId;
+      }
+      if (args.smtpResponse) {
+        patch.smtpResponse = args.smtpResponse;
+      }
+      patch.lastDeliveryError = undefined;
+    } else {
+      patch.lastDeliveryError = args.emailError;
     }
     if (args.emailError !== undefined) {
       patch.emailError = args.emailError;
@@ -503,17 +390,18 @@ export const createInviteNotification = internalMutation({
     const { workspaceId, invitedName, invitedEmail, invitationId, senderId, senderName, success, errorMessage } = args;
     const now = Date.now();
 
-    // Find all admin and super_admin users in the company
-    const admins = await ctx.db
-      .query("users")
+    // Find all admin and super_admin users in the company via workspaceMembers
+    const members = await ctx.db
+      .query("workspaceMembers")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("role"), "super_admin"),
-          q.eq(q.field("role"), "admin")
-        )
-      )
+      .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
+
+    const adminMembers = members.filter(
+      (m) =>
+        m.role.toLowerCase() === "admin" ||
+        m.role.toLowerCase() === "super_admin"
+    );
 
     const title = success
       ? `Invitation sent to ${invitedName}`
@@ -522,12 +410,12 @@ export const createInviteNotification = internalMutation({
       ? `${senderName} invited ${invitedName} (${invitedEmail}) to join the company.`
       : `Failed to send invitation to ${invitedName} (${invitedEmail}). Error: ${errorMessage || "Unknown error"}`;
 
-    for (const admin of admins) {
+    for (const member of adminMembers) {
       // Don't notify the sender on success (they already know)
-      if (admin._id === senderId && success) continue;
+      if (member.userId === senderId && success) continue;
 
       await ctx.db.insert("notifications", {
-        userId: admin._id,
+        userId: member.userId,
         workspaceId,
         title,
         message,
@@ -549,7 +437,7 @@ export const cancelInvitation = mutation({
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
     if (!currentUser) throw new Error("Not authenticated");
-    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    const workspaceId = currentUser.activeWorkspaceId;
     if (currentUser.role !== "super_admin" && currentUser.role !== "admin") {
       throw new Error("Unauthorized: Only Admins can cancel workspaceInvitations");
     }
@@ -612,7 +500,7 @@ export const inviteUser = action({
     console.log("[inviteUser] Step 1 — Current User:", {
       id: callerUser?._id,
       role: callerUser?.role,
-      workspaceId: callerUser?.workspaceId,
+      workspaceId: callerUser?.activeWorkspaceId,
       name: callerUser?.name,
     });
 
@@ -624,9 +512,9 @@ export const inviteUser = action({
       console.error("[inviteUser] Step 1 ❌ — Unauthorized role:", callerUser.role);
       throw new Error(`Unauthorized: Your role is '${callerUser.role}'. Only Super Admin or Admin can invite users.`);
     }
-    const workspaceId = callerUser.activeWorkspaceId || callerUser.workspaceId;
+    const workspaceId = callerUser.activeWorkspaceId;
     if (!workspaceId) {
-      console.error("[inviteUser] Step 1 ❌ — User has no workspaceId");
+      console.error("[inviteUser] Step 1 ❌ — User has no activeWorkspaceId");
       throw new Error("Unauthorized: You must belong to a company workspace to invite users.");
     }
 
@@ -697,6 +585,8 @@ export const inviteUser = action({
         invitationId,
         status: "email_sent",
         emailStatus: "sent",
+        messageId: emailResult.messageId,
+        smtpResponse: emailResult.smtpResponse,
       });
 
       // ── STEP 5: Notify admins ─────────────────────────────────────────────
@@ -760,12 +650,18 @@ export const updateUserRole = mutation({
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
     if (!currentUser) throw new Error("Not authenticated");
-    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    const workspaceId = currentUser.activeWorkspaceId;
 
     const targetUser = await ctx.db.get(args.id);
     if (!targetUser) throw new Error("User not found");
 
-    if (targetUser.workspaceId !== workspaceId) {
+    const targetMembership = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", targetUser._id).eq("workspaceId", workspaceId)
+      )
+      .first();
+    if (!targetMembership || targetMembership.status !== "active") {
       throw new Error("Unauthorized: Cannot modify user outside your company");
     }
 
@@ -1063,7 +959,7 @@ export const getInvitationByToken = query({
   handler: async (ctx, args) => {
     const invitation = await ctx.db
       .query("workspaceInvitations")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .withIndex("by_inviteToken", (q) => q.eq("inviteToken", args.token))
       .first();
 
     if (!invitation) return null;
@@ -1085,7 +981,7 @@ export const getInvitationByToken = query({
   },
 });
 
-export const acceptInvitation = mutation({
+export const acceptInvitationMutation = internalMutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
@@ -1095,7 +991,7 @@ export const acceptInvitation = mutation({
 
     const invitation = await ctx.db
       .query("workspaceInvitations")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .withIndex("by_inviteToken", (q) => q.eq("inviteToken", args.token))
       .first();
 
     if (!invitation) {
@@ -1113,7 +1009,6 @@ export const acceptInvitation = mutation({
 
     // Accept invitation: update user properties
     await ctx.db.patch(currentUser._id, {
-      workspaceId: invitation.workspaceId,
       activeWorkspaceId: invitation.workspaceId,
       role: invitation.role,
       department: invitation.department,
@@ -1155,8 +1050,6 @@ export const acceptInvitation = mutation({
     // Mark invitation as accepted
     await ctx.db.patch(invitation._id, {
       status: "accepted",
-      
-      
     });
 
     const company = await ctx.db.get(invitation.workspaceId);
@@ -1184,7 +1077,58 @@ export const acceptInvitation = mutation({
       workspaceId: invitation.workspaceId,
     });
 
-    return invitation.workspaceId;
+    return {
+      workspaceId: invitation.workspaceId,
+      clerkOrgId: company?.clerkOrgId,
+      clerkUserId: currentUser.clerkId,
+      role: invitation.role,
+    };
+  },
+});
+
+export const acceptInvitation = action({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    // 1. Run the mutation internally
+    const result = await ctx.runMutation(internal.users.acceptInvitationMutation, {
+      token: args.token,
+    });
+
+    // 2. Call Clerk Backend API to add user to Clerk Organization if clerkOrgId exists
+    const apiKey = process.env.CLERK_SECRET_KEY;
+    if (apiKey && result.clerkOrgId && result.clerkUserId) {
+      const url = `https://api.clerk.com/v1/organizations/${result.clerkOrgId}/memberships`;
+      console.log(`[acceptInvitation action] Adding user ${result.clerkUserId} to Clerk org ${result.clerkOrgId}`);
+      
+      const clerkRole = result.role === "admin" || result.role === "super_admin" ? "org:admin" : "org:member";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: result.clerkUserId,
+            role: clerkRole,
+          }),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error(`[acceptInvitation action] Clerk add member error:`, errText);
+        } else {
+          console.log(`[acceptInvitation action] Successfully added user to Clerk organization`);
+        }
+      } catch (err) {
+        console.error(`[acceptInvitation action] Failed to add user to Clerk org via fetch:`, err);
+      }
+    }
+
+    return {
+      workspaceId: result.workspaceId,
+      clerkOrgId: result.clerkOrgId,
+    };
   },
 });
 

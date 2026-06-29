@@ -69,10 +69,11 @@ async function attachMembership(user: any, membership: any) {
 }
 
 export async function resolveUser(ctx: MutationCtx): Promise<any> {
-  console.log(PREFIX, "Started (mutation)");
+  const t = Date.now();
+  console.log(PREFIX, `t=${t} Started (mutation)`);
 
   const identity = await ctx.auth.getUserIdentity();
-  console.log(PREFIX, "Identity:", {
+  console.log(PREFIX, `t=${t} Identity:`, {
     exists: !!identity,
     subject: identity?.subject,
     email: identity?.email,
@@ -136,10 +137,11 @@ export async function resolveUser(ctx: MutationCtx): Promise<any> {
 }
 
 export async function resolveUserReadOnly(ctx: QueryCtx): Promise<any> {
-  console.log(PREFIX, "Started (query)");
+  const t = Date.now();
+  console.log(PREFIX, `t=${t} Started (query)`);
 
   const identity = await ctx.auth.getUserIdentity();
-  console.log(PREFIX, "Identity:", {
+  console.log(PREFIX, `t=${t} Identity:`, {
     exists: !!identity,
     subject: identity?.subject,
     email: identity?.email,
@@ -148,11 +150,11 @@ export async function resolveUserReadOnly(ctx: QueryCtx): Promise<any> {
   if (identity?.subject) {
     const user = await lookupUser(ctx, identity.subject, identity.email);
     if (user) {
-      console.log(PREFIX, "User resolved (read-only):", user._id);
+      console.log(PREFIX, `t=${t} User resolved (read-only):`, user._id);
       const membership = await resolveActiveMembership(ctx, user);
       return attachMembership(user, membership);
     }
-    console.log(PREFIX, "No Convex user found (read-only)");
+    console.log(PREFIX, `t=${t} No Convex user found (read-only)`);
     return null;
   }
 
@@ -160,13 +162,13 @@ export async function resolveUserReadOnly(ctx: QueryCtx): Promise<any> {
   if (convexUserId) {
     const user = await ctx.db.get(convexUserId);
     if (user) {
-      console.log(PREFIX, "Found by convexAuth:", user._id);
+      console.log(PREFIX, `t=${t} Found by convexAuth:`, user._id);
       const membership = await resolveActiveMembership(ctx, user);
       return attachMembership(user, membership);
     }
   }
 
-  console.warn(PREFIX, "Not authenticated");
+  console.warn(PREFIX, `t=${t} Not authenticated`);
   return null;
 }
 

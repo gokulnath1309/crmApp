@@ -6,7 +6,7 @@ import ExcelJS from "exceljs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 interface Contact {
@@ -104,6 +104,7 @@ export function ContactsPage() {
 function ContactsPageContent() {
   const { toast } = useToast();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Convex Hooks
   const contactsData = useQuery(api.contacts.list, {});
@@ -178,25 +179,35 @@ function ContactsPageContent() {
     }
   }, [isEditOpen]);
 
-  // Mount logging
+
+
   useEffect(() => {
-    console.log("Contacts page mounted");
-  }, []);
+    if (searchParams.get("new") === "true") {
+      resetForm();
+      setIsEditOpen(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
-  // Query results and route logging
   useEffect(() => {
-    console.log("Contacts query result:", contacts);
-    console.log("Current route:", location.pathname);
-  }, [contacts, location.pathname]);
-
-  // 4. Add defensive loading states:
-  if (contacts === undefined) {
-    return <ContactsSkeleton />;
-  }
-
-  if (contacts.length === 0) {
-    return <EmptyContactsState onCreateClick={() => { resetForm(); setIsEditOpen(true); }} />;
-  }
+    const contactId = searchParams.get("contactId");
+    if (contactId && contacts) {
+      const match = contacts.find((c) => c.id === contactId);
+      if (match) {
+        setSelectedContact(match);
+        setIsDetailsOpen(true);
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete("contactId");
+          return next;
+        }, { replace: true });
+      }
+    }
+  }, [searchParams, contacts, setSearchParams]);
 
   // Form dirtiness checker
   const isFormDirty = () => {
@@ -401,6 +412,11 @@ function ContactsPageContent() {
         });
     }
   };
+
+  // Add defensive loading state:
+  if (contacts === undefined) {
+    return <ContactsSkeleton />;
+  }
 
   const filterContactsByDate = (contactsList: Contact[], preset: string, customStart?: string, customEnd?: string) => {
     const now = new Date();

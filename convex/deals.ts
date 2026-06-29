@@ -96,15 +96,15 @@ export const create = mutation({
     if (!finalCompanyId && args.company) {
       const companyName = args.company.trim();
       const existingCompanies = await ctx.db
-        .query("companies")
+        .query("workspaces")
         .withIndex("by_name", (q) => q.eq("name", companyName))
         .collect();
       if (existingCompanies.length === 0) {
-        finalCompanyId = await ctx.db.insert("companies", {
+        finalCompanyId = await ctx.db.insert("workspaces", {
           name: companyName,
           status: "Prospect",
+          createdBy: currentUserId,
           createdAt: now,
-          updatedAt: now,
         });
       } else {
         finalCompanyId = existingCompanies[0]._id;

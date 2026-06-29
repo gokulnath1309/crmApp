@@ -11,23 +11,19 @@ export interface StatusOption {
 }
 
 const statusOptions: StatusOption[] = [
-  { value: "New", label: "New", emoji: "🆕", color: "blue", description: "Fresh lead recently created" },
-  { value: "Contacted", label: "Contacted", emoji: "📞", color: "neutral", description: "Initial contact established" },
-  { value: "Qualified", label: "Qualified", emoji: "✅", color: "green", description: "Meets qualification criteria" },
-  { value: "Proposal Sent", label: "Proposal Sent", emoji: "📄", color: "purple", description: "Proposal sent to prospect" },
-  { value: "Negotiation", label: "Negotiation", emoji: "🤝", color: "orange", description: "Terms/pricing being negotiated" },
-  { value: "Won", label: "Won", emoji: "🎉", color: "green", description: "Closed Won - Converted to customer" },
-  { value: "Lost", label: "Lost", emoji: "❌", color: "red", description: "Closed Lost - Lead is lost" },
-  { value: "Unqualified", label: "Unqualified", emoji: "🚫", color: "red", description: "Unqualified - Lead is archived" },
+  { value: "New", label: "New", emoji: "🆕", color: "#6366f1", description: "Newly created lead" },
+  { value: "Contacted", label: "Contacted", emoji: "📞", color: "#f59e0b", description: "First outreach completed" },
+  { value: "Qualified", label: "Qualified", emoji: "✅", color: "#10b981", description: "Lead meets qualification criteria" },
+  { value: "Converted", label: "Converted", emoji: "🏆", color: "#059669", description: "Lead converted to deal" },
+  { value: "Lost", label: "Lost", emoji: "❌", color: "#ef4444", description: "Deal closed lost" },
+  { value: "Unqualified", label: "Unqualified", emoji: "🚫", color: "#6b7280", description: "Lead does not meet criteria" },
 ];
 
 const allowedTransitions: Record<string, string[]> = {
   New: ["Contacted", "Unqualified"],
   Contacted: ["Qualified", "Unqualified", "Lost"],
-  Qualified: ["Proposal Sent", "Unqualified", "Lost"],
-  "Proposal Sent": ["Negotiation", "Lost"],
-  Negotiation: ["Won", "Lost"],
-  Won: [],
+  Qualified: ["Converted", "Unqualified", "Lost"],
+  Converted: [],
   Lost: ["New"],
   Unqualified: ["New"],
 };

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -25,7 +25,7 @@ const permissionOptions = [
 ];
 
 export function EmployeesPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser } = useUser();
   const { toast } = useToast();
 
   const users = useQuery(api.users.list);
@@ -53,9 +53,8 @@ export function EmployeesPage() {
   const [managerId, setManagerId] = useState<string>("");
   const [permissions, setPermissions] = useState<string[]>([]);
 
-  // Guard routing
-  if (!currentUser) return <Navigate to="/signin" replace />;
-  if (currentUser.role !== "super_admin" && currentUser.role !== "admin") {
+  // Role guard — ProtectedRoute above handles auth; this only checks role.
+  if (currentUser && currentUser.role !== "super_admin" && currentUser.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -124,18 +123,7 @@ export function EmployeesPage() {
       toast("success", `Invitation email resent to ${email}.`);
     } catch (err: any) {
       console.error("[ResendInvite] Raw technical error:", err);
-      const msg: string = err.message || "Failed to resend invitation.";
-      if (
-        msg.toLowerCase().includes("testing") ||
-        msg.toLowerCase().includes("sandbox") ||
-        msg.toLowerCase().includes("can only send") ||
-        msg.toLowerCase().includes("domain") ||
-        msg.toLowerCase().includes("not verified")
-      ) {
-        toast("error", "Email delivery failed due to Resend Sandbox restriction. You can only send testing emails to your own verified email address.");
-      } else {
-        toast("error", "Unable to send invitation. Please refresh and try again.");
-      }
+      toast("error", "Failed to resend invitation email.");
     } finally {
       setActionLoadingId(null);
     }
@@ -526,70 +514,104 @@ export function EmployeesPage() {
                   const showActions = isRetryable || isCancellable || inv.inviteToken;
 
                   return (
-                    <tr key={inv._id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
-                      <td className="px-5 py-3.5 font-semibold text-slate-900 dark:text-white">
-                        {inv.fullName || "—"}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{inv.email}</td>
-                      <td className="px-5 py-3.5 capitalize">{inv.role}</td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>
-                          <span className={`w-1 h-1 rounded-full ${statusColor.includes('emerald') ? 'bg-emerald-500' : statusColor.includes('red') ? 'bg-red-500' : statusColor.includes('amber') ? 'bg-amber-500' : 'bg-slate-500'}`} />
-                          {statusLabel}
-                        </span>
-                        {inv.emailError && (
-                          <p className="text-[9px] text-red-500 mt-1 max-w-[200px] truncate" title={inv.emailError}>
-                            {inv.emailError}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">
-                        {inviter?.name || "Unknown"}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-500 text-[10px]">
-                        {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        {showActions && (
-                          <div className="inline-flex items-center gap-1">
-                            {isRetryable && (
-                              <button
-                                disabled={actionLoadingId !== null}
-                                onClick={() => handleResendInvite(inv._id, inv.email)}
-                                title="Resend invitation"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-55"
-                              >
-                                {actionLoadingId === inv._id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="w-3 h-3" />
-                                )}
-                                Resend
-                              </button>
-                            )}
-                            {inv.inviteToken && (
-                              <button
-                                onClick={() => handleCopyLink(inv.inviteToken!)}
-                                title="Copy invite link"
-                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-indigo-650 transition-colors cursor-pointer"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {isCancellable && (
-                              <button
-                                disabled={actionLoadingId !== null}
-                                onClick={() => handleCancelInvite(inv._id, inv.email)}
-                                title="Cancel invitation"
-                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
+                    <React.Fragment key={inv._id}>
+                      <tr className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
+                        <td className="px-5 py-3.5 font-semibold text-slate-900 dark:text-white">
+                          {inv.fullName || "—"}
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{inv.email}</td>
+                        <td className="px-5 py-3.5 capitalize">{inv.role}</td>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>
+                            <span className={`w-1 h-1 rounded-full ${statusColor.includes('emerald') ? 'bg-emerald-500' : statusColor.includes('red') ? 'bg-red-500' : statusColor.includes('amber') ? 'bg-amber-500' : 'bg-slate-500'}`} />
+                            {statusLabel}
+                          </span>
+                          {inv.emailError && (
+                            <p className="text-[9px] text-red-500 mt-1 max-w-[200px] truncate" title={inv.emailError}>
+                              {inv.emailError}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">
+                          {inviter?.name || "Unknown"}
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-500 text-[10px]">
+                          {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          {showActions && (
+                            <div className="inline-flex items-center gap-1">
+                              {isRetryable && (
+                                <button
+                                  disabled={actionLoadingId !== null}
+                                  onClick={() => handleResendInvite(inv._id, inv.email)}
+                                  title="Resend invitation"
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-55"
+                                >
+                                  {actionLoadingId === inv._id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="w-3 h-3" />
+                                  )}
+                                  Resend
+                                </button>
+                              )}
+                              {inv.inviteToken && (
+                                <button
+                                  onClick={() => handleCopyLink(inv.inviteToken!)}
+                                  title="Copy invite link"
+                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-indigo-650 transition-colors cursor-pointer"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {isCancellable && (
+                                <button
+                                  disabled={actionLoadingId !== null}
+                                  onClick={() => handleCancelInvite(inv._id, inv.email)}
+                                  title="Cancel invitation"
+                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      {/* Development Diagnostics Panel */}
+                      <tr>
+                        <td colSpan={7} className="px-5 py-3 bg-slate-900/30 dark:bg-slate-950/20 border-b border-slate-100 dark:border-slate-800/50">
+                          <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            <div>
+                              <span className="font-semibold text-slate-700 dark:text-slate-350">Original Send: </span>
+                              <span>{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : new Date(inv.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-slate-700 dark:text-slate-350">Last Resend: </span>
+                              <span>{inv.resentAt ? new Date(inv.resentAt).toLocaleString() : "—"}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-slate-700 dark:text-slate-350">Last Message ID: </span>
+                              <code className="text-slate-650 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded">{inv.messageId || "—"}</code>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-slate-700 dark:text-slate-350">SMTP Response: </span>
+                              <span className="italic text-slate-605 dark:text-slate-300">{inv.smtpResponse || "—"}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-slate-700 dark:text-slate-350">Delivery Status: </span>
+                              <span className={`font-semibold capitalize ${inv.lastDeliveryStatus === "sent" ? "text-emerald-500 font-bold" : inv.lastDeliveryStatus === "failed" ? "text-red-500 font-bold" : "text-slate-400"}`}>
+                                {inv.lastDeliveryStatus || "unknown"}
+                              </span>
+                              {inv.lastDeliveryError && (
+                                <span className="text-red-400 ml-1">({inv.lastDeliveryError})</span>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -657,6 +679,35 @@ export function EmployeesPage() {
                           <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
                             {manager ? manager.name : "—"}
                           </span>
+                        </div>
+                      </div>
+
+                      {/* Development Diagnostics Panel */}
+                      <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700/40 text-[9px] text-slate-500 dark:text-slate-400 space-y-1 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-xl text-left">
+                        <div>
+                          <span className="font-semibold text-slate-750 dark:text-slate-350">Original Send: </span>
+                          <span>{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : new Date(inv.createdAt).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-750 dark:text-slate-350">Last Resend: </span>
+                          <span>{inv.resentAt ? new Date(inv.resentAt).toLocaleString() : "—"}</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="font-semibold text-slate-750 dark:text-slate-350">Message ID: </span>
+                          <code className="text-slate-650 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-1 py-0.25 rounded">{inv.messageId || "—"}</code>
+                        </div>
+                        <div className="truncate">
+                          <span className="font-semibold text-slate-750 dark:text-slate-350">SMTP Response: </span>
+                          <span className="italic text-slate-605 dark:text-slate-300">{inv.smtpResponse || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-750 dark:text-slate-350">Delivery Status: </span>
+                          <span className={`font-semibold capitalize ${inv.lastDeliveryStatus === "sent" ? "text-emerald-500 font-bold" : inv.lastDeliveryStatus === "failed" ? "text-red-500 font-bold" : "text-slate-400"}`}>
+                            {inv.lastDeliveryStatus || "unknown"}
+                          </span>
+                          {inv.lastDeliveryError && (
+                            <span className="text-red-400 ml-1">({inv.lastDeliveryError})</span>
+                          )}
                         </div>
                       </div>
                     </div>

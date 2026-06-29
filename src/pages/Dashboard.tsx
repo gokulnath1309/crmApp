@@ -1,14 +1,16 @@
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Card } from "@/components/ui/Card";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { formatCurrency } from "@/lib/currency";
+import { useNavigate } from "react-router-dom";
 
 import { motion } from "motion/react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import {
   Users, Briefcase, CheckSquare, ChevronRight, TrendingUp, TrendingDown,
-  Clock, Target, UserCheck, CheckCircle2, Percent
+  Clock, Target, UserCheck, CheckCircle2, Percent,
 } from "lucide-react";
 
 // Sparkline datasets
@@ -100,8 +102,11 @@ function StatCard({ title, value, change, up, Icon, iconBg, data }: { title: str
 
 
 export function DashboardPage() {
-  const { user, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user } = useUser();
+  const isLoading = false;
   const metrics = useQuery(api.dashboard.getMetrics);
+  const teamMetrics = useQuery(api.teams.getDashboardMetrics, {});
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 
@@ -176,6 +181,98 @@ export function DashboardPage() {
           data={sp4}
         />
       </div>
+
+      {/* Teams Section */}
+      {teamMetrics && teamMetrics.totalTeams > 0 && (
+        <>
+          <div className="pt-2">
+            <h2 className="text-md font-bold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <Users className="w-4 h-4 text-indigo-500" />
+              Team Overview
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Performance metrics across all teams.</p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card className="p-4">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Teams</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{teamMetrics.totalTeams}</p>
+            </Card>
+            {teamMetrics.largestTeam && (
+              <Card className="p-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Largest Team</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white mt-1 truncate" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{teamMetrics.largestTeam.name}</p>
+                <p className="text-xs text-slate-500">{teamMetrics.largestTeam.memberCount} members</p>
+              </Card>
+            )}
+            {teamMetrics.recentlyActiveTeam && (
+              <Card className="p-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Recently Active</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white mt-1 truncate" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{teamMetrics.recentlyActiveTeam.name}</p>
+                <p className="text-xs text-slate-500">{formatTime(teamMetrics.recentlyActiveTeam.updatedAt)}</p>
+              </Card>
+            )}
+            <Card className="p-4">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Avg Members</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{teamMetrics.averageMembers}</p>
+            </Card>
+          </div>
+
+          {/* Revenue & Pipeline by Team */}
+          {(teamMetrics.totalRevenueByTeam.some((t: any) => t.revenue > 0) || teamMetrics.pipelineValueByTeam.some((t: any) => t.pipelineValue > 0)) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {teamMetrics.totalRevenueByTeam.some((t: any) => t.revenue > 0) && (
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Revenue by Team</h3>
+                  <div className="space-y-2">
+                    {teamMetrics.totalRevenueByTeam.filter((t: any) => t.revenue > 0).map((t: any) => {
+                      const maxRev = Math.max(...teamMetrics.totalRevenueByTeam.map((x: any) => x.revenue), 1);
+                      return (
+                        <div key={t.teamId} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-700 dark:text-slate-300">{t.name}</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">${t.revenue.toLocaleString()}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${(t.revenue / maxRev) * 100}%`, backgroundColor: t.color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+              {teamMetrics.pipelineValueByTeam.some((t: any) => t.pipelineValue > 0) && (
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Pipeline by Team</h3>
+                  <div className="space-y-2">
+                    {teamMetrics.pipelineValueByTeam.filter((t: any) => t.pipelineValue > 0).map((t: any) => {
+                      const maxPipe = Math.max(...teamMetrics.pipelineValueByTeam.map((x: any) => x.pipelineValue), 1);
+                      return (
+                        <div key={t.teamId} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-700 dark:text-slate-300">{t.name}</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">${t.pipelineValue.toLocaleString()}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${(t.pipelineValue / maxPipe) * 100}%`, backgroundColor: t.color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       <div className="pt-2">
         <h2 className="text-md font-bold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -347,12 +444,18 @@ export function DashboardPage() {
             </div>
             <div className="p-4 grid grid-cols-2 gap-2.5">
               {[
-                { label: "Create Lead", Icon: Target, bg: "bg-indigo-50 dark:bg-indigo-950/50", ic: "text-indigo-600 dark:text-indigo-400" },
-                { label: "Add Contact", Icon: UserCheck, bg: "bg-violet-50 dark:bg-violet-950/50", ic: "text-violet-600 dark:text-violet-400" },
-                { label: "Create Deal", Icon: Briefcase, bg: "bg-emerald-50 dark:bg-emerald-950/50", ic: "text-emerald-600 dark:text-emerald-400" },
-                { label: "Add Task", Icon: CheckSquare, bg: "bg-orange-50 dark:bg-orange-950/50", ic: "text-orange-600 dark:text-orange-400" },
-              ].map(({ label, Icon, bg, ic }) => (
-                <motion.button key={label} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className={`${bg} rounded-xl p-4 flex flex-col items-center gap-2 text-center group`}>
+                { label: "Create Lead", Icon: Target, bg: "bg-indigo-50 dark:bg-indigo-950/50", ic: "text-indigo-600 dark:text-indigo-400", path: "/leads?new=true" },
+                { label: "Add Contact", Icon: UserCheck, bg: "bg-violet-50 dark:bg-violet-950/50", ic: "text-violet-600 dark:text-violet-400", path: "/contacts?new=true" },
+                { label: "Create Deal", Icon: Briefcase, bg: "bg-emerald-50 dark:bg-emerald-950/50", ic: "text-emerald-600 dark:text-emerald-400", path: "/deals?new=true" },
+                { label: "Add Task", Icon: CheckSquare, bg: "bg-orange-50 dark:bg-orange-950/50", ic: "text-orange-600 dark:text-orange-400", path: "/tasks?new=true" },
+              ].map(({ label, Icon, bg, ic, path }) => (
+                <motion.button
+                  key={label}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate(path)}
+                  className={`${bg} rounded-xl p-4 flex flex-col items-center gap-2 text-center group`}
+                >
                   <div className="w-9 h-9 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
                     <Icon style={{ width: 18, height: 18 }} className={ic} />
                   </div>

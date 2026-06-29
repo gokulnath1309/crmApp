@@ -12,7 +12,6 @@
   "dependencies": {
     "@auth/core": "^0.41.1",
     "@clerk/clerk-react": "^5.61.8",
-    "@clerk/react": "^6.10.3",
     "@convex-dev/auth": "^0.0.94",
     "@tanstack/react-query": "^5.101.0",
     "class-variance-authority": "^0.7.1",
@@ -21,6 +20,7 @@
     "exceljs": "^3.4.0",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",
+    "nodemailer": "^7.0.13",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-is": "^19.2.7",
@@ -33,6 +33,7 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^24.12.3",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

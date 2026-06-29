@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useWorkspace } from "@/features/auth/WorkspaceProvider";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 import {
   Search, Plus, Menu, ChevronRight, ChevronDown,
-  Sun, Moon, User, Settings, Building2, Check
+  Sun, Moon, User, Settings, Building2, Check, UserPlus,
+  Sparkles, Users, Briefcase, Calendar, Loader2
 } from "lucide-react";
-import { UserButton } from "@clerk/clerk-react";
+import { UserButton, useOrganizationList } from "@clerk/clerk-react";
 import { NotificationBell } from "@/components/NotificationBell";
 
 interface TopNavbarProps {
@@ -23,6 +26,8 @@ const pageTitles: Record<string, string> = {
   "/notifications": "Notifications",
   "/settings": "Settings",
   "/profile": "Profile",
+  "/companies": "Companies",
+  "/calendar": "Calendar",
 };
 
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
@@ -30,6 +35,49 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const navigate = useNavigate();
   const [dark, toggleDark] = useDarkMode();
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setIsOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Click outside listener
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounce logic
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Query database using Convex
+  const searchResults = useQuery(
+    api.search.globalSearch,
+    { queryStr: debouncedSearch }
+  );
 
   const pathSegments = location.pathname.split("/").filter(Boolean);
   const currentTitle = pageTitles[location.pathname] || 
@@ -56,15 +104,236 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
       <WorkspaceSwitcher />
 
       {/* Search Bar */}
-      <div className="flex-1 max-w-xs mx-auto hidden md:block">
+      <div ref={searchRef} className="flex-1 max-w-sm mx-auto hidden md:block relative">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
-            placeholder="Search anything…"
+            ref={inputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            placeholder="Search anything (⌘K)…"
             className="w-full pl-9 pr-14 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition-all"
           />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">⌘K</kbd>
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md pointer-events-none">⌘K</kbd>
         </div>
+
+        {/* Command Palette Popover */}
+        {isOpen && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-[450px] mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl shadow-slate-900/15 max-h-[450px] overflow-y-auto z-50 p-2 space-y-3">
+            {!debouncedSearch.trim() ? (
+              <div className="p-2 space-y-2">
+                <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">
+                  Quick Navigation
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => { navigate("/leads"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                    </div>
+                    <span className="font-medium">Leads</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate("/contacts"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                    </div>
+                    <span className="font-medium">Contacts</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate("/deals"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 text-emerald-500" />
+                    </div>
+                    <span className="font-medium">Deals</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate("/companies"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
+                      <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                    </div>
+                    <span className="font-medium">Companies</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate("/calendar"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
+                      <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                    </div>
+                    <span className="font-medium">Calendar</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate("/tasks"); setIsOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-sm transition-colors cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 text-rose-500" />
+                    </div>
+                    <span className="font-medium">Tasks</span>
+                  </button>
+                </div>
+              </div>
+            ) : !searchResults ? (
+              <div className="flex items-center justify-center py-8 gap-2 text-sm text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                <span>Searching CRM database...</span>
+              </div>
+            ) : Object.values(searchResults).every(arr => Array.isArray(arr) && arr.length === 0) ? (
+              <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                No results found for <span className="font-semibold text-slate-600 dark:text-slate-300">"{debouncedSearch}"</span>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {/* Leads */}
+                {searchResults.leads && searchResults.leads.length > 0 && (
+                  <div className="py-2 px-1">
+                    <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 mb-1 flex items-center justify-between">
+                      <span>Leads</span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">{searchResults.leads.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {searchResults.leads.map((l: any) => (
+                        <button
+                          key={l._id}
+                          onClick={() => {
+                            navigate(`/leads?leadId=${l._id}`);
+                            setIsOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className="w-full text-left flex items-start gap-2.5 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0 mt-0.5">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">{l.name}</span>
+                              <span className="text-[9px] font-semibold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full shrink-0">{l.status}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{l.company} • {l.email}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contacts */}
+                {searchResults.contacts && searchResults.contacts.length > 0 && (
+                  <div className="py-2 px-1">
+                    <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 mb-1 flex items-center justify-between">
+                      <span>Contacts</span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">{searchResults.contacts.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {searchResults.contacts.map((c: any) => (
+                        <button
+                          key={c._id}
+                          onClick={() => {
+                            navigate(`/contacts?contactId=${c._id}`);
+                            setIsOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className="w-full text-left flex items-start gap-2.5 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center shrink-0 mt-0.5">
+                            <Users className="w-3.5 h-3.5 text-blue-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{c.name}</span>
+                              <span className="text-[9px] font-semibold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full shrink-0">{c.status}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{c.company} • {c.email}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Deals */}
+                {searchResults.deals && searchResults.deals.length > 0 && (
+                  <div className="py-2 px-1">
+                    <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 mb-1 flex items-center justify-between">
+                      <span>Deals</span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">{searchResults.deals.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {searchResults.deals.map((d: any) => (
+                        <button
+                          key={d._id}
+                          onClick={() => {
+                            navigate(`/deals?dealId=${d._id}`);
+                            setIsOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className="w-full text-left flex items-start gap-2.5 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center shrink-0 mt-0.5">
+                            <Briefcase className="w-3.5 h-3.5 text-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">{d.title}</span>
+                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 shrink-0">{d.currency} {d.value?.toLocaleString()}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{d.company || "No Company"} • {d.stage}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Companies */}
+                {searchResults.companies && searchResults.companies.length > 0 && (
+                  <div className="py-2 px-1">
+                    <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 mb-1 flex items-center justify-between">
+                      <span>Companies</span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">{searchResults.companies.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {searchResults.companies.map((c: any) => (
+                        <button
+                          key={c._id}
+                          onClick={() => {
+                            navigate(`/companies?companyId=${c._id}`);
+                            setIsOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className="w-full text-left flex items-start gap-2.5 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center shrink-0 mt-0.5">
+                            <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors block truncate">{c.name}</span>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{c.domain || "No domain"} • {c.industry || "No industry"}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1.5 ml-auto">
@@ -111,7 +380,8 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
 }
 
 function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+  const { workspaces, activeWorkspace } = useWorkspace();
+  const { setActive } = useOrganizationList();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -150,7 +420,7 @@ function WorkspaceSwitcher() {
               onClick={() => {
                 setOpen(false);
                 if (w.workspaceId !== activeWorkspace?.workspaceId) {
-                  switchWorkspace(w.workspaceId);
+                  setActive?.({ organization: w.workspaceId });
                 }
               }}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors cursor-pointer ${

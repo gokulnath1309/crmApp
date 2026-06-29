@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useSignUp } from "@clerk/clerk-react";
-import { useNavigate, Link } from "react-router-dom";
+import { useSignUp, useAuth } from "@clerk/clerk-react";
+import { Link } from "react-router-dom";
 import {
   Zap,
   TrendingUp,
@@ -23,7 +23,7 @@ import {
 export type AuthError = { type: 'generic'; message?: string } | null;
 
 function ErrorAlert({ error }: { error: AuthError }) {
-  if (!error) return null;
+  if (!error?.message) return null;
 
   return (
     <motion.div
@@ -36,9 +36,8 @@ function ErrorAlert({ error }: { error: AuthError }) {
           <Shield className="w-4 h-4 text-red-600" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-red-900">Something went wrong</h4>
           <p className="text-[13px] text-red-700/90 mt-1 leading-relaxed">
-            {error.message || "We couldn't complete your request right now. Please try again in a few moments."}
+            {error.message}
           </p>
         </div>
       </div>
@@ -185,7 +184,7 @@ function OTPInput({ value, onChange, onKeyDown, inputIndex, inputRefs, isFilled 
 
 function AuthForm() {
   const { signUp, setActive, isLoaded } = useSignUp();
-  const navigate = useNavigate();
+  const { isSignedIn: clerkIsSignedIn } = useAuth();
   const [step, setStep] = useState<"email" | "otp">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -222,8 +221,13 @@ function AuthForm() {
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } catch (err: any) {
       console.error("[Sign Up Error]", err);
-      // Log the full technical error but show a user-friendly generic error
-      setError({ type: 'generic', message: "We couldn't complete your request right now. Please try again in a few moments." });
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "";
+      if (msg.toLowerCase().includes("already signed in")) {
+        // Clerk frontend is out of sync with backend — reload to re-sync
+        window.location.reload();
+        return;
+      }
+      setError({ type: 'generic', message: msg || "Something went wrong" });
     } finally {
       setEmailLoading(false);
     }
@@ -238,19 +242,19 @@ function AuthForm() {
       const verifyResult = await signUp.attemptEmailAddressVerification({ code });
       if (verifyResult.status === "complete") {
         await setActive({ session: verifyResult.createdSessionId });
-        navigate("/dashboard", { replace: true });
       } else {
         setError({ type: 'generic', message: "Verification was not completed. Please try again." });
       }
     } catch (err: any) {
       console.error("[OTP Verification Error]", err);
-      setError({ type: 'generic', message: "Invalid code. Please try again." });
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Invalid code. Please try again.";
+      setError({ type: 'generic', message: msg });
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
-  }, [otp, isLoaded, signUp, setActive, navigate]);
+  }, [otp, isLoaded, signUp, setActive]);
 
   const handleOtpChange = useCallback((index: number, value: string) => {
     setOtp((prev) => {
@@ -280,22 +284,51 @@ function AuthForm() {
 
   const handleGoogleSignUp = useCallback(async () => {
     if (!signUp || googleLoading) return;
+    // Let the early return guard in the render handle the redirect
+    if (clerkIsSignedIn) return;
     setGoogleLoading(true);
     setError(null);
     try {
       await signUp.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrlComplete: "/sso-callback",
       });
     } catch (err: any) {
       console.error("[Google Sign Up Error]", err);
-      setError({ type: 'generic', message: "We couldn't complete your request right now. Please try again in a few moments." });
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "";
+      if (msg.toLowerCase().includes("already signed in")) {
+        // Clerk frontend is out of sync with backend — reload to re-sync
+        window.location.reload();
+        return;
+      }
+      setError({ type: 'generic', message: msg || "Something went wrong" });
       setGoogleLoading(false);
     }
-  }, [signUp, googleLoading]);
+  }, [signUp, googleLoading, clerkIsSignedIn]);
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // Wait for Clerk session state to settle before rendering
+  if (!isLoaded || clerkIsSignedIn === undefined) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Already signed in — never render the form or call signUp.create()
+  if (clerkIsSignedIn) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-500">You are already signed in. Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

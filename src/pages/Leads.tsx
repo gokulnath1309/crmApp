@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
-  Building, Filter, Plus, Search, X, Mail, Phone, User,
-  Award, Loader2, Edit, Trash2, Download, Sparkles,
-  Clock, ArrowRight, History, UserCheck, XCircle, CheckCircle2, Archive
+  Building, Filter, Plus, Search, X, AlertCircle,
+  Loader2, Edit, Trash2, Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/components/ui/Toast";
@@ -12,23 +11,13 @@ import { useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Select } from "@/components/ui/Select";
 import { formatCurrency } from "@/lib/currency";
-import { LeadStatusSelect } from "@/components/LeadStatusSelect";
+import { ContactInteractionDrawer } from "@/components/ContactInteractionDrawer";
+import { LeadTransitionDrawer } from "@/components/LeadTransitionDrawer";
 import { UnqualifiedModal, LostModal, RequalifyModal } from "@/components/StatusWorkflowModals";
-
-const currencyOptions = [
-  { value: "INR", label: "₹ INR — Indian Rupee", searchString: "INR Indian Rupee Rupee INR ₹" },
-  { value: "USD", label: "$ USD — US Dollar", searchString: "USD US Dollar Dollar USD $" },
-  { value: "EUR", label: "€ EUR — Euro", searchString: "EUR Euro Euro EUR €" },
-  { value: "GBP", label: "£ GBP — British Pound", searchString: "GBP British Pound Pound GBP £" },
-  { value: "AED", label: "د.إ AED — UAE Dirham", searchString: "AED UAE Dirham Dirham AED د.إ" },
-  { value: "SGD", label: "S$ SGD — Singapore Dollar", searchString: "SGD Singapore Dollar Dollar SGD S$" },
-  { value: "AUD", label: "A$ AUD — Australian Dollar", searchString: "AUD Australian Dollar Dollar AUD A$" },
-  { value: "CAD", label: "C$ CAD — Canadian Dollar", searchString: "CAD Canadian Dollar Dollar CAD C$" },
-  { value: "JPY", label: "¥ JPY — Japanese Yen", searchString: "JPY Japanese Yen Yen JPY ¥" },
-  { value: "CNY", label: "¥ CNY — Chinese Yuan", searchString: "CNY Chinese Yuan Yuan CNY ¥" },
-];
+const LeadDetailsDrawer = React.lazy(() => import("@/components/LeadDetails/LeadDetailsLayout"));
+import { LeadStatusSelect } from "@/components/LeadStatusSelect";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 interface Lead {
   _id: string;
@@ -41,9 +30,6 @@ interface Lead {
   status: string;
   source: string;
   assignedTo?: string;
-  value?: number;
-  currency?: string;
-  score?: number;
   createdAt: number;
   updatedAt: number;
 
@@ -58,6 +44,7 @@ interface Lead {
   requalifiedAt?: number;
   requalifiedBy?: string;
   requalificationReason?: string;
+  customFields?: Record<string, any>;
 }
 
 function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
@@ -72,7 +59,7 @@ function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green"
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>{label}</span>;
 }
 
-export function LeadsPage() {
+function LeadsPageContent() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -134,6 +121,9 @@ export function LeadsPage() {
   const createLeadMutation = useMutation(api.leads.create);
   const updateLeadMutation = useMutation(api.leads.update);
   const deleteLeadMutation = useMutation(api.leads.remove);
+  const transitionLeadStageMutation = useMutation(api.leads.transitionStage);
+  const contactInteractionMutation = useMutation(api.leads.contactInteraction);
+  const changeStatusMutation = useMutation(api.leads.changeStatus);
 
   // ─── UI Modal & Drawer States ───
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -144,11 +134,6 @@ export function LeadsPage() {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const leadActivities = useQuery(
-    api.activities.list,
-    selectedLead ? { entityType: "lead", entityId: selectedLead._id } : "skip"
-  );
-
   // Workflow Modals States
   const [isUnqualifiedModalOpen, setIsUnqualifiedModalOpen] = useState(false);
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
@@ -158,6 +143,14 @@ export function LeadsPage() {
     onConfirm: (extraFields: Record<string, string>) => void;
     onCancel?: () => void;
   } | null>(null);
+
+  // Contact Interaction Drawer State
+  const [isContactDrawerOpen, setIsContactDrawerOpen] = useState(false);
+  const [isContactQualifyMode, setIsContactQualifyMode] = useState(false);
+
+  // Redesign Lead Stage Transition and Reminders State
+  const [isTransitionDrawerOpen, setIsTransitionDrawerOpen] = useState(false);
+  const [transitionTargetStage, setTransitionTargetStage] = useState("");
 
   const handleStatusChangeRequest = (
     targetStatus: string,
@@ -174,6 +167,15 @@ export function LeadsPage() {
     } else if ((currentStatus === "Unqualified" || currentStatus === "Lost") && targetStatus === "New") {
       setPendingStatusChange({ targetStatus, onConfirm, onCancel });
       setIsRequalifyModalOpen(true);
+    } else if (targetStatus === "Contacted" && currentStatus === "New") {
+      // Open contact interaction drawer instead of inline status change
+      setIsContactQualifyMode(false);
+      setIsContactDrawerOpen(true);
+      onCancel?.();
+    } else if (targetStatus === "Qualified" && currentStatus === "Contacted") {
+      setIsContactQualifyMode(true);
+      setIsContactDrawerOpen(true);
+      onCancel?.();
     } else {
       onConfirm({});
     }
@@ -189,10 +191,9 @@ export function LeadsPage() {
     jobTitle: "",
     status: "New",
     source: "Website",
+    website: "",
+    initialNotes: "",
     assignedTo: "" as any,
-    value: "" as any,
-    currency: "INR",
-    score: "" as any,
     unqualifiedReason: "",
     unqualifiedNotes: "",
     lostReason: "",
@@ -209,25 +210,41 @@ export function LeadsPage() {
     }
   }, [isFormOpen]);
 
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      resetForm();
+      setIsFormOpen(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const leadId = searchParams.get("leadId");
+    if (leadId && leads) {
+      const match = leads.find((l) => l._id === leadId);
+      if (match) {
+        setSelectedLead(match);
+        setIsDetailsOpen(true);
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete("leadId");
+          return next;
+        }, { replace: true });
+      }
+    }
+  }, [searchParams, leads, setSearchParams]);
+
   const validateField = (name: string, value: any) => {
     let err = "";
     if (name === "firstName" && !value.trim()) err = "First Name is required";
     else if (name === "lastName" && !value.trim()) err = "Last Name is required";
     else if (name === "company" && !value.trim()) err = "Company is required";
-    else if (name === "email") {
-      if (!value.trim()) err = "Email is required";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) err = "Invalid email address";
-    } else if (name === "value") {
-      if (!value || !value.toString().trim()) {
-        err = "Value is required";
-      } else {
-        const num = Number(value);
-        if (isNaN(num)) {
-          err = "Value must be a number";
-        } else if (num < 0) {
-          err = "Value must be a positive number";
-        }
-      }
+    else if (name === "email" && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      err = "Invalid email address";
     }
     return err;
   };
@@ -240,10 +257,11 @@ export function LeadsPage() {
   };
 
   const isFormValid = () => {
-    const required = ["firstName", "lastName", "email", "company", "value"];
+    const required = ["firstName", "lastName", "company"];
     const hasRequired = required.every(f => form[f as keyof typeof form]?.toString().trim());
+    const hasEmailOrPhone = !!(form.email.trim() || form.phone.trim());
     const hasErrors = Object.values(formErrors).some(err => err);
-    return hasRequired && !hasErrors;
+    return hasRequired && hasEmailOrPhone && !hasErrors;
   };
 
   const resetForm = () => {
@@ -256,10 +274,9 @@ export function LeadsPage() {
       jobTitle: "",
       status: "New",
       source: "Website",
+      website: "",
+      initialNotes: "",
       assignedTo: "",
-      value: "",
-      currency: "INR",
-      score: "",
       unqualifiedReason: "",
       unqualifiedNotes: "",
       lostReason: "",
@@ -280,10 +297,9 @@ export function LeadsPage() {
       jobTitle: lead.jobTitle || "",
       status: lead.status,
       source: lead.source,
+      website: (lead as any).website || "",
+      initialNotes: (lead as any).initialNotes || "",
       assignedTo: lead.assignedTo || "",
-      value: lead.value?.toString() || "",
-      currency: lead.currency || "INR",
-      score: lead.score?.toString() || "",
       unqualifiedReason: lead.unqualifiedReason || "",
       unqualifiedNotes: lead.unqualifiedNotes || "",
       lostReason: lead.lostReason || "",
@@ -318,22 +334,25 @@ export function LeadsPage() {
     const payload = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
-      email: form.email.trim(),
+      email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
       company: form.company.trim(),
       jobTitle: form.jobTitle.trim() || undefined,
       status: form.status,
       source: form.source,
+      website: form.website.trim() || undefined,
+      initialNotes: form.initialNotes.trim() || undefined,
       assignedTo: form.assignedTo ? form.assignedTo : undefined,
-      value: form.value ? Number(form.value) : undefined,
-      currency: form.currency,
-      score: form.score ? Number(form.score) : undefined,
-      unqualifiedReason: form.unqualifiedReason || undefined,
-      unqualifiedNotes: form.unqualifiedNotes || undefined,
-      lostReason: form.lostReason || undefined,
-      lostNotes: form.lostNotes || undefined,
-      requalificationReason: form.requalificationReason || undefined,
     };
+    if (editingLeadId) {
+      Object.assign(payload, {
+        unqualifiedReason: form.unqualifiedReason || undefined,
+        unqualifiedNotes: form.unqualifiedNotes || undefined,
+        lostReason: form.lostReason || undefined,
+        lostNotes: form.lostNotes || undefined,
+        requalificationReason: form.requalificationReason || undefined,
+      });
+    }
 
     try {
       if (editingLeadId) {
@@ -512,9 +531,7 @@ export function LeadsPage() {
         New: "blue",
         Contacted: "neutral",
         Qualified: "green",
-        "Proposal Sent": "purple",
-        Negotiation: "orange",
-        Won: "green",
+        Converted: "purple",
         Lost: "red",
         Unqualified: "red",
       }[s] as any ?? "neutral"
@@ -522,6 +539,37 @@ export function LeadsPage() {
   };
 
   const isLoading = leads === undefined;
+
+  if (selectedLead && isDetailsOpen) {
+    return (
+      <ErrorBoundary fallback={
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-500 p-6">
+          <AlertCircle className="w-16 h-16 text-red-400" />
+          <h3 className="font-bold text-lg text-slate-900 dark:text-white">Failed to load lead details</h3>
+          <p className="text-xs text-slate-400">Something went wrong while loading this lead.</p>
+          <button
+            onClick={() => { setIsDetailsOpen(false); setSelectedLead(null); }}
+            className="mt-2 h-9 px-4 bg-indigo-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+          >
+            Back to Leads
+          </button>
+        </div>
+      }>
+        <React.Suspense fallback={
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-400">
+            <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+            <p className="text-sm font-semibold">Loading Lead Workspace...</p>
+          </div>
+        }>
+          <LeadDetailsDrawer
+            leadId={selectedLead._id}
+            onBack={() => { setIsDetailsOpen(false); setSelectedLead(null); }}
+            onLeadDelete={() => { setIsDetailsOpen(false); setSelectedLead(null); }}
+          />
+        </React.Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <div className="space-y-5 max-w-7xl pb-6 p-6">
@@ -595,9 +643,7 @@ export function LeadsPage() {
                 <option value="New">🆕 New</option>
                 <option value="Contacted">📞 Contacted</option>
                 <option value="Qualified">✅ Qualified</option>
-                <option value="Proposal Sent">📄 Proposal Sent</option>
-                <option value="Negotiation">🤝 Negotiation</option>
-                <option value="Won">🎉 Won</option>
+                <option value="Converted">🏆 Converted</option>
                 <option value="Lost">❌ Lost</option>
                 <option value="Unqualified">🚫 Unqualified</option>
               </select>
@@ -630,7 +676,7 @@ export function LeadsPage() {
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500"
               >
                 <option value="all">All Users</option>
-                {users?.map(u => (
+                 {users?.map((u: any) => (
                   <option key={u._id} value={u._id}>{u.name}</option>
                 ))}
               </select>
@@ -710,7 +756,7 @@ export function LeadsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700/70 bg-slate-50/50 dark:bg-slate-800/40">
-                  {["Company", "Contact", "Status", "Value", "Source", "Score", ""].map(h => (
+                  {["Company", "Contact", "Status", "Source", "Notes", ""].map(h => (
                     <th key={h} className="text-left px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -737,17 +783,11 @@ export function LeadsPage() {
                     <td className="px-6 py-4">
                       <Chip label={l.status} v={statusColors(l.status)} />
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">
-                      {l.value !== undefined ? formatCurrency(l.value, l.currency || "INR") : "—"}
-                    </td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{l.source}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-14 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${l.score !== undefined && l.score >= 85 ? "bg-emerald-500" : l.score !== undefined && l.score >= 70 ? "bg-yellow-500" : "bg-orange-500"}`} style={{ width: `${l.score || 0}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{l.score || 0}</span>
-                      </div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[200px] truncate">
+                        {(l as any).initialNotes || "—"}
+                      </p>
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -888,7 +928,7 @@ export function LeadsPage() {
                     <label className="text-xs font-semibold text-slate-500 block mb-1.5">Lead Status</label>
                     <LeadStatusSelect
                       value={form.status}
-                      onChange={(val) => {
+                      onChange={(val: string) => {
                         if (!editingLeadId) {
                           setForm(prev => ({ ...prev, status: val }));
                         } else {
@@ -928,45 +968,43 @@ export function LeadsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 block mb-1.5">Value *</label>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="flex-1">
-                        <input
-                          type="number"
-                          step="any"
-                          name="value"
-                          value={form.value}
-                          onChange={handleInputChange}
-                          placeholder="500000"
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                      <div className="w-full sm:w-[130px] flex-shrink-0">
-                        <Select
-                          options={currencyOptions}
-                          value={form.currency}
-                          onChange={(val) => setForm(prev => ({ ...prev, currency: val }))}
-                        />
-                      </div>
-                    </div>
-                    {formErrors.value && <p className="text-xs text-red-500 mt-1">{formErrors.value}</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 block mb-1.5">Assigned To</label>
-                    <select
-                      name="assignedTo"
-                      value={form.assignedTo}
-                      onChange={handleInputChange}
-                      className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
-                    >
-                      <option value="">Select User...</option>
-                      {users?.map(u => (
-                        <option key={u._id} value={u._id}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1.5">Website</label>
+                  <input
+                    type="url"
+                    name="website"
+                    value={form.website}
+                    onChange={handleInputChange}
+                    placeholder="https://acme.com"
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1.5">Initial Notes</label>
+                  <textarea
+                    name="initialNotes"
+                    value={form.initialNotes}
+                    onChange={(e) => setForm(prev => ({ ...prev, initialNotes: e.target.value }))}
+                    placeholder="Any initial context about this lead..."
+                    rows={3}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1.5">Assigned To</label>
+                  <select
+                    name="assignedTo"
+                    value={form.assignedTo}
+                    onChange={handleInputChange}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Select User...</option>
+                    {users?.map((u: any) => (
+                      <option key={u._id} value={u._id}>{u.name}</option>
+                    ))}
+                  </select>
                 </div>
               </form>
 
@@ -979,244 +1017,6 @@ export function LeadsPage() {
                   className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editingLeadId ? "Save Changes" : "Create Lead"}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {isDetailsOpen && selectedLead && (
-          <div className="fixed inset-0 z-50 flex items-center justify-end">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDetailsOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg h-full bg-white dark:bg-slate-800 shadow-2xl border-l border-slate-100 dark:border-slate-700/50 flex flex-col p-6 space-y-6 overflow-y-auto"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950 rounded-2xl flex items-center justify-center border border-indigo-100/30">
-                    <Building className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{selectedLead.company}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{selectedLead.firstName} {selectedLead.lastName}</p>
-                  </div>
-                </div>
-                <button onClick={() => setIsDetailsOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 rounded-lg"><X className="w-5 h-5" /></button>
-              </div>
-
-              {/* Status Header */}
-              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-slate-100 dark:border-slate-700/40">
-                <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status Workflow</span>
-                  <LeadStatusSelect
-                    value={selectedLead.status}
-                    onChange={(val) => {
-                      handleStatusChangeRequest(
-                        val,
-                        selectedLead.status,
-                        async (extra) => {
-                          try {
-                            await updateLeadMutation({
-                              id: selectedLead._id as any,
-                              firstName: selectedLead.firstName,
-                              lastName: selectedLead.lastName,
-                              email: selectedLead.email,
-                              phone: selectedLead.phone,
-                              company: selectedLead.company,
-                              jobTitle: selectedLead.jobTitle,
-                              status: val,
-                              source: selectedLead.source,
-                              assignedTo: selectedLead.assignedTo as any,
-                              value: selectedLead.value,
-                              currency: selectedLead.currency,
-                              score: selectedLead.score,
-                              ...extra,
-                            });
-                            setSelectedLead(prev => prev ? { ...prev, status: val, ...extra } : null);
-                            toast("success", `Status updated to ${val}`);
-                          } catch (err: any) {
-                            toast("error", err.message || "Failed to update status");
-                          }
-                        }
-                      );
-                    }}
-                    currentStatus={selectedLead.status}
-                  />
-                </div>
-                <div className="flex flex-col gap-1 text-left sm:text-right flex-shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Estimated Value</span>
-                  <span className="text-base font-extrabold text-slate-900 dark:text-white">
-                    {selectedLead.value !== undefined ? formatCurrency(selectedLead.value, selectedLead.currency || "INR") : "—"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Contact Information Details */}
-              <div className="space-y-4">
-                <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Contact Details</h4>
-                <div className="space-y-3 bg-white dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span>{selectedLead.jobTitle || "No Title Provided"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <Mail className="w-4 h-4 text-slate-400" />
-                    <a href={`mailto:${selectedLead.email}`} className="hover:underline text-indigo-600 dark:text-indigo-400">{selectedLead.email}</a>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <Phone className="w-4 h-4 text-slate-400" />
-                    <span>{selectedLead.phone || "No Phone Provided"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <Award className="w-4 h-4 text-slate-400" />
-                    <span>Source: {selectedLead.source}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <Sparkles className="w-4 h-4 text-slate-400" />
-                    <span>Quality Score: <strong className="text-slate-900 dark:text-white">{selectedLead.score || 0} / 100</strong></span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Assignment Details */}
-              <div className="space-y-4">
-                <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Dates & Ownership</h4>
-                <div className="grid grid-cols-2 gap-4 bg-white dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 text-sm text-slate-700 dark:text-slate-300">
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">Created Date</p>
-                    <p className="font-medium">{new Date(selectedLead.createdAt).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">Last Updated</p>
-                    <p className="font-medium">{new Date(selectedLead.updatedAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Exit/Requalify status details */}
-              {(selectedLead.status === "Unqualified" || selectedLead.status === "Lost" || selectedLead.requalifiedAt) && (
-                <div className="space-y-4">
-                  <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status Workflow Info</h4>
-                  <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 space-y-3.5 text-sm">
-                    {selectedLead.status === "Unqualified" && selectedLead.unqualifiedReason && (
-                      <div>
-                        <p className="text-xs text-slate-400 font-medium">Unqualified Reason</p>
-                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.unqualifiedReason}</p>
-                        {selectedLead.unqualifiedNotes && (
-                          <div className="mt-2 p-2.5 bg-white dark:bg-slate-800 rounded-lg text-xs text-slate-500 border border-slate-100 dark:border-slate-750 whitespace-pre-wrap">
-                            {selectedLead.unqualifiedNotes}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-slate-400 mt-2">
-                          Archived on {new Date(selectedLead.unqualifiedAt || selectedLead.updatedAt).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                    {selectedLead.status === "Lost" && selectedLead.lostReason && (
-                      <div>
-                        <p className="text-xs text-slate-400 font-medium">Lost Reason</p>
-                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.lostReason}</p>
-                        {selectedLead.lostNotes && (
-                          <div className="mt-2 p-2.5 bg-white dark:bg-slate-800 rounded-lg text-xs text-slate-500 border border-slate-100 dark:border-slate-750 whitespace-pre-wrap">
-                            {selectedLead.lostNotes}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-slate-400 mt-2">
-                          Marked lost on {new Date(selectedLead.lostAt || selectedLead.updatedAt).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                    {selectedLead.requalifiedAt && (
-                      <div>
-                        <p className="text-xs text-slate-400 font-medium">Requalification Reason</p>
-                        <p className="font-semibold text-slate-950 dark:text-slate-50 mt-0.5">{selectedLead.requalificationReason}</p>
-                        <p className="text-[10px] text-slate-400 mt-2">
-                          Reopened by {selectedLead.requalifiedBy || "System"} on {new Date(selectedLead.requalifiedAt).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Activity Timeline */}
-              <div className="space-y-4">
-                <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <History className="w-3.5 h-3.5" /> Pipeline History
-                </h4>
-                {leadActivities === undefined ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full rounded-xl" />
-                    <Skeleton className="h-10 w-full rounded-xl" />
-                  </div>
-                ) : leadActivities.length === 0 ? (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 italic px-2">No activity events recorded.</p>
-                ) : (
-                  <div className="relative pl-4 border-l border-slate-200 dark:border-slate-750 space-y-5 ml-2.5 py-1">
-                    {leadActivities.map((a) => {
-                      let IconComponent = Clock;
-                      let iconColor = "text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400";
-                      
-                      if (a.type === "lead_created") {
-                        IconComponent = Plus;
-                        iconColor = "text-indigo-650 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-400";
-                      } else if (a.type === "lead_won") {
-                        IconComponent = CheckCircle2;
-                        iconColor = "text-emerald-650 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400";
-                      } else if (a.type === "lead_lost") {
-                        IconComponent = XCircle;
-                        iconColor = "text-orange-650 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-400";
-                      } else if (a.type === "lead_unqualified") {
-                        IconComponent = Archive;
-                        iconColor = "text-rose-650 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400";
-                      } else if (a.type === "lead_requalified") {
-                        IconComponent = UserCheck;
-                        iconColor = "text-blue-650 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400";
-                      } else if (a.type === "lead_status_changed") {
-                        IconComponent = ArrowRight;
-                        iconColor = "text-violet-650 bg-violet-50 dark:bg-violet-950/40 dark:text-violet-400";
-                      }
-
-                      return (
-                        <div key={a._id} className="relative group">
-                          <div className={`absolute -left-[24px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-slate-800 shadow-sm ${iconColor} z-10`}>
-                            <IconComponent className="w-2.5 h-2.5" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-slate-805 dark:text-slate-200">
-                              {a.description}
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-0.5">
-                              by {a.userName || "System"} • {new Date(a.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Footer Actions */}
-              <div className="flex items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800">
-                <button
-                  type="button"
-                  onClick={() => handleEditLead(selectedLead)}
-                  className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Edit className="w-4 h-4" /> Edit Lead
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteLead(selectedLead._id, selectedLead.company)}
-                  className="px-4 h-12 rounded-xl bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-650 dark:text-red-400 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" /> Delete
                 </button>
               </div>
             </motion.div>
@@ -1314,7 +1114,136 @@ export function LeadsPage() {
           setPendingStatusChange(null);
         }}
       />
+
+      <ContactInteractionDrawer
+        isOpen={isContactDrawerOpen}
+        onClose={() => {
+          setIsContactDrawerOpen(false);
+          setIsContactQualifyMode(false);
+        }}
+        lead={selectedLead as any}
+        onConfirm={async (data) => {
+          try {
+            if (isContactQualifyMode) {
+              await contactInteractionMutation({
+                leadId: selectedLead?._id as any,
+                businessType: data.transitionData.businessType,
+                buyingAuthority: data.transitionData.buyingAuthority,
+                currentSituation: data.transitionData.currentSituation,
+                businessChallenges: data.transitionData.businessChallenges,
+                goalsObjectives: data.transitionData.goalsObjectives,
+                currentProcess: data.transitionData.currentProcess,
+                painPoints: data.transitionData.painPoints,
+                requirementsSummary: data.transitionData.requirementsSummary,
+                expectedOutcome: data.transitionData.expectedOutcome,
+                competitors: data.transitionData.competitors,
+                urgency: data.transitionData.urgency,
+                budgetStatus: data.transitionData.budgetStatus,
+                timeline: data.transitionData.timeline,
+                decisionMaker: data.transitionData.decisionMaker,
+                decisionMakerName: data.transitionData.decisionMakerName,
+                decisionMakerRole: data.transitionData.decisionMakerRole,
+                preferredCommunication: data.transitionData.preferredCommunication,
+                preferredContactTime: data.transitionData.preferredContactTime,
+                preferredFollowUpMethod: data.transitionData.preferredFollowUpMethod,
+                conversationSummary: data.transitionData.conversationSummary,
+                nextFollowUpDate: data.transitionData.nextFollowUpDate,
+                meetingScheduled: data.transitionData.meetingScheduled,
+                notes: data.transitionData.additionalNotes,
+                status: "Contacted",
+                attachments: data.attachments as any,
+              });
+              await changeStatusMutation({
+                leadId: selectedLead?._id as any,
+                status: "Qualified",
+              });
+              toast("success", "Lead qualified successfully");
+            } else {
+              await contactInteractionMutation({
+                leadId: selectedLead?._id as any,
+                businessType: data.transitionData.businessType,
+                buyingAuthority: data.transitionData.buyingAuthority,
+                currentSituation: data.transitionData.currentSituation,
+                businessChallenges: data.transitionData.businessChallenges,
+                goalsObjectives: data.transitionData.goalsObjectives,
+                currentProcess: data.transitionData.currentProcess,
+                painPoints: data.transitionData.painPoints,
+                requirementsSummary: data.transitionData.requirementsSummary,
+                expectedOutcome: data.transitionData.expectedOutcome,
+                competitors: data.transitionData.competitors,
+                urgency: data.transitionData.urgency,
+                budgetStatus: data.transitionData.budgetStatus,
+                timeline: data.transitionData.timeline,
+                decisionMaker: data.transitionData.decisionMaker,
+                decisionMakerName: data.transitionData.decisionMakerName,
+                decisionMakerRole: data.transitionData.decisionMakerRole,
+                preferredCommunication: data.transitionData.preferredCommunication,
+                preferredContactTime: data.transitionData.preferredContactTime,
+                preferredFollowUpMethod: data.transitionData.preferredFollowUpMethod,
+                conversationSummary: data.transitionData.conversationSummary,
+                nextFollowUpDate: data.transitionData.nextFollowUpDate,
+                meetingScheduled: data.transitionData.meetingScheduled,
+                notes: data.transitionData.additionalNotes,
+                status: "Contacted",
+                attachments: data.attachments as any,
+              });
+              toast("success", "Lead moved to Contacted stage");
+            }
+            setIsContactDrawerOpen(false);
+            setIsContactQualifyMode(false);
+          } catch (err: any) {
+            toast("error", err.message || "Failed to process interaction");
+          }
+        }}
+      />
+
+      <LeadTransitionDrawer
+        isOpen={isTransitionDrawerOpen}
+        onClose={() => {
+          setIsTransitionDrawerOpen(false);
+          setTransitionTargetStage("");
+        }}
+        lead={selectedLead as any}
+        targetStage={transitionTargetStage}
+        onConfirm={async (data) => {
+          try {
+            await transitionLeadStageMutation({
+              leadId: selectedLead?._id as any,
+              toStage: transitionTargetStage,
+              transitionData: data.transitionData,
+              activityDetails: data.activityDetails as any,
+              reminderDetails: data.reminderDetails,
+              attachments: data.attachments as any,
+            });
+            toast("success", `Successfully transitioned lead to ${transitionTargetStage}`);
+          } catch (err: any) {
+            toast("error", err.message || "Failed to transition lead");
+          }
+        }}
+      />
     </div>
   );
 }
+export function LeadsPage() {
+  return (
+    <ErrorBoundary fallback={<LeadsError />}>
+      <LeadsPageContent />
+    </ErrorBoundary>
+  );
+}
+
+function LeadsError() {
+  return (
+    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900/60 rounded-2xl shadow-sm text-center max-w-xl mx-auto mt-6">
+      <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 mb-4 shadow-inner">
+        <AlertCircle className="w-8 h-8" />
+      </div>
+      <h3 className="text-lg font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Something went wrong</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">
+        An error occurred while loading the leads page. Please try refreshing or contact support.
+      </p>
+    </div>
+  );
+}
+
 export default LeadsPage;

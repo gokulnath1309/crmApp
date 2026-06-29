@@ -92,41 +92,31 @@ export const getInvitationMetrics = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERNAL
 // ─────────────────────────────────────────────────────────────────────────────
-export const prepareRetryRecord = internalMutation({
+export const getInvitationForResend = query({
   args: {
     id: v.id("workspaceInvitations"),
-    callerUserId: v.id("users"),
     callerWorkspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.id);
-    if (!invitation) throw new Error("Invitation not found");
+    if (!invitation) {
+      return { error: "Invitation not found" };
+    }
 
     if (invitation.workspaceId !== args.callerWorkspaceId) {
-      throw new Error("Unauthorized: Cannot retry invitation for another workspace");
+      return { error: "Unauthorized: Invitation belongs to another workspace" };
     }
 
     const now = Date.now();
-    const isExpired = invitation.status === "pending" && invitation.expiresAt < now;
-    const retryable = invitation.status === "expired" || isExpired;
-    
-    // We allow retrying any pending or expired for simplicity
-    if (!retryable && invitation.status !== "pending") {
-      throw new Error(
-        `Cannot retry a '${invitation.status}' invitation. Only pending or expired invitations can be retried.`
-      );
+    const isExpired = invitation.expiresAt < now || invitation.status === "expired" || invitation.status === "revoked";
+    const isAccepted = invitation.status === "accepted";
+
+    if (isAccepted) {
+      return { error: "Accepted invitation - resend blocked" };
     }
-
-    const updatedToken =
-      invitation.inviteToken && invitation.inviteToken.length > 10
-        ? invitation.inviteToken
-        : crypto.randomUUID();
-
-    await ctx.db.patch(args.id, {
-      status: "pending",
-      expiresAt: now + 7 * 24 * 60 * 60 * 1000, // fresh 7-day window
-      inviteToken: updatedToken,
-    });
+    if (isExpired) {
+      return { error: "Expired invitation - resend blocked" };
+    }
 
     const workspace = await ctx.db.get(invitation.workspaceId);
     const workspaceName = workspace?.name ?? "CRM Pro";
@@ -136,8 +126,42 @@ export const prepareRetryRecord = internalMutation({
       role: invitation.role,
       department: invitation.department,
       workspaceName,
-      token: updatedToken,
     };
+  },
+});
+
+export const updateResendSuccess = internalMutation({
+  args: {
+    id: v.id("workspaceInvitations"),
+    token: v.string(),
+    messageId: v.string(),
+    smtpResponse: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.id, {
+      status: "pending",
+      inviteToken: args.token,
+      expiresAt: now + 7 * 24 * 60 * 60 * 1000, // 7 days fresh window
+      resentAt: now,
+      messageId: args.messageId,
+      smtpResponse: args.smtpResponse,
+      lastDeliveryStatus: "sent",
+      lastDeliveryError: undefined,
+    });
+  },
+});
+
+export const updateResendFailure = internalMutation({
+  args: {
+    id: v.id("workspaceInvitations"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      lastDeliveryStatus: "failed",
+      lastDeliveryError: args.error,
+    });
   },
 });
 
@@ -149,48 +173,96 @@ export const retryInvitationAction = action({
     id: v.id("workspaceInvitations"),
   },
   handler: async (ctx, args) => {
+    console.log("[Resend Invite] Resend requested", { invitationId: args.id });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated. Please sign in first.");
 
     const callerUser: any = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!callerUser) throw new Error("User record not found.");
-    
+
     const membership: any = await ctx.runQuery(api.workspaceMembers.getActiveMembership, {});
-    
     if (!membership || (membership.role !== "SUPER_ADMIN" && membership.role !== "ADMIN")) {
       throw new Error("Unauthorized: Only Admins can retry invitations.");
     }
-    
+
     const workspaceId = callerUser.activeWorkspaceId;
     if (!workspaceId) {
       throw new Error("Unauthorized: You must belong to a workspace.");
     }
 
-    const retryData = await ctx.runMutation(internal.workspaceInvitations.prepareRetryRecord, {
+    // 1. Get and validate invitation
+    const invitationData = await ctx.runQuery(api.workspaceInvitations.getInvitationForResend, {
       id: args.id,
-      callerUserId: callerUser._id,
       callerWorkspaceId: workspaceId,
     });
 
-    const { email, role, department, workspaceName, token } = retryData;
+    if (invitationData.error) {
+      if (invitationData.error === "Invitation not found") {
+        console.error("[Resend Invite] Invitation not found", { invitationId: args.id });
+        throw new Error("Invitation not found");
+      }
+      if (invitationData.error.includes("Accepted")) {
+        console.error("[Resend Invite] Accepted invitation - resend blocked", { invitationId: args.id });
+        throw new Error("Invitation has already been accepted. Resend is blocked.");
+      }
+      if (invitationData.error.includes("Expired")) {
+        console.error("[Resend Invite] Expired invitation - resend blocked", { invitationId: args.id });
+        throw new Error("Invitation has expired. Resend is blocked.");
+      }
+      console.error("[Resend Invite] Validation failed:", invitationData.error);
+      throw new Error(invitationData.error);
+    }
 
+    console.log("[Resend Invite] Invitation found", { email: invitationData.email });
+
+    // 2. Generate fresh token
+    const newInviteToken = crypto.randomUUID();
+    console.log("[Resend Invite] Generating invitation link", { token: newInviteToken });
+
+    // 3. Send email via Nodemailer
+    console.log("[Resend Invite] Sending email", { to: invitationData.email });
     try {
-      await ctx.runAction(api.email.sendInvitationEmail, {
-        email,
-        name: "User", // Legacy compatibility
-        role,
-        department,
-        managerName: "Admin", // Legacy compatibility
-        companyName: workspaceName,
-        token,
+      const emailResult = await ctx.runAction(api.email.sendInvitationEmail, {
+        email: invitationData.email,
+        name: "User",
+        role: invitationData.role,
+        department: invitationData.department,
+        managerName: "Admin",
+        companyName: invitationData.workspaceName,
+        token: newInviteToken,
       });
 
-      // We removed email tracking fields, so we just assume pending status holds.
+      console.log("[Resend Invite] Message ID:", emailResult.messageId);
+      console.log("[Resend Invite] SMTP response:", emailResult.smtpResponse);
+
+      // 4. Update database on success
+      await ctx.runMutation(internal.workspaceInvitations.updateResendSuccess, {
+        id: args.id,
+        token: newInviteToken,
+        messageId: emailResult.messageId,
+        smtpResponse: emailResult.smtpResponse,
+      });
+
+      console.log("[Resend Invite] Resend successful", { invitationId: args.id });
       return args.id;
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error("[retryInvitationAction] ❌ Email failed:", errorMsg);
-      throw new Error(errorMsg);
+      console.error("[Resend Invite] sendMail failed", { error: errorMsg });
+
+      if (errorMsg.includes("rejected") || errorMsg.includes("envelope")) {
+        console.error("[Resend Invite] Email rejected", { error: errorMsg });
+      } else {
+        console.error("[Resend Invite] SMTP failed", { error: errorMsg });
+      }
+
+      // Update database with failure details
+      await ctx.runMutation(internal.workspaceInvitations.updateResendFailure, {
+        id: args.id,
+        error: errorMsg,
+      });
+
+      throw new Error("Failed to resend invitation email.");
     }
   },
 });

@@ -44,10 +44,10 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 export function CompaniesPage() {
   const { toast } = useToast();
-  const companies = useQuery(api.workspaces.list, {});
-  const createCompany = useMutation(api.workspaces.create);
-  const updateCompany = useMutation(api.workspaces.update);
-  const deleteCompany = useMutation(api.workspaces.remove);
+  const companies = useQuery(api.companies.list, {});
+  const createCompany = useMutation(api.companies.create);
+  const updateCompany = useMutation(api.companies.update);
+  const deleteCompany = useMutation(api.companies.remove);
 
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);

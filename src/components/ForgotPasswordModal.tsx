@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSignIn } from "@clerk/clerk-react";
-import { useNavigate } from "react-router-dom";
 import { Mail, ArrowLeft, CheckCircle, Send, X, Lock, Eye, EyeOff, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -43,7 +42,6 @@ function OTPInput({ value, onChange, onKeyDown, inputIndex, inputRefs, isFilled 
 export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProps) {
   const { toast } = useToast();
   const { signIn, setActive, isLoaded } = useSignIn();
-  const navigate = useNavigate();
 
   const [step, setStep] = useState<"email" | "code" | "success">("email");
   const [email, setEmail] = useState("");
@@ -100,10 +98,6 @@ export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProp
         setStep("success");
         toast("success", "Password updated successfully.");
         await setActive({ session: result.createdSessionId });
-        setTimeout(() => {
-          onClose();
-          navigate("/dashboard", { replace: true });
-        }, 2200);
       } else {
         setError("Failed to complete password reset.");
       }
@@ -112,7 +106,7 @@ export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProp
     } finally {
       setLoading(false);
     }
-  }, [code, newPassword, confirmPassword, isLoaded, signIn, setActive, navigate, onClose, toast]);
+  }, [code, newPassword, confirmPassword, isLoaded, signIn, setActive, onClose, toast]);
 
   const handleOtpChange = useCallback((index: number, value: string) => {
     setCode((prev) => {

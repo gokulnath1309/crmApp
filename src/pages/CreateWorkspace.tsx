@@ -1,26 +1,48 @@
-import { useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useState, useCallback, lazy, Suspense, type ComponentType } from "react";
 import { Building, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { useAuth, useUser } from "@clerk/clerk-react";
+import { useAuth as useAppAuth } from "@/features/auth/AuthProvider";
+
+let WorkspaceCreator: ComponentType<{
+  name: string;
+  industry: string;
+  employeeCount: number;
+  onCreate: () => void;
+  onError: (msg: string) => void;
+}> | null = null;
+
+function loadWorkspaceCreator() {
+  if (!WorkspaceCreator) {
+    WorkspaceCreator = lazy(() => import("@/components/WorkspaceCreator"));
+  }
+}
 
 export default function CreateWorkspace() {
   const { toast } = useToast();
-  const createWorkspace = useMutation(api.workspaces.createWorkspace);
-  const { isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
+  useAppAuth(); // keep AuthProvider subscription alive
 
-  console.log("[CreateWorkspace Debug]", {
-    isLoaded,
-    isSignedIn,
-    userId: user?.id,
-  });
+  const [creatorKey, setCreatorKey] = useState(0);
 
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
   const [employeeCount, setEmployeeCount] = useState<number>(10);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreateStart = useCallback(() => {
+    if (!name.trim()) {
+      toast("error", "Company name is required");
+      return;
+    }
+    loadWorkspaceCreator();
+    setCreatorKey((k) => k + 1);
+  }, [name, toast]);
+
+  const handleCreated = useCallback(() => {
+    // AuthGate will detect the new membership and redirect to /dashboard
+  }, []);
+
+  const handleError = useCallback((msg: string) => {
+    toast("error", msg);
+  }, [toast]);
 
   const industries = [
     "Technology",
@@ -42,34 +64,9 @@ export default function CreateWorkspace() {
     { label: "500+ employees", value: 1000 },
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast("error", "Company name is required");
-      return;
-    }
-
-    if (!isLoaded || !isSignedIn) {
-      toast("error", "Authentication is still loading. Please try again in a moment.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await createWorkspace({
-        name: name.trim(),
-        industry: industry || undefined,
-        employeeCount: employeeCount,
-      });
-      toast("success", "Workspace created successfully!");
-      // Force page refresh or navigation to let route guards re-evaluate the auth session with workspaceId
-      window.location.href = "/dashboard";
-    } catch (err: any) {
-      console.error(err);
-      toast("error", err.message || "Failed to create workspace");
-    } finally {
-      setIsSubmitting(false);
-    }
+    handleCreateStart();
   };
 
   return (
@@ -164,21 +161,30 @@ export default function CreateWorkspace() {
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={isSubmitting || !name.trim()}
+                disabled={!name.trim()}
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 text-white text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.99] cursor-pointer"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Creating Workspace...
-                  </>
-                ) : (
-                  <>
-                    Launch Workspace <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                Launch Workspace <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </form>
+
+          {creatorKey > 0 && WorkspaceCreator && (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+              </div>
+            }>
+              <WorkspaceCreator
+                key={creatorKey}
+                name={name}
+                industry={industry}
+                employeeCount={employeeCount}
+                onCreate={handleCreated}
+                onError={handleError}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Footer info */}

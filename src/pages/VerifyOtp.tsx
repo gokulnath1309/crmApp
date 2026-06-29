@@ -83,18 +83,16 @@ export function VerifyOtpPage() {
     setError("");
 
     try {
-      console.log("[OTP Login] OTP verification started");
+
       const result = await signIn.attemptFirstFactor({
         strategy: "email_code",
         code: otpCode,
       });
 
       if (result.status === "complete") {
-        console.log("[OTP Login] Clerk session created");
         await setActive({ session: result.createdSessionId });
+        verifyingRef.current = false;
         toast("success", "Welcome back! Login successful.");
-        console.log("[OTP Login] Redirecting to dashboard");
-        navigate("/dashboard", { replace: true });
       } else {
         setError("Clerk session failed to complete.");
         verifyingRef.current = false;
@@ -110,14 +108,15 @@ export function VerifyOtpPage() {
     } finally {
       setLoadingText("");
     }
-  }, [otp, email, isLoaded, signIn, setActive, navigate, toast]);
+  }, [otp, isLoaded, signIn, setActive, navigate, toast]);
 
   const handleResend = async () => {
     if (!signIn) return;
     setLoadingText("Resending OTP...");
-    setError("");
+    if (!email) return;
     try {
-      await signIn.prepareFirstFactor({ strategy: "email_code" });
+      const factor = signIn.supportedFirstFactors?.find((f: any) => f.strategy === "email_code" && f.safeIdentifier === email) as any;
+      await signIn.prepareFirstFactor({ strategy: "email_code", emailAddressId: factor?.emailAddressId ?? "" });
       setCountdown(300);
       toast("success", "A new OTP has been sent to your email.");
       setOtp(["", "", "", "", "", ""]);

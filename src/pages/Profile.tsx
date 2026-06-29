@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useUser } from "@/features/auth/UserProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -24,7 +24,8 @@ function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green"
 }
 
 export function ProfilePage() {
-  const { user, isLoading } = useAuth();
+  const { user } = useUser();
+  const isLoading = false;
   const { toast } = useToast();
 
   const canEditFieldClient = (fieldName: string) => {

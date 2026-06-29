@@ -1,83 +1,61 @@
-import { useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Building, ArrowRight, Loader2, Sparkles, UserPlus, LogIn } from "lucide-react";
+import { useState, useEffect, useCallback, lazy, Suspense, type ComponentType } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Building, ArrowRight, Loader2, Sparkles, UserPlus, LogIn, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { useAuth, useUser } from "@clerk/clerk-react";
-import { useAuth as useAppAuth } from "@/features/auth/AuthProvider";
+import { useWorkspace } from "@/features/auth/WorkspaceProvider";
+
+let WorkspaceCreator: ComponentType<{
+  name: string;
+  industry: string;
+  employeeCount: number;
+  onCreate: () => void;
+  onError: (msg: string) => void;
+}> | null = null;
+
+function loadWorkspaceCreator() {
+  if (!WorkspaceCreator) {
+    WorkspaceCreator = lazy(() => import("@/components/WorkspaceCreator"));
+  }
+}
 
 export default function OnboardingPage() {
   const { toast } = useToast();
-  const createWorkspace = useMutation(api.workspaces.createWorkspace);
-  const { isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
-  const { hasMemberships, refetchUser } = useAppAuth();
+  const navigate = useNavigate();
+  const { hasMemberships } = useWorkspace();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"create" | "join">(
     (searchParams.get("mode") as "create" | "join") || "create"
   );
+  const [creatorKey, setCreatorKey] = useState(0);
 
-  if (hasMemberships) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // After workspace creation, AuthGate will detect the new membership
+  // and redirect to /dashboard automatically.
 
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
   const [employeeCount, setEmployeeCount] = useState<number>(10);
   const [inviteCode, setInviteCode] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const industries = [
-    "Technology", "Healthcare", "Finance", "Education",
-    "Real Estate", "Retail & E-commerce", "Manufacturing",
-    "Consulting", "Other",
-  ];
-
-  const sizeOptions = [
-    { label: "1-10 employees", value: 10 },
-    { label: "11-50 employees", value: 50 },
-    { label: "51-200 employees", value: 200 },
-    { label: "201-500 employees", value: 500 },
-    { label: "500+ employees", value: 1000 },
-  ];
-
-  const handleCreateWorkspace = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateStart = useCallback(() => {
     if (!name.trim()) {
       toast("error", "Company name is required");
       return;
     }
-    if (!isLoaded || !isSignedIn) {
-      toast("error", "Authentication is still loading. Please try again in a moment.");
-      return;
-    }
+    loadWorkspaceCreator();
+    setCreatorKey((k) => k + 1);
+  }, [name, toast]);
 
-    setIsSubmitting(true);
-    try {
-      await createWorkspace({
-        name: name.trim(),
-        industry: industry || undefined,
-        employeeCount,
-      });
-      toast("success", "Workspace created successfully!");
-      refetchUser();
-    } catch (err: any) {
-      console.error(err);
-      toast("error", err.message || "Failed to create workspace");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleCreated = useCallback(() => {
+    // AuthGate will detect the new membership and redirect to /dashboard
+  }, []);
 
-  const handleJoinWorkspace = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteCode.trim()) {
-      toast("error", "Invite code is required");
-      return;
-    }
-    toast("info", "Joining workspace via invite code...");
-  };
+  const handleError = useCallback((msg: string) => {
+    toast("error", msg);
+  }, [toast]);
+
+  // "Join Workspace" tab: navigate to the invite acceptance page directly.
+  // The form submit is unused — the button's onClick handles navigation.
+  const handleJoinWorkspaceSubmit = (e: React.FormEvent) => e.preventDefault();
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -98,6 +76,19 @@ export default function OnboardingPage() {
         </div>
 
         <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800/80 shadow-2xl p-6 sm:p-10 space-y-6">
+          
+          {!hasMemberships && (
+            <div className="flex gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-left">
+              <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-amber-400">No workspace found</h4>
+                <p className="text-xs text-amber-500/90 mt-1 leading-relaxed">
+                  You are not part of any workspace. Please create or join one.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 mb-2">
             <button
               onClick={() => setMode("create")}
@@ -132,7 +123,7 @@ export default function OnboardingPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleCreateWorkspace} className="space-y-5">
+              <form onSubmit={(e) => { e.preventDefault(); handleCreateStart(); }} className="space-y-5">
                 <div>
                   <label htmlFor="company-name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Company Name *
@@ -185,32 +176,45 @@ export default function OnboardingPage() {
                 <div className="pt-4">
                   <button
                     type="submit"
-                    disabled={isSubmitting || !name.trim()}
+                    disabled={!name.trim()}
                     className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 text-white text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.99] cursor-pointer"
                   >
-                    {isSubmitting ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Creating Workspace...</>
-                    ) : (
-                      <><ArrowRight className="w-4 h-4" /> Launch Workspace</>
-                    )}
+                    <ArrowRight className="w-4 h-4" /> Launch Workspace
                   </button>
                 </div>
               </form>
+
+              {creatorKey > 0 && WorkspaceCreator && (
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                  </div>
+                }>
+                  <WorkspaceCreator
+                    key={creatorKey}
+                    name={name}
+                    industry={industry}
+                    employeeCount={employeeCount}
+                    onCreate={handleCreated}
+                    onError={handleError}
+                  />
+                </Suspense>
+              )}
             </>
           ) : (
-            <form onSubmit={handleJoinWorkspace} className="space-y-5">
+          <form onSubmit={handleJoinWorkspaceSubmit} className="space-y-5">
               <div className="border-b border-slate-800/60 pb-5">
                 <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
                   <LogIn className="w-5 h-5 text-indigo-400" /> Join a Workspace
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Enter the invite code or link shared by your workspace admin.
+                  Invitations are sent to your email. Click the link in the email to join.
                 </p>
               </div>
 
               <div>
                 <label htmlFor="invite-code" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Invite Code
+                  Invite Code (from link)
                 </label>
                 <input
                   id="invite-code"
@@ -218,22 +222,24 @@ export default function OnboardingPage() {
                   required
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="e.g. INVITE-ABC123"
+                  placeholder="e.g. invite link token"
                   className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/80 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                 />
               </div>
 
               <div className="pt-4">
                 <button
-                  type="submit"
-                  disabled={isSubmitting || !inviteCode.trim()}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 text-white text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-[0.99] cursor-pointer"
+                  type="button"
+                  onClick={() => {
+                    if (inviteCode.trim()) {
+                      navigate(`/invite/${inviteCode.trim()}`);
+                    } else {
+                      toast("error", "Please enter the invite token.");
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-[0.99] cursor-pointer"
                 >
-                  {isSubmitting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Joining Workspace...</>
-                  ) : (
-                    <><LogIn className="w-4 h-4" /> Join Workspace</>
-                  )}
+                  <LogIn className="w-4 h-4" /> Go to Accept Page
                 </button>
               </div>
             </form>
@@ -247,3 +253,17 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+const industries = [
+  "Technology", "Healthcare", "Finance", "Education",
+  "Real Estate", "Retail & E-commerce", "Manufacturing",
+  "Consulting", "Other",
+];
+
+const sizeOptions = [
+  { label: "1-10 employees", value: 10 },
+  { label: "11-50 employees", value: 50 },
+  { label: "51-200 employees", value: 200 },
+  { label: "201-500 employees", value: 500 },
+  { label: "500+ employees", value: 1000 },
+];

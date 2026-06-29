@@ -131,16 +131,15 @@ export const create = mutation({
   args: {
     firstName: v.string(),
     lastName: v.string(),
-    email: v.string(),
+    email: v.optional(v.string()),
     phone: v.optional(v.string()),
     company: v.string(),
     jobTitle: v.optional(v.string()),
     status: v.string(),
     source: v.string(),
+    website: v.optional(v.string()),
+    initialNotes: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
-    value: v.optional(v.number()),
-    score: v.optional(v.number()),
-    currency: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
@@ -166,50 +165,77 @@ export const create = mutation({
     const now = Date.now();
     const isEmployee = currentUser.role !== "super_admin" && currentUser.role !== "admin";
     const effectiveAssignedTo = isEmployee ? currentUserId : (args.assignedTo ?? currentUserId);
+    const hasEmail = !!args.email?.trim();
+    const hasPhone = !!args.phone?.trim();
+    if (!hasEmail && !hasPhone) {
+      throw new Error("Email or Phone is required");
+    }
+
     const leadId = await ctx.db.insert("leads", {
       firstName: args.firstName.trim(),
       lastName: args.lastName.trim(),
-      email: args.email.trim(),
+      email: (args.email || "").trim(),
       phone: args.phone?.trim(),
       company: args.company.trim(),
       jobTitle: args.jobTitle?.trim(),
-      status: args.status,
+      status: args.status || "New",
       source: args.source,
       createdBy: currentUserId,
       ownerId: currentUserId,
       assignedTo: effectiveAssignedTo,
-      workspaceId: workspaceId,
-      value: args.value,
-      currency: args.currency || "INR",
-      score: args.score ?? Math.floor(Math.random() * 40) + 60, // random quality score 60-100 if none provided
+      workspaceId,
+      website: args.website?.trim(),
+      initialNotes: args.initialNotes?.trim(),
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
       statusChangedBy: userName,
     });
 
-    // Create activity log
+    await ctx.db.insert("leadStageTransitions", {
+      leadId,
+      fromStage: "None",
+      toStage: args.status || "New",
+      userId: currentUserId,
+      userName,
+      transitionedAt: now,
+      data: { company: args.company, source: args.source, notes: args.initialNotes },
+      workspaceId,
+    });
+
+    await ctx.db.insert("leadActivities", {
+      leadId,
+      activityType: "Note",
+      userId: currentUserId,
+      userName,
+      date: new Date(now).toISOString().split("T")[0],
+      time: new Date(now).toTimeString().split(" ")[0].slice(0, 5),
+      duration: "0",
+      summary: "Lead created and initialized",
+      notes: args.initialNotes || "Lead created in system.",
+      stageAtTime: "New",
+      workspaceId,
+      createdAt: now,
+    });
+
     await ctx.scheduler.runAfter(0, internal.activities.log, {
       type: "lead_created",
       description: `created a new lead "${args.company}" (${args.firstName} ${args.lastName})`,
-      userId: userId ?? undefined,
+      userId,
       userName,
       entityType: "lead",
       entityId: leadId,
     });
 
-    if (effectiveAssignedTo) {
+    if (effectiveAssignedTo && effectiveAssignedTo !== currentUserId) {
       await ctx.scheduler.runAfter(0, internal.activities.log, {
         type: "lead_assigned",
-        description: `assigned lead "${args.company}" to ${effectiveAssignedTo === userId ? "themselves" : "user"}`,
-        userId: userId ?? undefined,
+        description: `assigned lead "${args.company}" to user`,
+        userId,
         userName,
         entityType: "lead",
         entityId: leadId,
       });
-    }
-
-    if (effectiveAssignedTo && effectiveAssignedTo !== currentUserId) {
       await notifyUser(ctx, effectiveAssignedTo, "lead_assigned", {
         entityName: args.company,
         entityType: "lead",
@@ -227,16 +253,14 @@ export const update = mutation({
     id: v.id("leads"),
     firstName: v.string(),
     lastName: v.string(),
-    email: v.string(),
+    email: v.optional(v.string()),
     phone: v.optional(v.string()),
     company: v.string(),
     jobTitle: v.optional(v.string()),
     status: v.string(),
     source: v.string(),
     assignedTo: v.optional(v.id("users")),
-    value: v.optional(v.number()),
-    score: v.optional(v.number()),
-    currency: v.optional(v.string()),
+    website: v.optional(v.string()),
 
     // Status workflow fields
     unqualifiedReason: v.optional(v.string()),
@@ -254,8 +278,7 @@ export const update = mutation({
     const userName = currentUser.name || "System";
     const currentUserId = userId;
 
-    const { id, ...updateFields } = args;
-    const existing = await ctx.db.get(id);
+    const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Lead not found");
 
     const isAccessible = await canAccessLead(ctx, currentUserId, existing);
@@ -272,14 +295,15 @@ export const update = mutation({
 
     const now = Date.now();
     const patchData: any = {
-      ...updateFields,
       firstName: args.firstName.trim(),
       lastName: args.lastName.trim(),
-      email: args.email.trim(),
+      email: args.email?.trim() || existing.email,
       phone: args.phone?.trim(),
       company: args.company.trim(),
       jobTitle: args.jobTitle?.trim(),
-      currency: args.currency || "INR",
+      source: args.source,
+      website: args.website?.trim(),
+      assignedTo: args.assignedTo,
       updatedAt: now,
     };
 
@@ -287,10 +311,8 @@ export const update = mutation({
       const allowedTransitions: Record<string, string[]> = {
         New: ["Contacted", "Unqualified"],
         Contacted: ["Qualified", "Unqualified", "Lost"],
-        Qualified: ["Proposal Sent", "Unqualified", "Lost"],
-        "Proposal Sent": ["Negotiation", "Lost"],
-        Negotiation: ["Won", "Lost"],
-        Won: [],
+        Qualified: ["Converted", "Unqualified", "Lost"],
+        Converted: [],
         Lost: ["New"],
         Unqualified: ["New"],
       };
@@ -300,114 +322,29 @@ export const update = mutation({
         throw new Error(`Invalid status transition from ${existing.status || "New"} to ${args.status}`);
       }
 
+      patchData.status = args.status;
       patchData.statusChangedAt = now;
       patchData.statusChangedBy = userName;
 
       let activityType = "lead_status_changed";
       let activityDescription = `changed status of lead "${args.company}" to ${args.status}`;
 
-      if (args.status === "Won") {
-        // 1. Create company if not exists
-        let workspaceId;
-        const existingCompanies = await ctx.db
-          .query("companies")
-          .withIndex("by_name", (q) => q.eq("name", args.company.trim()))
-          .collect();
-        if (existingCompanies.length === 0) {
-          workspaceId = await ctx.db.insert("companies", {
-            name: args.company.trim(),
-            status: "Prospect",
-            createdAt: now,
-            updatedAt: now,
-          });
-        } else {
-          workspaceId = existingCompanies[0]._id;
-        }
-
-        // 2. Create contact if not exists
-        let contactId;
-        const existingContacts = await ctx.db
-          .query("contacts")
-          .withIndex("by_email", (q) => q.eq("email", args.email.trim().toLowerCase()))
-          .collect();
-        if (existingContacts.length === 0) {
-          contactId = await ctx.db.insert("contacts", {
-            firstName: args.firstName.trim(),
-            lastName: args.lastName.trim(),
-            email: args.email.trim().toLowerCase(),
-            phone: args.phone?.trim(),
-            company: args.company.trim(),
-            jobTitle: args.jobTitle?.trim(),
-            status: "Active",
-            tags: ["Converted"],
-            createdBy: currentUserId,
-            ownerId: currentUserId,
-            assignedTo: args.assignedTo,
-            workspaceId: workspaceId,
-            createdAt: now,
-            updatedAt: now,
-          });
-        } else {
-          contactId = existingContacts[0]._id;
-        }
-
-        // 3. Create deal record
-        await ctx.db.insert("deals", {
-          title: `${args.company.trim()} - Deal`,
-          value: args.value !== undefined ? args.value : 0,
-          currency: args.currency || "INR",
-          status: "Pipeline",
-          stage: "Prospecting",
-          probability: 10,
-          company: args.company.trim(),
-          createdBy: currentUserId,
-          ownerId: currentUserId,
-          assignedTo: args.assignedTo,
-          leadId: id,
-          workspaceId: workspaceId,
-          contactId: contactId,
-          stageChangedAt: now,
-          stageChangedBy: userName,
-          createdAt: now,
-          updatedAt: now,
-        });
-
-        // 4. Create onboarding task
-        await ctx.db.insert("tasks", {
-          title: `Onboarding Setup: ${args.company.trim()}`,
-          dueDate: now + 7 * 24 * 60 * 60 * 1000,
-          status: "Pending",
-          priority: "Medium",
-          createdBy: currentUserId,
-          assignedTo: args.assignedTo,
-          createdAt: now,
-          updatedAt: now,
-        });
-
-        activityType = "lead_converted";
-        activityDescription = "Lead converted to customer and deal created";
-
-      } else if (args.status === "Lost") {
+      if (args.status === "Lost") {
         patchData.lostAt = now;
         patchData.lostReason = args.lostReason;
         patchData.lostNotes = args.lostNotes;
-
         activityType = "lead_lost";
         activityDescription = "Lead marked as Lost";
-
       } else if (args.status === "Unqualified") {
         patchData.unqualifiedAt = now;
         patchData.unqualifiedReason = args.unqualifiedReason;
         patchData.unqualifiedNotes = args.unqualifiedNotes;
-
         activityType = "lead_unqualified";
         activityDescription = "Lead marked as Unqualified";
-
       } else if ((existing.status === "Unqualified" || existing.status === "Lost") && args.status === "New") {
         patchData.requalifiedAt = now;
         patchData.requalifiedBy = userName;
         patchData.requalificationReason = args.requalificationReason;
-
         activityType = "lead_requalified";
         activityDescription = "Lead requalified";
       }
@@ -415,70 +352,54 @@ export const update = mutation({
       await ctx.scheduler.runAfter(0, internal.activities.log, {
         type: activityType,
         description: activityDescription,
-        userId: userId ?? undefined,
+        userId,
         userName,
         entityType: "lead",
-        entityId: id,
-      });
-    } else {
-      // Normal update log if status didn't change
-      await ctx.scheduler.runAfter(0, internal.activities.log, {
-        type: "lead_updated",
-        description: `updated lead "${args.company}"`,
-        userId: userId ?? undefined,
-        userName,
-        entityType: "lead",
-        entityId: id,
-      });
-    }
-
-    if (args.assignedTo !== existing.assignedTo) {
-      await ctx.scheduler.runAfter(0, internal.activities.log, {
-        type: "lead_assigned",
-        description: `assigned lead "${args.company}" to user`,
-        userId: userId ?? undefined,
-        userName,
-        entityType: "lead",
-        entityId: id,
+        entityId: args.id,
       });
 
-      if (args.assignedTo && args.assignedTo !== currentUserId) {
-        await notifyUser(ctx, args.assignedTo, "lead_assigned", {
-          entityName: args.company,
-          entityType: "lead",
-          entityId: id,
-          createdBy: currentUserId,
-        });
-      }
-    }
-
-    if (args.status !== existing.status && args.status !== "Won") {
       const targetUserId = args.assignedTo || existing.assignedTo;
       if (targetUserId && targetUserId !== currentUserId) {
         await notifyUser(ctx, targetUserId, "lead_status_changed", {
           entityName: args.company,
           status: args.status,
           entityType: "lead",
-          entityId: id,
+          entityId: args.id,
           createdBy: currentUserId,
         });
       }
+    } else {
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: "lead_updated",
+        description: `updated lead "${args.company}"`,
+        userId,
+        userName,
+        entityType: "lead",
+        entityId: args.id,
+      });
     }
 
-    if (args.status === "Won" && existing.status !== "Won") {
-      const targetUserId = args.assignedTo || existing.assignedTo;
-      if (targetUserId) {
-        await notifyUser(ctx, targetUserId, "lead_converted", {
+    if (args.assignedTo && args.assignedTo !== existing.assignedTo) {
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: "lead_assigned",
+        description: `assigned lead "${args.company}" to user`,
+        userId,
+        userName,
+        entityType: "lead",
+        entityId: args.id,
+      });
+      if (args.assignedTo !== currentUserId) {
+        await notifyUser(ctx, args.assignedTo, "lead_assigned", {
           entityName: args.company,
           entityType: "lead",
-          entityId: id,
+          entityId: args.id,
           createdBy: currentUserId,
         });
       }
     }
 
-    await ctx.db.patch(id, patchData);
-    return id;
+    await ctx.db.patch(args.id, patchData);
+    return args.id;
   },
 });
 
@@ -530,5 +451,1055 @@ export const migrateLeadsCurrency = mutation({
       }
     }
     return { migrated: count };
+  },
+});
+
+export const transitionStage = mutation({
+  args: {
+    leadId: v.id("leads"),
+    toStage: v.string(),
+    transitionData: v.any(),
+    activityDetails: v.object({
+      activityType: v.string(),
+      summary: v.string(),
+      notes: v.optional(v.string()),
+      duration: v.optional(v.string()),
+      outcome: v.optional(v.string()),
+      date: v.string(),
+      time: v.optional(v.string()),
+      nextAction: v.optional(v.string()),
+    }),
+    reminderDetails: v.optional(v.object({
+      title: v.string(),
+      dueDate: v.number(),
+    })),
+    attachments: v.optional(v.array(v.object({
+      fileName: v.string(),
+      fileType: v.string(),
+      fileUrl: v.optional(v.string()),
+      category: v.string(),
+      duration: v.optional(v.number()),
+      mimeType: v.string(),
+      stage: v.string(),
+      storageId: v.optional(v.string()),
+      size: v.optional(v.number()),
+    }))),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) {
+      throw new Error("Unauthorized");
+    }
+    const userId = currentUser._id;
+    const userName = currentUser.name || "System";
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace found");
+
+    const lead = await ctx.db.get(args.leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const fromStage = lead.status;
+    if (fromStage === args.toStage) {
+      throw new Error("Lead is already in this stage");
+    }
+
+    const allowedTransitions: Record<string, string[]> = {
+      New: ["Contacted", "Unqualified"],
+      Contacted: ["Qualified", "Unqualified", "Lost"],
+      Qualified: ["Converted", "Unqualified", "Lost"],
+      Converted: [],
+      Lost: ["New"],
+      Unqualified: ["New"],
+    };
+
+    const allowed = allowedTransitions[fromStage || "New"];
+    if (!allowed || !allowed.includes(args.toStage)) {
+      throw new Error(`Invalid status transition from ${fromStage} to ${args.toStage}`);
+    }
+
+    const now = Date.now();
+
+    await ctx.db.insert("leadStageTransitions", {
+      leadId: args.leadId,
+      fromStage,
+      toStage: args.toStage,
+      userId,
+      userName,
+      transitionedAt: now,
+      data: args.transitionData,
+      workspaceId,
+    });
+
+    const attachmentUrls: string[] = [];
+    if (args.attachments && args.attachments.length > 0) {
+      for (const att of args.attachments) {
+        await ctx.db.insert("leadAttachments", {
+          leadId: args.leadId,
+          stage: att.stage,
+          fileName: att.fileName,
+          fileType: att.fileType,
+          fileUrl: att.fileUrl,
+          category: att.category,
+          duration: att.duration,
+          mimeType: att.mimeType,
+          storageId: att.storageId,
+          size: att.size,
+          uploadedBy: userId,
+          workspaceId,
+          createdAt: now,
+          uploadedAt: now,
+        });
+        attachmentUrls.push(att.fileName);
+      }
+    }
+
+    await ctx.db.insert("leadActivities", {
+      leadId: args.leadId,
+      activityType: args.activityDetails.activityType,
+      userId,
+      userName,
+      date: args.activityDetails.date,
+      time: args.activityDetails.time,
+      duration: args.activityDetails.duration,
+      summary: args.activityDetails.summary,
+      notes: args.activityDetails.notes,
+      outcome: args.activityDetails.outcome,
+      attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+      followUpDate: args.activityDetails.nextAction && args.reminderDetails?.dueDate ? new Date(args.reminderDetails.dueDate).toLocaleDateString() : undefined,
+      reminder: !!args.reminderDetails,
+      nextAction: args.activityDetails.nextAction,
+      stageAtTime: fromStage,
+      workspaceId,
+      createdAt: now,
+    });
+
+    if (args.reminderDetails) {
+      await ctx.db.insert("leadReminders", {
+        leadId: args.leadId,
+        userId,
+        userName,
+        title: args.reminderDetails.title,
+        dueDate: args.reminderDetails.dueDate,
+        isCompleted: false,
+        workspaceId,
+        createdAt: now,
+      });
+    }
+
+    const leadPatch: any = {
+      status: args.toStage,
+      updatedAt: now,
+      statusChangedAt: now,
+      statusChangedBy: userName,
+    };
+
+    const tData = args.transitionData;
+    if (tData) {
+      if (tData.expectedBudget) leadPatch.value = Number(tData.expectedBudget);
+      if (tData.industry) leadPatch.industry = tData.industry;
+      if (tData.website) leadPatch.website = tData.website;
+      if (tData.companySize) leadPatch.companySize = Number(tData.companySize);
+      if (tData.annualRevenue) leadPatch.annualRevenue = Number(tData.annualRevenue);
+      if (tData.priority) leadPatch.priority = tData.priority;
+      if (tData.address) leadPatch.address = tData.address;
+      if (tData.city) leadPatch.city = tData.city;
+      if (tData.country) leadPatch.country = tData.country;
+      if (tData.businessType) leadPatch.businessType = tData.businessType;
+      if (tData.buyingAuthority) leadPatch.buyingAuthority = tData.buyingAuthority;
+      if (tData.currentSituation) leadPatch.currentSituation = tData.currentSituation;
+      if (tData.businessChallenges) leadPatch.businessChallenges = tData.businessChallenges;
+      if (tData.goalsObjectives) leadPatch.goalsObjectives = tData.goalsObjectives;
+      if (tData.currentProcess) leadPatch.currentProcess = tData.currentProcess;
+      if (tData.painPoints) leadPatch.painPoints = tData.painPoints;
+      if (tData.requirementsSummary) leadPatch.requirementsSummary = tData.requirementsSummary;
+      if (tData.expectedOutcome) leadPatch.expectedOutcome = tData.expectedOutcome;
+      if (tData.competitors) leadPatch.competitors = tData.competitors;
+      if (tData.urgency) leadPatch.urgency = tData.urgency;
+      if (tData.budgetStatus) leadPatch.budgetStatus = tData.budgetStatus;
+      if (tData.timeline) leadPatch.timeline = tData.timeline;
+      if (tData.decisionMaker !== undefined) leadPatch.decisionMaker = tData.decisionMaker;
+      if (tData.decisionMakerName) leadPatch.decisionMakerName = tData.decisionMakerName;
+      if (tData.decisionMakerRole) leadPatch.decisionMakerRole = tData.decisionMakerRole;
+      if (tData.preferredCommunication) leadPatch.preferredCommunication = tData.preferredCommunication;
+      if (tData.preferredContactTime) leadPatch.preferredContactTime = tData.preferredContactTime;
+      if (tData.preferredFollowUpMethod) leadPatch.preferredFollowUpMethod = tData.preferredFollowUpMethod;
+      if (tData.conversationSummary) leadPatch.customFields = { ...(lead.customFields || {}), conversationSummary: tData.conversationSummary };
+      if (tData.nextFollowUpDate) leadPatch.customFields = { ...(leadPatch.customFields || lead.customFields || {}), nextFollowUpDate: tData.nextFollowUpDate };
+      if (tData.meetingScheduled !== undefined) leadPatch.customFields = { ...(leadPatch.customFields || lead.customFields || {}), meetingScheduled: tData.meetingScheduled };
+
+      const mergedCustomFields = { ...(lead.customFields || {}) };
+      if (tData.customFields) {
+        Object.assign(mergedCustomFields, tData.customFields);
+      }
+      if (Object.keys(mergedCustomFields).length > 0) {
+        leadPatch.customFields = mergedCustomFields;
+      }
+    }
+
+    await ctx.db.patch(args.leadId, leadPatch);
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "lead_status_changed",
+      description: `changed status of lead "${lead.company}" to ${args.toStage}`,
+      userId: userId ?? undefined,
+      userName,
+      entityType: "lead",
+      entityId: args.leadId,
+      workspaceId,
+    });
+
+    return args.leadId;
+  },
+});
+
+export const changeStatus = mutation({
+  args: {
+    leadId: v.id("leads"),
+    status: v.string(),
+    unqualifiedReason: v.optional(v.string()),
+    unqualifiedNotes: v.optional(v.string()),
+    lostReason: v.optional(v.string()),
+    lostNotes: v.optional(v.string()),
+    requalificationReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const userName = currentUser.name || "System";
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace found");
+
+    const lead = await ctx.db.get(args.leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const isAccessible = await canAccessLead(ctx, userId, lead);
+    if (!isAccessible) throw new Error("Unauthorized");
+
+    const fromStage = lead.status;
+    if (fromStage === args.status) throw new Error("Lead is already in this stage");
+
+    const allowedTransitions: Record<string, string[]> = {
+      New: ["Contacted", "Unqualified"],
+      Contacted: ["Qualified", "Unqualified", "Lost"],
+      Qualified: ["Converted", "Unqualified", "Lost"],
+      Converted: [],
+      Lost: ["New"],
+      Unqualified: ["New"],
+    };
+
+    const allowed = allowedTransitions[fromStage || "New"];
+    if (!allowed || !allowed.includes(args.status)) {
+      throw new Error(`Invalid status transition from ${fromStage} to ${args.status}`);
+    }
+
+    const now = Date.now();
+    const patchData: any = {
+      status: args.status,
+      updatedAt: now,
+      statusChangedAt: now,
+      statusChangedBy: userName,
+    };
+
+    if (args.status === "Lost") {
+      patchData.lostAt = now;
+      patchData.lostReason = args.lostReason;
+      patchData.lostNotes = args.lostNotes;
+    } else if (args.status === "Unqualified") {
+      patchData.unqualifiedAt = now;
+      patchData.unqualifiedReason = args.unqualifiedReason;
+      patchData.unqualifiedNotes = args.unqualifiedNotes;
+    } else if (fromStage === "Unqualified" || fromStage === "Lost") {
+      patchData.requalifiedAt = now;
+      patchData.requalifiedBy = userName;
+      patchData.requalificationReason = args.requalificationReason;
+    }
+
+    await ctx.db.patch(args.leadId, patchData);
+
+    await ctx.db.insert("leadStageTransitions", {
+      leadId: args.leadId,
+      fromStage,
+      toStage: args.status,
+      userId,
+      userName,
+      transitionedAt: now,
+      data: {
+        lostReason: args.lostReason,
+        lostNotes: args.lostNotes,
+        unqualifiedReason: args.unqualifiedReason,
+        unqualifiedNotes: args.unqualifiedNotes,
+        requalificationReason: args.requalificationReason,
+      },
+      workspaceId,
+    });
+
+    const activityType =
+      args.status === "Lost" ? "lead_lost" :
+      args.status === "Unqualified" ? "lead_unqualified" :
+      (fromStage === "Unqualified" || fromStage === "Lost") ? "lead_requalified" :
+      "lead_status_changed";
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: activityType,
+      description: `changed status of lead "${lead.company}" to ${args.status}`,
+      userId,
+      userName,
+      entityType: "lead",
+      entityId: args.leadId,
+      workspaceId,
+    });
+
+    return args.leadId;
+  },
+});
+
+export const listTransitions = query({
+  args: {
+    leadId: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return [];
+    
+    return await ctx.db
+      .query("leadStageTransitions")
+      .withIndex("by_leadId", (q) => q.eq("leadId", args.leadId))
+      .collect();
+  },
+});
+
+export const listLeadActivities = query({
+  args: {
+    leadId: v.id("leads"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return [];
+    
+    const limit = args.limit ?? 50;
+    const activities = await ctx.db
+      .query("leadActivities")
+      .withIndex("by_leadId", (q) => q.eq("leadId", args.leadId))
+      .collect();
+      
+    return activities
+      .sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.createdAt - a.createdAt;
+      })
+      .slice(0, limit);
+  },
+});
+
+export const listLeadReminders = query({
+  args: {
+    leadId: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return [];
+    
+    return await ctx.db
+      .query("leadReminders")
+      .withIndex("by_leadId", (q) => q.eq("leadId", args.leadId))
+      .collect();
+  },
+});
+
+export const createReminder = mutation({
+  args: {
+    leadId: v.id("leads"),
+    title: v.string(),
+    dueDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    return await ctx.db.insert("leadReminders", {
+      leadId: args.leadId,
+      userId: currentUser._id,
+      userName: currentUser.name || "System",
+      title: args.title,
+      dueDate: args.dueDate,
+      isCompleted: false,
+      workspaceId,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const completeReminder = mutation({
+  args: {
+    reminderId: v.id("leadReminders"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const reminder = await ctx.db.get(args.reminderId);
+    if (!reminder) throw new Error("Reminder not found");
+    
+    await ctx.db.patch(args.reminderId, { isCompleted: true });
+    return args.reminderId;
+  },
+});
+
+export const pinActivity = mutation({
+  args: {
+    activityId: v.id("leadActivities"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const activity = await ctx.db.get(args.activityId);
+    if (!activity) throw new Error("Activity not found");
+    
+    await ctx.db.patch(args.activityId, {
+      isPinned: !activity.isPinned,
+    });
+    return args.activityId;
+  },
+});
+
+export const updateActivity = mutation({
+  args: {
+    activityId: v.id("leadActivities"),
+    notes: v.string(),
+    summary: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const activity = await ctx.db.get(args.activityId);
+    if (!activity) throw new Error("Activity not found");
+    
+    const isOwner = activity.userId === currentUser._id;
+    const isManagerOrAdmin = currentUser.role === "admin" || currentUser.role === "super_admin" || currentUser.role === "manager";
+    if (!isOwner && !isManagerOrAdmin) {
+      throw new Error("Unauthorized: You do not have permission to edit this activity");
+    }
+    
+    const patch: any = {
+      notes: args.notes,
+      updatedAt: Date.now(),
+    };
+    if (args.summary) {
+      patch.summary = args.summary;
+    }
+    
+    await ctx.db.patch(args.activityId, patch);
+    return args.activityId;
+  },
+});
+
+export const deleteActivity = mutation({
+  args: {
+    activityId: v.id("leadActivities"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const activity = await ctx.db.get(args.activityId);
+    if (!activity) throw new Error("Activity not found");
+    
+    const isOwner = activity.userId === currentUser._id;
+    const isManagerOrAdmin = currentUser.role === "admin" || currentUser.role === "super_admin" || currentUser.role === "manager";
+    if (!isOwner && !isManagerOrAdmin) {
+      throw new Error("Unauthorized: You do not have permission to delete this activity");
+    }
+    
+    await ctx.db.delete(args.activityId);
+    return args.activityId;
+  },
+});
+
+export const updateReminder = mutation({
+  args: {
+    reminderId: v.id("leadReminders"),
+    title: v.string(),
+    dueDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const reminder = await ctx.db.get(args.reminderId);
+    if (!reminder) throw new Error("Reminder not found");
+    
+    await ctx.db.patch(args.reminderId, {
+      title: args.title,
+      dueDate: args.dueDate,
+    });
+    return args.reminderId;
+  },
+});
+
+export const patchLead = mutation({
+  args: {
+    id: v.id("leads"),
+    patch: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Lead not found");
+    
+    const patchData = { ...args.patch, updatedAt: Date.now() };
+    await ctx.db.patch(args.id, patchData);
+    
+    // Log in activities if significant fields change
+    const userName = currentUser.name || "System";
+    const changeDesc = Object.keys(args.patch)
+      .map(k => `"${k}" to "${args.patch[k]}"`)
+      .join(", ");
+    
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "lead_updated",
+      description: `updated lead "${existing.company}": changed ${changeDesc}`,
+      userId: currentUser._id,
+      userName,
+      entityType: "lead",
+      entityId: args.id,
+      workspaceId: existing.workspaceId,
+    });
+    
+    return args.id;
+  },
+});
+
+export const listLeadAttachments = query({
+  args: {
+    leadId: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return [];
+    
+    const attachments = await ctx.db
+      .query("leadAttachments")
+      .withIndex("by_leadId", (q) => q.eq("leadId", args.leadId))
+      .collect();
+      
+    const attachmentsWithUser = [];
+    for (const att of attachments) {
+      const u = await ctx.db.get(att.uploadedBy);
+      let resolvedUrl: string | undefined = att.fileUrl;
+      if (!resolvedUrl && att.storageId) {
+        const url = await ctx.storage.getUrl(att.storageId);
+        if (url) resolvedUrl = url;
+      }
+      attachmentsWithUser.push({
+        ...att,
+        fileUrl: resolvedUrl || att.fileUrl,
+        uploaderName: u?.name || "System",
+      });
+    }
+    
+    return attachmentsWithUser.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const uploadAttachment = mutation({
+  args: {
+    leadId: v.id("leads"),
+    stage: v.optional(v.string()),
+    fileName: v.string(),
+    fileType: v.string(),
+    fileUrl: v.optional(v.string()),
+    category: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
+    storageId: v.optional(v.string()),
+    size: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const now = Date.now();
+    const attId = await ctx.db.insert("leadAttachments", {
+      leadId: args.leadId,
+      stage: args.stage || "Contacted",
+      fileName: args.fileName,
+      fileType: args.fileType,
+      fileUrl: args.fileUrl,
+      category: args.category,
+      duration: args.duration,
+      mimeType: args.mimeType || args.fileType,
+      storageId: args.storageId,
+      size: args.size,
+      uploadedBy: currentUser._id,
+      workspaceId,
+      createdAt: now,
+      uploadedAt: now,
+    });
+
+    const lead = await ctx.db.get(args.leadId);
+    const stageAtTime = lead?.status || "New";
+
+    await ctx.db.insert("leadActivities", {
+      leadId: args.leadId,
+      activityType: "File Upload",
+      userId: currentUser._id,
+      userName: currentUser.name || "System",
+      date: new Date(now).toLocaleDateString(),
+      time: new Date(now).toTimeString().split(" ")[0].slice(0, 5),
+      summary: `File Uploaded: ${args.fileName}`,
+      notes: `Uploaded file type: ${args.fileType}`,
+      stageAtTime,
+      workspaceId,
+      createdAt: now,
+    });
+
+    return attId;
+  },
+});
+
+export const deleteAttachment = mutation({
+  args: {
+    attachmentId: v.id("leadAttachments"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    
+    const att = await ctx.db.get(args.attachmentId);
+    if (!att) throw new Error("Attachment not found");
+    
+    const isOwner = att.uploadedBy === currentUser._id;
+    const isAdminOrManager = currentUser.role === "super_admin" || currentUser.role === "admin" || currentUser.role === "manager";
+    if (!isOwner && !isAdminOrManager) {
+      throw new Error("Unauthorized: You do not have permission to delete this file");
+    }
+    
+    await ctx.db.delete(args.attachmentId);
+    return args.attachmentId;
+  },
+});
+
+export const get = query({
+  args: {
+    id: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return null;
+    
+    return await ctx.db.get(args.id);
+  },
+});
+
+export const contactInteraction = mutation({
+  args: {
+    leadId: v.id("leads"),
+    businessType: v.optional(v.string()),
+    buyingAuthority: v.optional(v.string()),
+    currentSituation: v.optional(v.string()),
+    businessChallenges: v.optional(v.string()),
+    goalsObjectives: v.optional(v.string()),
+    currentProcess: v.optional(v.string()),
+    painPoints: v.optional(v.string()),
+    requirementsSummary: v.optional(v.string()),
+    expectedOutcome: v.optional(v.string()),
+    competitors: v.optional(v.string()),
+    urgency: v.optional(v.string()),
+    budgetStatus: v.optional(v.string()),
+    timeline: v.optional(v.string()),
+    decisionMaker: v.optional(v.boolean()),
+    decisionMakerName: v.optional(v.string()),
+    decisionMakerRole: v.optional(v.string()),
+    preferredCommunication: v.optional(v.string()),
+    preferredContactTime: v.optional(v.string()),
+    preferredFollowUpMethod: v.optional(v.string()),
+    conversationSummary: v.optional(v.string()),
+    nextFollowUpDate: v.optional(v.number()),
+    meetingScheduled: v.optional(v.boolean()),
+    notes: v.optional(v.string()),
+    status: v.string(), // Must be "Contacted"
+    attachments: v.optional(v.array(v.object({
+      fileName: v.string(),
+      fileType: v.string(),
+      fileUrl: v.optional(v.string()),
+      category: v.optional(v.string()),
+      duration: v.optional(v.number()),
+      mimeType: v.optional(v.string()),
+      storageId: v.optional(v.string()),
+      size: v.optional(v.number()),
+    }))),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const now = Date.now();
+    const userName = currentUser.name || "System";
+    const { leadId, status, attachments, conversationSummary, notes: extraNotes, nextFollowUpDate, meetingScheduled, ...interactionData } = args;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const lead = await ctx.db.get(leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const isAccessible = await canAccessLead(ctx, currentUser._id, lead);
+    if (!isAccessible) throw new Error("Unauthorized");
+
+    if (lead.status !== "New") throw new Error("Lead must be in New status");
+
+    const patchData: any = {
+      status: "Contacted",
+      statusChangedAt: now,
+      statusChangedBy: userName,
+      updatedAt: now,
+      ...interactionData,
+    };
+
+    await ctx.db.patch(leadId, patchData);
+
+    // Save attachments
+    const attachmentNames: string[] = [];
+    if (attachments && attachments.length > 0) {
+      for (const att of attachments) {
+        await ctx.db.insert("leadAttachments", {
+          leadId,
+          stage: "Contacted",
+          fileName: att.fileName,
+          fileType: att.fileType,
+          fileUrl: att.fileUrl,
+          category: att.category,
+          duration: att.duration,
+          mimeType: att.mimeType,
+          storageId: att.storageId,
+          size: att.size,
+          uploadedBy: currentUser._id,
+          workspaceId,
+          createdAt: now,
+          uploadedAt: now,
+        });
+        attachmentNames.push(att.fileName);
+      }
+    }
+
+    await ctx.db.insert("leadStageTransitions", {
+      leadId,
+      fromStage: "New",
+      toStage: "Contacted",
+      userId: currentUser._id,
+      userName,
+      transitionedAt: now,
+      data: { ...interactionData, conversationSummary, notes: extraNotes, nextFollowUpDate, meetingScheduled },
+      workspaceId,
+    });
+
+    await ctx.db.insert("leadActivities", {
+      leadId,
+      activityType: "Note",
+      userId: currentUser._id,
+      userName,
+      date: new Date(now).toISOString().split("T")[0],
+      time: new Date(now).toTimeString().split(" ")[0].slice(0, 5),
+      duration: "0",
+      summary: attachmentNames.length > 0
+        ? `Contacted with ${attachmentNames.length} attachment(s)`
+        : "Contacted - Initial interaction recorded",
+      notes: conversationSummary || "Contacted stage initiated",
+      stageAtTime: "Contacted",
+      workspaceId,
+      createdAt: now,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "lead_contacted",
+      description: `initiated contact with lead "${lead.company}"`,
+      userId: currentUser._id,
+      userName,
+      entityType: "lead",
+      entityId: leadId,
+    });
+
+    return leadId;
+  },
+});
+
+export const setContactedData = mutation({
+  args: {
+    leadId: v.id("leads"),
+    businessType: v.optional(v.string()),
+    buyingAuthority: v.optional(v.string()),
+    currentSituation: v.optional(v.string()),
+    businessChallenges: v.optional(v.string()),
+    goalsObjectives: v.optional(v.string()),
+    currentProcess: v.optional(v.string()),
+    painPoints: v.optional(v.string()),
+    requirementsSummary: v.optional(v.string()),
+    expectedOutcome: v.optional(v.string()),
+    competitors: v.optional(v.string()),
+    urgency: v.optional(v.string()),
+    budgetStatus: v.optional(v.string()),
+    timeline: v.optional(v.string()),
+    decisionMaker: v.optional(v.boolean()),
+    decisionMakerName: v.optional(v.string()),
+    decisionMakerRole: v.optional(v.string()),
+    preferredCommunication: v.optional(v.string()),
+    preferredContactTime: v.optional(v.string()),
+    preferredFollowUpMethod: v.optional(v.string()),
+    conversationSummary: v.optional(v.string()),
+    nextFollowUpDate: v.optional(v.number()),
+    meetingScheduled: v.optional(v.boolean()),
+    notes: v.optional(v.string()),
+    isQualified: v.optional(v.boolean()),
+    attachments: v.optional(v.array(v.object({
+      fileName: v.string(),
+      fileType: v.string(),
+      fileUrl: v.optional(v.string()),
+      category: v.optional(v.string()),
+      duration: v.optional(v.number()),
+      mimeType: v.optional(v.string()),
+      storageId: v.optional(v.string()),
+      size: v.optional(v.number()),
+    }))),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const now = Date.now();
+    const userName = currentUser.name || "System";
+    const { leadId, attachments, conversationSummary, notes, nextFollowUpDate, meetingScheduled, isQualified, ...data } = args;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const lead = await ctx.db.get(leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const isAccessible = await canAccessLead(ctx, currentUser._id, lead);
+    if (!isAccessible) throw new Error("Unauthorized");
+
+    const patchData: any = { ...data, updatedAt: now };
+
+    if (isQualified) {
+      patchData.status = "Qualified";
+      patchData.statusChangedAt = now;
+      patchData.statusChangedBy = userName;
+    }
+
+    await ctx.db.patch(leadId, patchData);
+
+    // Save attachments
+    const attachmentNames: string[] = [];
+    if (attachments && attachments.length > 0) {
+      const targetStage = isQualified ? "Qualified" : "Contacted";
+      for (const att of attachments) {
+        await ctx.db.insert("leadAttachments", {
+          leadId,
+          stage: targetStage,
+          fileName: att.fileName,
+          fileType: att.fileType,
+          fileUrl: att.fileUrl,
+          category: att.category,
+          duration: att.duration,
+          mimeType: att.mimeType,
+          storageId: att.storageId,
+          size: att.size,
+          uploadedBy: currentUser._id,
+          workspaceId,
+          createdAt: now,
+          uploadedAt: now,
+        });
+        attachmentNames.push(att.fileName);
+      }
+    }
+
+    if (isQualified) {
+      await ctx.db.insert("leadStageTransitions", {
+        leadId,
+        fromStage: "Contacted",
+        toStage: "Qualified",
+        userId: currentUser._id,
+        userName,
+        transitionedAt: now,
+        data: { ...data, conversationSummary, notes, nextFollowUpDate, meetingScheduled, isQualified },
+        workspaceId,
+      });
+
+      await ctx.scheduler.runAfter(0, internal.activities.log, {
+        type: "lead_qualified",
+        description: `qualified lead "${lead.company}"`,
+        userId: currentUser._id,
+        userName,
+        entityType: "lead",
+        entityId: leadId,
+      });
+    }
+
+    return leadId;
+  },
+});
+
+export const convertToDeal = mutation({
+  args: {
+    leadId: v.id("leads"),
+    dealValue: v.optional(v.number()),
+    dealCurrency: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const now = Date.now();
+    const userName = currentUser.name || "System";
+
+    const lead = await ctx.db.get(args.leadId);
+    if (!lead) throw new Error("Lead not found");
+    if (lead.status !== "Qualified") throw new Error("Lead must be in Qualified status to convert");
+
+    const isAccessible = await canAccessLead(ctx, currentUser._id, lead);
+    if (!isAccessible) throw new Error("Unauthorized");
+
+    // Create workspace if not exists
+    let workspaceId: Id<"workspaces">;
+    const existingWorkspaces = await ctx.db
+      .query("workspaces")
+      .withIndex("by_name", (q) => q.eq("name", lead.company))
+      .collect();
+    if (existingWorkspaces.length === 0) {
+      workspaceId = await ctx.db.insert("workspaces", {
+        name: lead.company,
+        status: "Prospect",
+        createdBy: currentUser._id,
+        createdAt: now,
+      });
+    } else {
+      workspaceId = existingWorkspaces[0]._id;
+    }
+
+    // Create contact if not exists
+    let contactId: Id<"contacts">;
+    const existingContacts = await ctx.db
+      .query("contacts")
+      .withIndex("by_email", (q) => q.eq("email", (lead.email || "").toLowerCase()))
+      .collect();
+    if (existingContacts.length === 0) {
+      contactId = await ctx.db.insert("contacts", {
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: (lead.email || "").toLowerCase(),
+        phone: lead.phone,
+        company: lead.company,
+        jobTitle: lead.jobTitle,
+        status: "Active",
+        tags: ["Converted from Lead"],
+        createdBy: currentUser._id,
+        ownerId: currentUser._id,
+        assignedTo: lead.assignedTo,
+        workspaceId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else {
+      contactId = existingContacts[0]._id;
+    }
+
+    // Create deal
+    const dealId = await ctx.db.insert("deals", {
+      title: `${lead.company} - Deal`,
+      value: args.dealValue || 0,
+      currency: args.dealCurrency || "INR",
+      status: "Open",
+      stage: "Qualified",
+      probability: 20,
+      company: lead.company,
+      createdBy: currentUser._id,
+      ownerId: currentUser._id,
+      assignedTo: lead.assignedTo,
+      leadId: args.leadId,
+      workspaceId,
+      contactId,
+      stageChangedAt: now,
+      stageChangedBy: userName,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Update lead to Converted
+    await ctx.db.patch(args.leadId, {
+      status: "Converted",
+      statusChangedAt: now,
+      statusChangedBy: userName,
+      convertedAt: now,
+      dealId,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("leadStageTransitions", {
+      leadId: args.leadId,
+      fromStage: "Qualified",
+      toStage: "Converted",
+      userId: currentUser._id,
+      userName,
+      transitionedAt: now,
+      data: { dealId, dealValue: args.dealValue },
+      workspaceId: lead.workspaceId!,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "lead_converted",
+      description: `converted lead "${lead.company}" to deal`,
+      userId: currentUser._id,
+      userName,
+      entityType: "lead",
+      entityId: args.leadId,
+    });
+
+    if (lead.assignedTo && lead.assignedTo !== currentUser._id) {
+      await notifyUser(ctx, lead.assignedTo, "lead_converted", {
+        entityName: lead.company,
+        entityType: "lead",
+        entityId: args.leadId,
+        createdBy: currentUser._id,
+      });
+    }
+
+    return { leadId: args.leadId, dealId };
+  },
+});
+
+export const validateQualification = query({
+  args: {
+    leadId: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return null;
+
+    const lead = await ctx.db.get(args.leadId);
+    if (!lead) return null;
+
+    const l = lead as any;
+    return {
+      hasInteraction: l.status === "Contacted" || l.status === "Qualified",
+      hasConversationSummary: !!(l.conversationSummary || l.customFields?.conversationSummary),
+      decisionMakerKnown: l.decisionMaker !== undefined,
+      interestLevelSet: !!(l.urgency || l.customFields?.urgency),
+      followUpComplete: !!(l.nextFollowUpDate || l.meetingScheduled || l.customFields?.nextFollowUpDate || l.customFields?.meetingScheduled),
+      budgetKnown: !!l.budgetStatus,
+      timelineKnown: !!(l.timeline || l.customFields?.timeline),
+    };
   },
 });

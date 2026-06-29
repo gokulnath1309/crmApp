@@ -47,7 +47,7 @@ export default function LoginWithOtpButton({ email, onError }: LoginWithOtpButto
       if (code === "form_identifier_not_found" || errMsg.toLowerCase().includes("couldn't find your account") || errMsg.toLowerCase().includes("no account found")) {
         onError({ type: 'not_found' });
       } else {
-        onError({ type: 'generic', message: "We couldn't complete your request right now. Please try again in a few moments." });
+        onError({ type: 'generic', message: errMsg });
         console.error("[OTP Login Error]", err);
       }
     } finally {
