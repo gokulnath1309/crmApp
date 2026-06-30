@@ -5,7 +5,7 @@ import {
   Building, Filter, Plus, Search, X, User as UserIcon,
   Loader2, Edit, Trash2, Download, Sparkles,
   Clock, ArrowRight, History, UserCheck, XCircle, CheckCircle2,
-  Briefcase, Percent, ChevronDown, ChevronRight,
+  Briefcase, Percent, ChevronDown, ChevronRight, Archive, RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/components/ui/Toast";
@@ -14,6 +14,7 @@ import ExcelJS from "exceljs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Select } from "@/components/ui/Select";
 import { formatCurrency } from "@/lib/currency";
+import { cn } from "@/lib/cn";
 import { DealStageSelect, dealStageOptions } from "@/components/DealStageSelect";
 
 import { ClosedLostModal, ClosedWonSuccessModal } from "@/components/DealWorkflowModals";
@@ -68,6 +69,10 @@ interface Deal {
   poNumber?: string;
   referenceNumber?: string;
   notes?: string;
+
+  // Lifecycle
+  isArchived?: boolean;
+  isDeleted?: boolean;
 }
 
 
@@ -127,13 +132,20 @@ export function DealsPage() {
     setSearchParams(new URLSearchParams());
   };
 
+  // ─── Pipeline Filter State ───
+  const [pipelineFilter, setPipelineFilter] = useState("active");
+
   // ─── Convex Query & Mutations ───
-  const deals = useQuery(api.deals.list);
+  const deals = useQuery(api.deals.list, { filter: pipelineFilter });
   const users = useQuery(api.users.list);
+  const analytics = useQuery(api.analytics.getDealAnalytics);
 
   const createDealMutation = useMutation(api.deals.create);
   const updateDealMutation = useMutation(api.deals.update);
-  const deleteDealMutation = useMutation(api.deals.remove);
+  const softDeleteDealMutation = useMutation(api.deals.softDelete);
+  const archiveDealMutation = useMutation(api.deals.archive);
+  const restoreDealMutation = useMutation(api.deals.restore);
+  const reopenDealMutation = useMutation(api.deals.reopen);
 
   // Local Deals State for Optimistic Updates
   const [localDeals, setLocalDeals] = useState<Deal[] | null>(null);
@@ -309,17 +321,43 @@ export function DealsPage() {
   };
 
   const handleDeleteDeal = async (dealId: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete deal "${title}"?`)) {
+    if (window.confirm(`Delete "${title}"? This record will be moved to Trash and can be restored later.`)) {
       try {
-        await deleteDealMutation({ id: dealId as any });
+        await softDeleteDealMutation({ id: dealId as any });
         if (selectedDeal?._id === dealId) {
           setIsDetailsOpen(false);
           setSelectedDeal(null);
         }
-        toast("success", "Deal deleted successfully.");
+        toast("success", "Deal moved to trash.");
       } catch (err: any) {
         toast("error", err.message || "Failed to delete deal");
       }
+    }
+  };
+
+  const handleArchiveDeal = async (dealId: string) => {
+    try {
+      await archiveDealMutation({ id: dealId as any });
+      if (selectedDeal?._id === dealId) {
+        setIsDetailsOpen(false);
+        setSelectedDeal(null);
+      }
+      toast("success", "Deal archived.");
+    } catch (err: any) {
+      toast("error", err.message || "Failed to archive deal");
+    }
+  };
+
+  const handleRestoreDeal = async (dealId: string) => {
+    try {
+      await restoreDealMutation({ id: dealId as any });
+      if (selectedDeal?._id === dealId) {
+        setIsDetailsOpen(false);
+        setSelectedDeal(null);
+      }
+      toast("success", "Deal restored.");
+    } catch (err: any) {
+      toast("error", err.message || "Failed to restore deal");
     }
   };
 
@@ -371,7 +409,17 @@ export function DealsPage() {
     }
   };
 
-  // ─── Stage Change Workflow Enforcer ───
+  // ─── Stage Change Workflow Enforcer (Forward-Only) ───
+  const stageOrder: Record<string, number> = {
+    Prospecting: 1, Qualification: 2, Proposal: 3, Negotiation: 4,
+    "Verbal Commit": 5, "Closed Won": 6, "Closed Lost": 7,
+  };
+  const terminalStages = new Set(["Closed Won", "Closed Lost"]);
+
+  const isForwardTransition = (from: string, to: string) => {
+    return (stageOrder[to] || 0) > (stageOrder[from] || 0);
+  };
+
   const validateAndTriggerStageChange = (
     dealId: string,
     targetStage: string,
@@ -382,20 +430,14 @@ export function DealsPage() {
 
     if (deal.stage === targetStage) return;
 
-    // Check transitions
-    const allowedTransitions: Record<string, string[]> = {
-      Prospecting: ["Qualification", "Closed Lost"],
-      Qualification: ["Proposal", "Closed Lost"],
-      Proposal: ["Negotiation", "Closed Lost"],
-      Negotiation: ["Verbal Commit", "Closed Lost"],
-      "Verbal Commit": ["Closed Won", "Closed Lost"],
-      "Closed Won": [],
-      "Closed Lost": ["Prospecting"],
-    };
+    // Forward-only validation
+    if (terminalStages.has(deal.stage)) {
+      toast("error", "This deal has reached a terminal stage and cannot be moved. Only a Workspace Owner or Administrator can reopen it.");
+      return;
+    }
 
-    const allowed = allowedTransitions[deal.stage || "Prospecting"];
-    if (!allowed || !allowed.includes(targetStage)) {
-      toast("error", `Invalid transition: Cannot move deal from ${deal.stage} to ${targetStage}`);
+    if (!isForwardTransition(deal.stage, targetStage)) {
+      toast("error", `This deal has already progressed beyond this stage and cannot be moved backwards.`);
       return;
     }
 
@@ -403,7 +445,6 @@ export function DealsPage() {
       setPendingStageChange({ dealId, targetStage, onConfirm });
       setIsClosedLostModalOpen(true);
     } else {
-      // Normal or Closed Won transition
       onConfirm({});
     }
   };
@@ -668,32 +709,14 @@ export function DealsPage() {
     return totals;
   };
 
-  // ─── Stat calculation for top panel ───
-  const activeStages = ["Prospecting", "Qualification", "Proposal", "Negotiation", "Verbal Commit"];
-  const totalPipeline: Record<string, number> = {};
-  const weightedPipeline: Record<string, number> = {};
-  const closedRevenue: Record<string, number> = {};
-  let wonCount = 0;
-  let lostCount = 0;
-
-  localDeals?.forEach(d => {
-    const cur = d.currency || "INR";
-    const val = d.value || 0;
-    const prob = d.probability ?? 10;
-
-    if (activeStages.includes(d.stage)) {
-      totalPipeline[cur] = (totalPipeline[cur] || 0) + val;
-      weightedPipeline[cur] = (weightedPipeline[cur] || 0) + (val * prob) / 100;
-    } else if (d.stage === "Closed Won") {
-      closedRevenue[cur] = (closedRevenue[cur] || 0) + val;
-      wonCount++;
-    } else if (d.stage === "Closed Lost") {
-      lostCount++;
-    }
-  });
-
+  // ─── Stat calculation from centralized analytics ───
+  const totalPipeline: Record<string, number> = analytics?.totalPipelineValue ?? {};
+  const weightedPipeline: Record<string, number> = analytics?.weightedPipelineValue ?? {};
+  const closedRevenue: Record<string, number> = analytics?.closedRevenue ?? {};
+  const wonCount = analytics?.wonCount ?? 0;
+  const lostCount = analytics?.lostCount ?? 0;
   const totalClosed = wonCount + lostCount;
-  const winRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
+  const winRate = analytics ? Math.round(analytics.winRate) : 0;
 
 
 
@@ -730,6 +753,28 @@ export function DealsPage() {
             <Plus className="w-4 h-4" /> New Deal
           </button>
         </div>
+      </div>
+
+      {/* Pipeline Filter Tabs */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl w-fit">
+        {[
+          { key: "active", label: "Active" },
+          { key: "archived", label: "Archived" },
+          { key: "trash", label: "Trash" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setPipelineFilter(tab.key)}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer",
+              pipelineFilter === tab.key
+                ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Top Metrics Row */}
@@ -1450,20 +1495,37 @@ export function DealsPage() {
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800">
+              <div className="flex flex-wrap items-center gap-2 pt-6 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800">
                 <button
                   type="button"
                   onClick={() => handleEditDeal(selectedDeal)}
-                  className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 min-w-[100px] h-12 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Edit className="w-4 h-4" /> Edit Deal
+                  <Edit className="w-4 h-4" /> Edit
                 </button>
+                {selectedDeal.isArchived || selectedDeal.isDeleted ? (
+                  <button
+                    type="button"
+                    onClick={() => handleRestoreDeal(selectedDeal._id)}
+                    className="flex-1 min-w-[100px] h-12 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-semibold text-sm hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" /> Restore
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleArchiveDeal(selectedDeal._id)}
+                    className="flex-1 min-w-[100px] h-12 rounded-xl border border-slate-200 dark:border-slate-700 text-amber-700 dark:text-amber-400 font-semibold text-sm hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Archive className="w-4 h-4" /> Archive
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleDeleteDeal(selectedDeal._id, selectedDeal.title)}
                   className="px-4 h-12 rounded-xl bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-650 dark:text-red-400 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4" /> Delete
+                  <Trash2 className="w-4 h-4" /> Trash
                 </button>
               </div>
             </motion.div>

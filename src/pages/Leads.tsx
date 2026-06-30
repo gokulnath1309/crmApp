@@ -120,7 +120,7 @@ function LeadsPageContent() {
 
   const createLeadMutation = useMutation(api.leads.create);
   const updateLeadMutation = useMutation(api.leads.update);
-  const deleteLeadMutation = useMutation(api.leads.remove);
+  const deleteLeadMutation = useMutation(api.leads.softDelete);
   const transitionLeadStageMutation = useMutation(api.leads.transitionStage);
   const contactInteractionMutation = useMutation(api.leads.contactInteraction);
   const changeStatusMutation = useMutation(api.leads.changeStatus);
@@ -324,14 +324,14 @@ function LeadsPageContent() {
   };
 
   const handleDeleteLead = async (leadId: string, company: string) => {
-    if (window.confirm(`Are you sure you want to delete lead "${company}"?`)) {
+    if (window.confirm(`Delete "${company}"? This record will be moved to Trash and can be restored later.`)) {
       try {
         await deleteLeadMutation({ id: leadId as any });
         if (selectedLead?._id === leadId) {
           setIsDetailsOpen(false);
           setSelectedLead(null);
         }
-        toast("success", "Lead deleted successfully.");
+        toast("success", "Lead moved to trash.");
       } catch (err: any) {
         toast("error", err.message || "Failed to delete lead");
       }

@@ -52,7 +52,7 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const contactInteractionMutation = useMutation(api.leads.contactInteraction);
   const setContactedDataMutation = useMutation(api.leads.setContactedData);
   const convertToDealMutation = useMutation(api.leads.convertToDeal);
-  const deleteLeadMutation = useMutation(api.leads.remove);
+  const deleteLeadMutation = useMutation(api.leads.softDelete);
   const mergeMutation = useMutation(api.leads.mergeLeads);
   const createReminderMutation = useMutation(api.leads.createReminder);
 
@@ -229,10 +229,10 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   };
 
   const handleDeleteLead = async () => {
-    if (!confirm(`Are you sure you want to delete lead "${lead.company}" permanently?`)) return;
+    if (!confirm(`Delete "${lead.company}"? This record will be moved to Trash and can be restored later.`)) return;
     try {
       await deleteLeadMutation({ id: lead._id });
-      toast("success", "Lead deleted successfully");
+      toast("success", "Lead moved to trash");
       if (onLeadDelete) onLeadDelete();
       onBack();
     } catch (err: any) {

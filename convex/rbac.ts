@@ -250,6 +250,28 @@ export async function canDeleteLead(ctx: Ctx, userId: Id<"users">): Promise<bool
   return user.role === "super_admin";
 }
 
+export async function canArchiveEntity(ctx: Ctx, userId: Id<"users">): Promise<boolean> {
+  const user = await getEffectiveUser(ctx, userId);
+  if (!user) return false;
+  return user.role === "super_admin" || user.role === "admin" || user.role === "manager";
+}
+
+export async function canRestoreEntity(ctx: Ctx, userId: Id<"users">): Promise<boolean> {
+  return canArchiveEntity(ctx, userId);
+}
+
+export async function canPermanentDelete(ctx: Ctx, userId: Id<"users">): Promise<boolean> {
+  const user = await getEffectiveUser(ctx, userId);
+  if (!user) return false;
+  return user.role === "super_admin" || user.role === "admin";
+}
+
+export async function canReopenTerminalDeal(ctx: Ctx, userId: Id<"users">): Promise<boolean> {
+  const user = await getEffectiveUser(ctx, userId);
+  if (!user) return false;
+  return user.role === "super_admin" || user.role === "admin";
+}
+
 export async function canViewContact(ctx: Ctx, userId: Id<"users">): Promise<boolean> {
   const user = await getEffectiveUser(ctx, userId);
   if (!user) return false;

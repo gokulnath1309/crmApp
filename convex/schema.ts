@@ -157,6 +157,16 @@ export default defineSchema({
     mergedIntoLeadId: v.optional(v.id("leads")),
     spamFlag: v.optional(v.boolean()),
     isClosed: v.optional(v.boolean()),
+
+    // Lifecycle management
+    isArchived: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    archivedBy: v.optional(v.id("users")),
+    isDeleted: v.optional(v.boolean()),
+    deletedAt: v.optional(v.number()),
+    deletedBy: v.optional(v.id("users")),
+    restoredAt: v.optional(v.number()),
+    restoredBy: v.optional(v.id("users")),
   })
     .index("by_status", ["status"])
     .index("by_source", ["source"])
@@ -166,7 +176,9 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"])
     .index("by_unqualified", ["unqualifiedAt"])
     .index("by_lost", ["lostAt"])
-    .index("by_workspaceId", ["workspaceId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_isArchived", ["isArchived"])
+    .index("by_isDeleted", ["isDeleted"]),
 
   contacts: defineTable({
     firstName: v.string(),
@@ -241,12 +253,24 @@ export default defineSchema({
     billingFrequency: v.optional(v.string()),
     poNumber: v.optional(v.string()),
     referenceNumber: v.optional(v.string()),
+
+    // Lifecycle management
+    isArchived: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    archivedBy: v.optional(v.id("users")),
+    isDeleted: v.optional(v.boolean()),
+    deletedAt: v.optional(v.number()),
+    deletedBy: v.optional(v.id("users")),
+    restoredAt: v.optional(v.number()),
+    restoredBy: v.optional(v.id("users")),
   })
     .index("by_assignedTo", ["assignedTo"])
     .index("by_createdBy", ["createdBy"])
     .index("by_ownerId", ["ownerId"])
     .index("by_createdAt", ["createdAt"])
-    .index("by_workspaceId", ["workspaceId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_isArchived", ["isArchived"])
+    .index("by_isDeleted", ["isDeleted"]),
 
   tasks: defineTable({
     title: v.string(),
@@ -537,6 +561,18 @@ export default defineSchema({
     )),
   })
     .index("by_leadId", ["leadId"])
+    .index("by_workspaceId", ["workspaceId"]),
+
+  dealStageHistory: defineTable({
+    dealId: v.id("deals"),
+    fromStage: v.string(),
+    toStage: v.string(),
+    userId: v.id("users"),
+    userName: v.string(),
+    transitionedAt: v.number(),
+    workspaceId: v.id("workspaces"),
+  })
+    .index("by_dealId", ["dealId"])
     .index("by_workspaceId", ["workspaceId"]),
 
   customFields: defineTable({

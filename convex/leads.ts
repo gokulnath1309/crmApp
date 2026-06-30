@@ -3,8 +3,9 @@ import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import { canAccessLead, hasPermission, canAssignLead } from "./rbac";
+import { canAccessLead, hasPermission, canAssignLead, canArchiveEntity, canRestoreEntity, canPermanentDelete } from "./rbac";
 import { notifyUser, notifyAdmins } from "./lib/notifications";
+import { archiveEntity, restoreEntity, softDeleteEntity, permanentDeleteEntity } from "./lib/pipelineService";
 
 async function handleLeadConversion(
   ctx: any,
@@ -193,6 +194,7 @@ export const list = query({
     customStart: v.optional(v.number()),
     customEnd: v.optional(v.number()),
     currency: v.optional(v.string()),
+    filter: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUserReadOnly(ctx);
@@ -209,6 +211,16 @@ export const list = query({
       .query("leads")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
       .collect();
+
+    // Lifecycle filter
+    const lifecycleFilter = args.filter || "active";
+    if (lifecycleFilter === "active") {
+      leads = leads.filter((l) => !l.isArchived && !l.isDeleted);
+    } else if (lifecycleFilter === "archived") {
+      leads = leads.filter((l) => l.isArchived && !l.isDeleted);
+    } else if (lifecycleFilter === "trash") {
+      leads = leads.filter((l) => l.isDeleted);
+    }
 
     // Scope leads by permission
     const permissions = {
@@ -585,17 +597,82 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const archive = mutation({
   args: {
     id: v.id("leads"),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
-    if (!currentUser || currentUser.role !== "super_admin") {
-      throw new Error("Unauthorized: Only Super Admins can delete leads");
-    }
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
     const userId = currentUser._id;
-    const userName = currentUser.name || "System";
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Lead not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+    if (existing.isArchived) throw new Error("Lead is already archived");
+
+    const allowed = await canArchiveEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to archive leads");
+
+    await archiveEntity(ctx, "leads", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const restore = mutation({
+  args: {
+    id: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Lead not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+
+    const allowed = await canRestoreEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to restore leads");
+
+    await restoreEntity(ctx, "leads", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const softDelete = mutation({
+  args: {
+    id: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Lead not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+
+    const allowed = await canArchiveEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to delete leads");
+
+    await softDeleteEntity(ctx, "leads", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const permanentDelete = mutation({
+  args: {
+    id: v.id("leads"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) {
+      throw new Error("Unauthorized");
+    }
     const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
 
     const existing = await ctx.db.get(args.id);
@@ -605,18 +682,12 @@ export const remove = mutation({
       throw new Error("Unauthorized: Cannot delete lead belonging to another company");
     }
 
-    await ctx.db.delete(args.id);
+    const allowed = await canPermanentDelete(ctx, currentUser._id);
+    if (!allowed) {
+      throw new Error("Unauthorized: Only Administrators and Workspace Owners can permanently delete leads");
+    }
 
-    // Create activity log
-    await ctx.scheduler.runAfter(0, internal.activities.log, {
-      type: "lead_deleted",
-      description: `deleted lead "${existing.company}"`,
-      userId: userId ?? undefined,
-      userName,
-      entityType: "lead",
-      entityId: args.id,
-    });
-
+    await permanentDeleteEntity(ctx, "leads", args.id);
     return args.id;
   },
 });

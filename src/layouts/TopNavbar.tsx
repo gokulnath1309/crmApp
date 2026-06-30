@@ -8,10 +8,12 @@ import { api } from "../../convex/_generated/api";
 import {
   Search, Plus, Menu, ChevronRight, ChevronDown,
   Sun, Moon, User, Settings, Building2, Check, UserPlus,
-  Sparkles, Users, Briefcase, Calendar, Loader2
+  Sparkles, Users, Briefcase, Calendar, Loader2,
+  CheckSquare,
 } from "lucide-react";
 import { UserButton, useOrganizationList } from "@clerk/clerk-react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AnimatePresence, motion } from "motion/react";
 
 interface TopNavbarProps {
   onMenuClick: () => void;
@@ -41,6 +43,10 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const createRef = useRef<HTMLDivElement>(null);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
+
   // Keyboard shortcut listener
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -59,6 +65,17 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Create menu click outside listener
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (createRef.current && !createRef.current.contains(e.target as Node)) {
+        setCreateOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -337,9 +354,60 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
       </div>
 
       <div className="flex items-center gap-1.5 ml-auto">
-        <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm shadow-indigo-300 dark:shadow-indigo-900/30">
-          <Plus className="w-3.5 h-3.5" /> Create
-        </button>
+        <div ref={createRef} className="relative">
+          <button
+            onClick={() => setCreateOpen(!createOpen)}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition-all shadow-sm cursor-pointer ${
+              createOpen
+                ? "bg-indigo-700 text-white shadow-indigo-400/40"
+                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-300 dark:shadow-indigo-900/30"
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" /> Create
+          </button>
+
+          <AnimatePresence>
+            {createOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+                className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl shadow-slate-900/15 z-50 p-1.5"
+              >
+                <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 py-1.5">
+                  Quick Create
+                </div>
+
+                {(currentUser?.role === "super_admin" || currentUser?.role === "admin" || currentUser?.role === "sales_rep") && (
+                  <QuickItem icon={Sparkles} label="New Lead" desc="Create a sales lead" onClick={() => { setCreateOpen(false); navigate("/leads?new=true"); }} />
+                )}
+                {(currentUser?.role === "super_admin" || currentUser?.role === "admin" || currentUser?.role === "sales_rep") && (
+                  <QuickItem icon={Briefcase} label="New Deal" desc="Add a pipeline deal" onClick={() => { setCreateOpen(false); navigate("/deals?new=true"); }} />
+                )}
+                {(currentUser?.role === "super_admin" || currentUser?.role === "admin" || currentUser?.role === "sales_rep") && (
+                  <QuickItem icon={Users} label="New Contact" desc="Add a contact person" onClick={() => { setCreateOpen(false); navigate("/contacts?new=true"); }} />
+                )}
+                {(currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
+                  <QuickItem icon={Building2} label="New Company" desc="Register a company" onClick={() => { setCreateOpen(false); navigate("/companies"); }} />
+                )}
+                <QuickItem icon={CheckSquare} label="New Task" desc="Create a follow-up task" onClick={() => { setCreateOpen(false); navigate("/tasks"); }} />
+                <QuickItem icon={Calendar} label="New Event" desc="Schedule an event" onClick={() => { setCreateOpen(false); navigate("/calendar"); }} />
+
+                {(currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
+                  <>
+                    <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+                    <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 py-1.5">
+                      Administration
+                    </div>
+                    <QuickItem icon={UserPlus} label="New Employee" desc="Add a team member" onClick={() => { setCreateOpen(false); navigate("/settings?tab=employees"); }} />
+                    <QuickItem icon={Users} label="New Team" desc="Create a sales team" onClick={() => { setCreateOpen(false); navigate("/settings?tab=teams"); }} />
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <button
           onClick={toggleDark}
@@ -376,6 +444,23 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
         </UserButton>
       </div>
     </header>
+  );
+}
+
+function QuickItem({ icon: Icon, label, desc, onClick }: { icon: any; label: string; desc: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group"
+    >
+      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-indigo-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{label}</div>
+        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
+      </div>
+    </button>
   );
 }
 

@@ -9,6 +9,7 @@
  */
 
 import type * as activities from "../activities.js";
+import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as calendar from "../calendar.js";
 import type * as companies from "../companies.js";
@@ -23,11 +24,13 @@ import type * as http from "../http.js";
 import type * as leads from "../leads.js";
 import type * as lib_getCurrentUser from "../lib/getCurrentUser.js";
 import type * as lib_notifications from "../lib/notifications.js";
+import type * as lib_pipelineService from "../lib/pipelineService.js";
 import type * as meetings from "../meetings.js";
 import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
 import type * as notifications from "../notifications.js";
 import type * as passwordReset from "../passwordReset.js";
+import type * as pipeline from "../pipeline.js";
 import type * as rbac from "../rbac.js";
 import type * as removeCompanyIdMigration from "../removeCompanyIdMigration.js";
 import type * as search from "../search.js";
@@ -51,6 +54,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activities: typeof activities;
+  analytics: typeof analytics;
   auth: typeof auth;
   calendar: typeof calendar;
   companies: typeof companies;
@@ -65,11 +69,13 @@ declare const fullApi: ApiFromModules<{
   leads: typeof leads;
   "lib/getCurrentUser": typeof lib_getCurrentUser;
   "lib/notifications": typeof lib_notifications;
+  "lib/pipelineService": typeof lib_pipelineService;
   meetings: typeof meetings;
   migrations: typeof migrations;
   notes: typeof notes;
   notifications: typeof notifications;
   passwordReset: typeof passwordReset;
+  pipeline: typeof pipeline;
   rbac: typeof rbac;
   removeCompanyIdMigration: typeof removeCompanyIdMigration;
   search: typeof search;

@@ -214,29 +214,22 @@ export const getMetrics = query({
       (l) => l.status !== "Won" && l.status !== "Lost" && l.status !== "Unqualified"
     ).length;
 
-    // 8. Calculate wonRevenue grouped by currency (leads in Won)
+    // 8. Calculate wonRevenue and revenueForecast from DEALS (not leads)
     const wonRevenue: Record<string, number> = {};
-    const wonLeads = leads.filter((l) => l.status === "Won");
-    for (const lead of wonLeads) {
-      if (lead.value !== undefined) {
-        const cur = lead.currency || "INR";
-        wonRevenue[cur] = (wonRevenue[cur] || 0) + lead.value;
-      }
-    }
-
-    // 9. Calculate revenueForecast grouped by currency (leads in Proposal Sent or Negotiation)
     const revenueForecast: Record<string, number> = {};
-    const forecastLeads = leads.filter(
-      (l) => l.status === "Proposal Sent" || l.status === "Negotiation"
-    );
-    for (const lead of forecastLeads) {
-      if (lead.value !== undefined) {
-        const cur = lead.currency || "INR";
-        revenueForecast[cur] = (revenueForecast[cur] || 0) + lead.value;
+    const forecastStageSet = new Set(["Proposal", "Negotiation", "Verbal Commit"]);
+    for (const deal of deals) {
+      const cur = deal.currency || "INR";
+      const val = deal.value || 0;
+      if (deal.stage === "Closed Won") {
+        wonRevenue[cur] = (wonRevenue[cur] || 0) + val;
+      }
+      if (forecastStageSet.has(deal.stage)) {
+        revenueForecast[cur] = (revenueForecast[cur] || 0) + val;
       }
     }
 
-    // 10. Compute deal pipeline metrics
+    // 9. Compute deal pipeline metrics
     const wonDealsCount = deals.filter((d) => d.stage === "Closed Won").length;
     const lostDealsCount = deals.filter((d) => d.stage === "Closed Lost").length;
     const totalClosed = wonDealsCount + lostDealsCount;

@@ -3,12 +3,24 @@ import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
-import { canAccessDeal, hasPermission, canAssignDeal } from "./rbac";
+import { canAccessDeal, hasPermission, canAssignDeal, canArchiveEntity, canRestoreEntity, canPermanentDelete, canReopenTerminalDeal } from "./rbac";
 import { notifyUser, notifyAdmins } from "./lib/notifications";
+import { getProbability, isTerminalStage } from "./pipeline";
+import {
+  validateDealStageTransition,
+  archiveEntity,
+  restoreEntity,
+  softDeleteEntity,
+  permanentDeleteEntity,
+  recordDealStageHistory,
+  getEffectiveDealStatus,
+} from "./lib/pipelineService";
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    filter: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const currentUser = await resolveUserReadOnly(ctx);
     const userId = currentUser?._id;
     if (!currentUser || currentUser.isActive === false) {
@@ -19,28 +31,37 @@ export const list = query({
       return [];
     }
 
-    const deals = await ctx.db
+    const allDeals = await ctx.db
       .query("deals")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
       .collect();
 
-    // Scope deals by permission
     const permissions = {
       canViewAllData: hasPermission(currentUser, "canViewAllData"),
       canViewAssignedDeals: hasPermission(currentUser, "canViewAssignedDeals"),
     };
 
+    let scoped = allDeals;
     if (!permissions.canViewAllData) {
       if (permissions.canViewAssignedDeals) {
-        return deals
-          .filter((d) => d.assignedTo === userId || d.createdBy === userId || d.ownerId === userId)
-          .sort((a, b) => b.createdAt - a.createdAt);
+        scoped = allDeals.filter(
+          (d) => d.assignedTo === userId || d.createdBy === userId || d.ownerId === userId
+        );
       } else {
         return [];
       }
     }
 
-    return deals.sort((a, b) => b.createdAt - a.createdAt);
+    const filter = args.filter || "active";
+    if (filter === "active") {
+      scoped = scoped.filter((d) => !d.isArchived && !d.isDeleted);
+    } else if (filter === "archived") {
+      scoped = scoped.filter((d) => d.isArchived && !d.isDeleted);
+    } else if (filter === "trash") {
+      scoped = scoped.filter((d) => d.isDeleted);
+    }
+
+    return scoped.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -57,12 +78,10 @@ export const create = mutation({
     contactId: v.optional(v.id("contacts")),
     currency: v.optional(v.string()),
 
-    // Deal metadata
     dealType: v.optional(v.string()),
     expectedCloseDate: v.optional(v.number()),
     priority: v.optional(v.string()),
 
-    // Contract details
     contractStartDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     renewalDate: v.optional(v.number()),
@@ -94,17 +113,7 @@ export const create = mutation({
 
     const now = Date.now();
 
-    const stageProbabilities: Record<string, number> = {
-      Prospecting: 10,
-      Qualification: 25,
-      Proposal: 50,
-      Negotiation: 75,
-      "Verbal Commit": 90,
-      "Closed Won": 100,
-      "Closed Lost": 0,
-    };
-
-    const probability = stageProbabilities[args.stage] ?? 10;
+    const probability = getProbability(args.stage);
 
     let finalCompanyId = args.workspaceId;
     if (!finalCompanyId && args.company) {
@@ -142,7 +151,6 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Create activity log
     await ctx.scheduler.runAfter(0, internal.activities.log, {
       type: "deal_created",
       description: `created a new deal "${args.title}" (${args.currency || "INR"} ${args.value.toLocaleString()})`,
@@ -193,12 +201,10 @@ export const update = mutation({
     lostReason: v.optional(v.string()),
     lostNotes: v.optional(v.string()),
 
-    // Deal metadata
     dealType: v.optional(v.string()),
     expectedCloseDate: v.optional(v.number()),
     priority: v.optional(v.string()),
 
-    // Contract details
     contractStartDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     renewalDate: v.optional(v.number()),
@@ -214,8 +220,6 @@ export const update = mutation({
     }
     const userId = currentUser._id;
     const userName = currentUser.name || "System";
-
-    // No hardcoded marketing/support reject block, handled by canAccessDeal check below
 
     const { id, ...fields } = args;
     const existing = await ctx.db.get(id);
@@ -239,45 +243,25 @@ export const update = mutation({
       updatedAt: now,
     };
 
-    // If stage is changing, validate transition and auto-update probability
     if (args.stage !== existing.stage) {
-      const allowedTransitions: Record<string, string[]> = {
-        Prospecting: ["Qualification", "Closed Lost"],
-        Qualification: ["Proposal", "Closed Lost"],
-        Proposal: ["Negotiation", "Closed Lost"],
-        Negotiation: ["Verbal Commit", "Closed Lost"],
-        "Verbal Commit": ["Closed Won", "Closed Lost"],
-        "Closed Won": [],
-        "Closed Lost": ["Prospecting"],
-      };
+      const fromStage = existing.stage || "Prospecting";
+      validateDealStageTransition(fromStage, args.stage);
 
-      const allowed = allowedTransitions[existing.stage || "Prospecting"];
-      if (!allowed || !allowed.includes(args.stage)) {
-        throw new Error(`Invalid stage transition from ${existing.stage || "Prospecting"} to ${args.stage}`);
-      }
-
-      const stageProbabilities: Record<string, number> = {
-        Prospecting: 10,
-        Qualification: 25,
-        Proposal: 50,
-        Negotiation: 75,
-        "Verbal Commit": 90,
-        "Closed Won": 100,
-        "Closed Lost": 0,
-      };
-
-      patchData.probability = stageProbabilities[args.stage] ?? 10;
+      patchData.probability = getProbability(args.stage);
       patchData.stageChangedAt = now;
       patchData.stageChangedBy = userName;
 
-      // Handle Closed Won / Closed Lost transitions
+      const workspaceId = existing.workspaceId!;
+
+      // Record stage history
+      await recordDealStageHistory(ctx, id, fromStage, args.stage, userId, userName, workspaceId);
+
       if (args.stage === "Closed Won") {
         patchData.status = "Won";
 
-        // 1. Create onboarding task
         await ctx.db.insert("tasks", {
           title: `Onboarding: ${args.company || args.title}`,
-          dueDate: now + 7 * 24 * 60 * 60 * 1000, // 7 days
+          dueDate: now + 7 * 24 * 60 * 60 * 1000,
           status: "Pending",
           priority: "Medium",
           createdBy: userId as Id<"users">,
@@ -286,10 +270,9 @@ export const update = mutation({
           updatedAt: now,
         });
 
-        // 2. Create implementation task
         await ctx.db.insert("tasks", {
           title: `Implementation Setup: ${args.company || args.title}`,
-          dueDate: now + 14 * 24 * 60 * 60 * 1000, // 14 days
+          dueDate: now + 14 * 24 * 60 * 60 * 1000,
           status: "Pending",
           priority: "Medium",
           createdBy: userId as Id<"users">,
@@ -298,10 +281,9 @@ export const update = mutation({
           updatedAt: now,
         });
 
-        // 3. Create invoice placeholder task
         await ctx.db.insert("tasks", {
           title: `Invoice Generation: ${args.company || args.title}`,
-          dueDate: now + 3 * 24 * 60 * 60 * 1000, // 3 days
+          dueDate: now + 3 * 24 * 60 * 60 * 1000,
           status: "Pending",
           priority: "High",
           createdBy: userId as Id<"users">,
@@ -310,7 +292,6 @@ export const update = mutation({
           updatedAt: now,
         });
 
-        // 4. Mark company as Customer
         const targetCompanyId = existing.companyId;
         if (targetCompanyId) {
           await ctx.db.patch(targetCompanyId, {
@@ -319,7 +300,6 @@ export const update = mutation({
           });
         }
 
-        // Log Won activities
         await ctx.scheduler.runAfter(0, internal.activities.log, {
           type: "deal_won",
           description: `won the deal "${args.title}" (${args.currency || "INR"} ${args.value.toLocaleString()})`,
@@ -386,7 +366,6 @@ export const update = mutation({
           createdBy: userId ?? undefined,
         });
       } else {
-        // Log standard stage transition
         patchData.status = "Pipeline";
         await ctx.scheduler.runAfter(0, internal.activities.log, {
           type: "deal_stage_changed",
@@ -416,7 +395,6 @@ export const update = mutation({
         });
       }
     } else {
-      // Log simple update
       await ctx.scheduler.runAfter(0, internal.activities.log, {
         type: "deal_updated",
         description: `updated deal "${args.title}"`,
@@ -458,8 +436,8 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
-    if (!currentUser || currentUser.role !== "super_admin") {
-      throw new Error("Unauthorized: Only Super Admins can delete deals");
+    if (!currentUser || currentUser.isActive === false) {
+      throw new Error("Unauthorized");
     }
     const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
 
@@ -470,7 +448,152 @@ export const remove = mutation({
       throw new Error("Unauthorized: Cannot delete deal belonging to another company");
     }
 
-    await ctx.db.delete(args.id);
+    const userId = currentUser._id;
+    const userName = currentUser.name || "System";
+
+    const allowed = await canPermanentDelete(ctx, userId);
+    if (!allowed) {
+      throw new Error("Unauthorized: Only Administrators and Workspace Owners can permanently delete deals");
+    }
+
+    await permanentDeleteEntity(ctx, "deals", args.id);
     return args.id;
+  },
+});
+
+export const archive = mutation({
+  args: {
+    id: v.id("deals"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Deal not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+    if (existing.isArchived) throw new Error("Deal is already archived");
+
+    const allowed = await canArchiveEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to archive deals");
+
+    await archiveEntity(ctx, "deals", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const restore = mutation({
+  args: {
+    id: v.id("deals"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Deal not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+
+    const allowed = await canRestoreEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to restore deals");
+
+    await restoreEntity(ctx, "deals", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const softDelete = mutation({
+  args: {
+    id: v.id("deals"),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Deal not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+
+    const allowed = await canArchiveEntity(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: You do not have permission to move deals to trash");
+
+    await softDeleteEntity(ctx, "deals", args.id, userId, currentUser.name || "System");
+    return args.id;
+  },
+});
+
+export const reopen = mutation({
+  args: {
+    id: v.id("deals"),
+    targetStage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
+    const userId = currentUser._id;
+    const userName = currentUser.name || "System";
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Deal not found");
+    if (existing.workspaceId !== workspaceId) throw new Error("Unauthorized");
+
+    const isAccessible = await canAccessDeal(ctx, userId, existing);
+    if (!isAccessible) throw new Error("Unauthorized");
+
+    const allowed = await canReopenTerminalDeal(ctx, userId);
+    if (!allowed) throw new Error("Unauthorized: Only Workspace Owner or Administrator can reopen this deal");
+
+    if (!isTerminalStage(existing.stage || "")) {
+      throw new Error("Deal is not in a terminal stage");
+    }
+
+    const now = Date.now();
+
+    await recordDealStageHistory(ctx, args.id, existing.stage!, args.targetStage, userId, userName, workspaceId);
+
+    await ctx.db.patch(args.id, {
+      stage: args.targetStage,
+      status: getEffectiveDealStatus(args.targetStage),
+      probability: getProbability(args.targetStage),
+      stageChangedAt: now,
+      stageChangedBy: userName,
+      lostReason: undefined,
+      lostNotes: undefined,
+      updatedAt: now,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "deal_reopened",
+      description: `reopened deal "${existing.title}" to stage ${args.targetStage}`,
+      userId,
+      userName,
+      entityType: "deal",
+      entityId: args.id,
+    });
+
+    return args.id;
+  },
+});
+
+export const listStageHistory = query({
+  args: {
+    dealId: v.id("deals"),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await resolveUserReadOnly(ctx);
+    if (!currentUser || currentUser.isActive === false) return [];
+
+    return await ctx.db
+      .query("dealStageHistory")
+      .withIndex("by_dealId", (q) => q.eq("dealId", args.dealId))
+      .collect();
   },
 });
