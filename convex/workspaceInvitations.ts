@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { query, action, internalMutation } from "./_generated/server";
+import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { resolveUserReadOnly } from "./lib/getCurrentUser";
+import { resolveUserReadOnly, resolveUser } from "./lib/getCurrentUser";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QUERIES
@@ -267,5 +267,40 @@ export const retryInvitationAction = action({
 
       throw new Error("Failed to resend invitation email.");
     }
+  },
+});
+
+export const clearArchived = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser) {
+      throw new Error("Not authenticated");
+    }
+
+    const workspaceId = currentUser.activeWorkspaceId;
+    if (!workspaceId) {
+      throw new Error("No active workspace");
+    }
+
+    const role = currentUser.role?.toLowerCase();
+    if (role !== "super_admin" && role !== "admin") {
+      throw new Error("Only admins can clear the archive");
+    }
+
+    const invitations = await ctx.db
+      .query("workspaceInvitations")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    const archiveStatuses = new Set(["expired", "revoked", "failed", "email_failed"]);
+    const toDelete = invitations.filter((inv) => archiveStatuses.has(inv.status));
+
+    const ids = toDelete.map((inv) => inv._id);
+    for (const id of ids) {
+      await ctx.db.delete(id);
+    }
+
+    return { deleted: ids.length };
   },
 });

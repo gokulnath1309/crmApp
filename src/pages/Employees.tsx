@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import {
   UserCheck, Plus, Search, X, Check, Edit2, Loader2, Mail,
   ShieldAlert, Clock, Copy, RefreshCw, Inbox, Users, UserPlus,
-  AlertCircle, Ban, UserMinus, Info, Send, Link, MoreHorizontal,
+  AlertCircle, Ban, UserMinus, Info, Send, Link, MoreHorizontal, Trash2, Archive,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
@@ -87,6 +87,7 @@ export function EmployeesPage() {
   const cancelInvitationMutation = useMutation(api.users.cancelInvitation);
   const retryInvitationAction = useAction(api.workspaceInvitations.retryInvitationAction);
   const updateUserRoleMutation = useMutation(api.users.updateUserRole);
+  const clearArchivedMutation = useMutation(api.workspaceInvitations.clearArchived);
 
   const [activeTab, setActiveTab] = useState<TabId>("members");
   const [searchTerm, setSearchTerm] = useState("");
@@ -95,6 +96,8 @@ export function EmployeesPage() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedInvitation, setSelectedInvitation] = useState<any | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
@@ -243,6 +246,20 @@ export function EmployeesPage() {
     } catch (_err: any) {
       console.error("[ToggleUser]", _err);
       toast("error", "Failed to update status.");
+    }
+  };
+
+  const handleClearArchive = async () => {
+    setIsClearing(true);
+    try {
+      await clearArchivedMutation();
+      toast("success", "Archive cleared successfully.");
+      setShowClearConfirm(false);
+    } catch (_err: any) {
+      console.error("[ClearArchive]", _err);
+      toast("error", "Unable to clear archive. Please try again.");
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -581,11 +598,22 @@ export function EmployeesPage() {
 
     archived: (
       <div className="space-y-3">
+        {filteredArchived.length > 0 && (currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-sm font-semibold rounded-xl transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              Clear Archive
+            </button>
+          </div>
+        )}
         {filteredArchived.length === 0 ? (
           renderEmpty(
-            <Inbox className="w-7 h-7 text-slate-400" />,
+            <Archive className="w-7 h-7 text-slate-400" />,
             "No archived invitations",
-            "Expired or revoked invitations will appear here."
+            "Archived invitations will appear here."
           )
         ) : (
           filteredArchived.map((inv: any) => renderInvitationCard(inv, true))
@@ -1113,6 +1141,57 @@ export function EmployeesPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Archive Confirmation Modal */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Clear Archived Invitations?
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      This will permanently delete all archived invitation records from this workspace. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-slate-100 dark:border-slate-700/60">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={isClearing}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearArchive}
+                  disabled={isClearing}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-50 transition-colors"
+                >
+                  {isClearing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Clear Archive
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
