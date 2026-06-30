@@ -415,7 +415,6 @@ export function EmployeesPage() {
     const isRetryable = ["email_failed", "failed", "expired"].includes(inv.status) ||
       ((inv.status === "pending" || inv.status === "email_sent") && inv.expiresAt < Date.now());
     const isCancellable = ["pending", "email_sent", "email_failed", "failed"].includes(inv.status);
-    const initials = getInitials(inv.name);
 
     return (
       <div
