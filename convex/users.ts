@@ -236,7 +236,7 @@ export const list = query({
         if (!u) return null;
         return {
           _id: u._id,
-          name: u.name || "Unknown User",
+          name: u.name && u.name !== "User" ? u.name : u.email?.split('@')[0] || "Unknown User",
           email: u.email || "",
           role: m.role || "employee", // Get role from membership
           managerId: u.managerId,
@@ -1092,6 +1092,12 @@ export const acceptInvitationMutation = internalMutation({
     if ((invitation as any).jobTitle) updateFields.jobTitle = (invitation as any).jobTitle;
     if ((invitation as any).managerId) updateFields.managerId = (invitation as any).managerId;
     if ((invitation as any).permissions) updateFields.permissions = (invitation as any).permissions;
+    // Backfill name from invitation if user doesn't have a real name yet
+    const currentName = currentUser.name?.trim();
+    const inviteName = (invitation as any).name?.trim();
+    if (inviteName && (!currentName || currentName === "User")) {
+      updateFields.name = inviteName;
+    }
     await ctx.db.patch(currentUser._id, updateFields);
 
     // Create membership for the new workspace
@@ -1204,6 +1210,57 @@ export const acceptInvitation = action({
       workspaceId: result.workspaceId,
       clerkOrgId: result.clerkOrgId,
     };
+  },
+});
+
+export const fixUserNames = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.role !== "super_admin") {
+      throw new Error("Only super admins can run this migration");
+    }
+
+    const users = await ctx.db.query("users").collect();
+    const fixed: string[] = [];
+    const skipped: string[] = [];
+
+    for (const u of users) {
+      const storedName = u.name?.trim();
+      const emailLocal = u.email?.split('@')[0];
+
+      if (storedName && storedName !== "User") {
+        continue; // has a real name, skip
+      }
+
+      const normalizedEmail = u.email?.trim().toLowerCase();
+
+      if (normalizedEmail) {
+        // Try to find an invitation with a real name
+        const invite = await ctx.db
+          .query("workspaceInvitations")
+          .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
+          .order("desc")
+          .first();
+
+        const inviteName = (invite as any)?.name?.trim();
+        if (inviteName && inviteName !== "User") {
+          await ctx.db.patch(u._id, { name: inviteName, updatedAt: Date.now() });
+          fixed.push(`${u.email} → "${inviteName}" (from invitation)`);
+          continue;
+        }
+      }
+
+      // Fallback: use email local part
+      if (emailLocal) {
+        await ctx.db.patch(u._id, { name: emailLocal, updatedAt: Date.now() });
+        fixed.push(`${u.email} → "${emailLocal}" (from email)`);
+      } else {
+        skipped.push(u._id);
+      }
+    }
+
+    return { fixed, skipped, total: users.length };
   },
 });
 

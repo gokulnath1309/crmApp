@@ -109,7 +109,7 @@ export async function resolveUser(ctx: MutationCtx): Promise<any> {
     const newId = await ctx.db.insert("users", {
       clerkId: identity.subject,
       email: email,
-      name: identity.name || identity.givenName || identity.nickname || "User",
+      name: identity.name || identity.givenName || identity.nickname || identity.email?.split('@')[0] || "User",
       isActive: true,
       avatarUrl: identity.pictureUrl,
       emailVerified: true,
