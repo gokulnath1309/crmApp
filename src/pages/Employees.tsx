@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -6,11 +6,12 @@ import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/components/ui/Toast";
 import {
-  UserCheck, ToggleLeft, ToggleRight, Plus, Search,
-  X, Check, Edit2, Loader2, Mail, Building, ShieldAlert, Clock, Copy, RefreshCw
+  UserCheck, Plus, Search, X, Check, Edit2, Loader2, Mail,
+  ShieldAlert, Clock, Copy, RefreshCw, Inbox, Users, UserPlus,
+  AlertCircle, Ban, UserMinus, Info, Send, Link, MoreHorizontal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-
+import { cn } from "@/lib/cn";
 
 const departmentOptions = ["Sales", "Marketing", "Customer Success", "Support", "Product", "Finance", "HR"];
 const permissionOptions = [
@@ -26,31 +27,77 @@ const permissionOptions = [
   { value: "canManageSettings", label: "Configure CRM Settings", desc: "Allows managing CRM parameters and stages" },
 ];
 
+const statusConfig: Record<string, { label: string; bg: string; dot: string }> = {
+  pending: { label: "Pending", bg: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", dot: "bg-amber-500" },
+  email_sent: { label: "Pending", bg: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", dot: "bg-amber-500" },
+  email_failed: { label: "Failed", bg: "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400", dot: "bg-red-500" },
+  failed: { label: "Failed", bg: "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400", dot: "bg-red-500" },
+  accepted: { label: "Accepted", bg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400", dot: "bg-emerald-500" },
+  expired: { label: "Expired", bg: "bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400", dot: "bg-orange-500" },
+  revoked: { label: "Revoked", bg: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400", dot: "bg-slate-400" },
+};
+
+const roleOptions = [
+  { value: "", label: "All Roles" },
+  { value: "super_admin", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "employee", label: "Employee" },
+];
+
+const departmentIcons: Record<string, string> = {
+  Sales: "📈",
+  Marketing: "📣",
+  "Customer Success": "🤝",
+  Support: "🎧",
+  Product: "🛠",
+  Finance: "💰",
+  HR: "👥",
+  Management: "🏢",
+  Engineering: "⚙️",
+  Design: "🎨",
+};
+
+type TabId = "members" | "pending" | "archived";
+
+function getInitials(name?: string) {
+  if (!name || name === "User") return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return parts[0][0].toUpperCase();
+}
+
+function getDepartmentDisplay(dept?: string) {
+  if (!dept) return null;
+  const icon = departmentIcons[dept] || "📋";
+  return `${icon} ${dept}`;
+}
+
 export function EmployeesPage() {
   const { user: currentUser } = useUser();
   const { toast } = useToast();
-
   const [searchParams, setSearchParams] = useSearchParams();
+
   const users = useQuery(api.users.list);
   const invitations = useQuery(api.workspaceInvitations.listInvitations);
   const metrics = useQuery(api.workspaceInvitations.getInvitationMetrics);
-  const allInvitations = [...(invitations || [])].sort((a, b) => (b.sentAt || b.createdAt) - (a.sentAt || a.createdAt));
-  const emailSentInvites = invitations?.filter(i => i.status === "email_sent").length || 0;
-  const failedInvites = invitations?.filter(i => i.status === "failed" || i.status === "email_failed").length || 0;
 
   const inviteUserAction = useAction(api.users.inviteUser);
   const cancelInvitationMutation = useMutation(api.users.cancelInvitation);
   const retryInvitationAction = useAction(api.workspaceInvitations.retryInvitationAction);
   const updateUserRoleMutation = useMutation(api.users.updateUserRole);
 
-  const [activeTab, setActiveTab] = useState<"directory" | "access" | "invitations" | "pending" | "failed" | "expired" | "cancelled">("directory");
+  const [activeTab, setActiveTab] = useState<TabId>("members");
   const [searchTerm, setSearchTerm] = useState("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [selectedInvitation, setSelectedInvitation] = useState<any | null>(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
 
-  // Form State
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("employee");
@@ -58,7 +105,6 @@ export function EmployeesPage() {
   const [managerId, setManagerId] = useState<string>("");
   const [permissions, setPermissions] = useState<string[]>([]);
 
-  // Quick Create
   useEffect(() => {
     if (searchParams.get("new") === "true") {
       resetForm();
@@ -71,12 +117,17 @@ export function EmployeesPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Role guard — ProtectedRoute above handles auth; this only checks role.
   if (currentUser && currentUser.role !== "super_admin" && currentUser.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }
 
   const isSuperAdmin = currentUser!.role === "super_admin";
+
+  const allInvitations = [...(invitations || [])].sort(
+    (a, b) => (b.sentAt || b.createdAt) - (a.sentAt || a.createdAt)
+  );
+  const emailSentInvites = invitations?.filter(i => i.status === "email_sent").length || 0;
+  const failedInvites = invitations?.filter(i => i.status === "failed" || i.status === "email_failed").length || 0;
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,13 +135,11 @@ export function EmployeesPage() {
       toast("error", "Name and Email are required.");
       return;
     }
-
     setIsSubmitting(true);
     try {
-      const token = typeof window.crypto.randomUUID === "function" 
-        ? window.crypto.randomUUID() 
+      const token = typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
         : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-
       await inviteUserAction({
         email: email.trim(),
         name: name.trim(),
@@ -100,63 +149,57 @@ export function EmployeesPage() {
         permissions,
         token,
       });
-      toast("success", `Invitation created and email sent to ${name}.`);
+      toast("success", `Invitation sent to ${name}.`);
       setIsInviteOpen(false);
       resetForm();
-      // Switch to pending tab so the new invite is immediately visible
       setActiveTab("pending");
     } catch (err: any) {
-      console.error("[InviteUser] Raw technical error:", err);
-      const msg: string = err.message || "Failed to invite user.";
+      console.error("[InviteUser]", err);
+      const msg: string = err.message || "";
       if (msg.toLowerCase().includes("already pending")) {
-        toast("error", `Invitation already pending for ${email}. Check the Pending tab or resend the invite.`);
+        toast("error", `Invitation already pending for ${email}.`);
       } else if (msg.toLowerCase().includes("already a member")) {
-        toast("error", `${email} is already a member of your company.`);
+        toast("error", `${email} is already a member.`);
       } else if (
         msg.toLowerCase().includes("testing") ||
         msg.toLowerCase().includes("sandbox") ||
-        msg.toLowerCase().includes("can only send") ||
         msg.toLowerCase().includes("domain") ||
         msg.toLowerCase().includes("not verified")
       ) {
-        toast(
-          "error",
-          `Invitation created but email delivery failed. Resend sandbox restriction: you can only send to your own verified email. Use 'Copy Link' to share the invite manually.`
-        );
+        toast("error", "Invitation created but email could not be delivered due to sandbox restrictions. Use 'Copy Link' to share manually.");
         setIsInviteOpen(false);
         resetForm();
-        setActiveTab("failed");
+        setActiveTab("pending");
       } else {
-        toast("error", "Unable to send invitation. Please refresh and try again.");
+        toast("error", "Unable to send invitation. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleResendInvite = async (invitationId: string, email: string) => {
+  const handleResendInvite = async (invitationId: string, _email: string) => {
     setActionLoadingId(invitationId);
     try {
       await retryInvitationAction({ id: invitationId as any });
-      toast("success", `Invitation email resent to ${email}.`);
-    } catch (err: any) {
-      console.error("[ResendInvite] Raw technical error:", err);
-      toast("error", "Failed to resend invitation email.");
+      toast("success", `Invitation resent to ${_email}.`);
+    } catch (_err: any) {
+      console.error("[ResendInvite]", _err);
+      toast("error", "Failed to resend invitation. Please try again.");
     } finally {
       setActionLoadingId(null);
     }
   };
 
-  const handleCancelInvite = async (invitationId: string, email: string) => {
-    if (!window.confirm(`Cancel the invitation for ${email}?`)) {
-      return;
-    }
+  const handleCancelInvite = async (invitationId: string, _email: string) => {
+    if (!window.confirm(`Cancel invitation for ${_email}?`)) return;
     setActionLoadingId(invitationId);
     try {
       await cancelInvitationMutation({ id: invitationId as any });
-      toast("success", `Invitation cancelled for ${email}.`);
-    } catch (err: any) {
-      toast("error", err.message || "Failed to cancel invitation.");
+      toast("success", `Invitation cancelled for ${_email}.`);
+    } catch (_err: any) {
+      console.error("[CancelInvite]", _err);
+      toast("error", "Failed to cancel invitation.");
     } finally {
       setActionLoadingId(null);
     }
@@ -171,20 +214,20 @@ export function EmployeesPage() {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
-
     setIsSubmitting(true);
     try {
       await updateUserRoleMutation({
         id: selectedUser._id,
-        role: isSuperAdmin ? role : undefined, // only super admin can change role
+        role: isSuperAdmin ? role : undefined,
         department,
-        managerId: isSuperAdmin ? (managerId ? (managerId as any) : null) : undefined, // only super admin can change manager
-        permissions: isSuperAdmin ? permissions : undefined, // only super admin can change permissions
+        managerId: isSuperAdmin ? (managerId ? (managerId as any) : null) : undefined,
+        permissions: isSuperAdmin ? permissions : undefined,
       });
-      toast("success", "Successfully updated employee details.");
+      toast("success", "Employee details updated.");
       setSelectedUser(null);
-    } catch (err: any) {
-      toast("error", err.message || "Failed to update user.");
+    } catch (_err: any) {
+      console.error("[EditUser]", _err);
+      toast("error", "Failed to update employee.");
     } finally {
       setIsSubmitting(false);
     }
@@ -196,12 +239,10 @@ export function EmployeesPage() {
         id: userToToggle._id as any,
         isActive: !userToToggle.isActive,
       });
-      toast(
-        "success",
-        `Successfully toggled active status for ${userToToggle.name}.`
-      );
-    } catch (err: any) {
-      toast("error", err.message || "Failed to toggle status.");
+      toast("success", `Status updated for ${userToToggle.name}.`);
+    } catch (_err: any) {
+      console.error("[ToggleUser]", _err);
+      toast("error", "Failed to update status.");
     }
   };
 
@@ -222,28 +263,337 @@ export function EmployeesPage() {
     setPermissions(userToEdit.permissions || []);
   };
 
-  // Scoped user list: admin only sees subordinates, super_admin sees all
   const filteredUsers = (users || []).filter((u: any) => {
-    // Search filter
     const matchesSearch =
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.department && u.department.toLowerCase().includes(searchTerm.toLowerCase()));
-
     if (!matchesSearch) return false;
-
     if (isSuperAdmin) return true;
-    
-    // Admin only sees subordinates
     return u.managerId === currentUser!._id || u._id === currentUser!._id;
   });
 
-  // Calculate local user counts
   const totalCount = filteredUsers.length;
-  const deactivatedCount = filteredUsers.filter((u) => u?.isActive === false).length;
-
-  // Potential managers list (super admins and admins)
+  const deactivatedCount = filteredUsers.filter((u: any) => u?.isActive === false).length;
   const managerOptions = (users || []).filter((u: any) => u.role === "super_admin" || u.role === "admin");
+
+  const pendingInvitations = allInvitations.filter((inv: any) =>
+    ["pending", "email_sent", "email_failed", "failed"].includes(inv.status)
+  );
+  const archivedInvitations = allInvitations.filter((inv: any) =>
+    ["expired", "revoked"].includes(inv.status)
+  );
+
+  const filteredPending = pendingInvitations.filter((inv: any) => {
+    if (statusFilter && inv.status !== statusFilter) return false;
+    if (roleFilter && inv.role !== roleFilter) return false;
+    const q = searchTerm.toLowerCase();
+    if (!q) return true;
+    return (
+      inv.name?.toLowerCase().includes(q) ||
+      inv.email?.toLowerCase().includes(q) ||
+      inv.role?.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredArchived = archivedInvitations.filter((inv: any) => {
+    if (statusFilter && inv.status !== statusFilter) return false;
+    if (roleFilter && inv.role !== roleFilter) return false;
+    const q = searchTerm.toLowerCase();
+    if (!q) return true;
+    return (
+      inv.name?.toLowerCase().includes(q) ||
+      inv.email?.toLowerCase().includes(q) ||
+      inv.role?.toLowerCase().includes(q)
+    );
+  });
+
+  const tabs: { id: TabId; label: string; count?: number }[] = [
+    { id: "members", label: "Members", count: filteredUsers.length },
+    { id: "pending", label: "Pending", count: filteredPending.length },
+    { id: "archived", label: "Archived", count: filteredArchived.length },
+  ];
+
+  const renderStatusBadge = (status: string) => {
+    const cfg = statusConfig[status] || statusConfig.pending;
+    return (
+      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold", cfg.bg)}>
+        <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+        {cfg.label}
+      </span>
+    );
+  };
+
+  const renderRoleBadge = (role: string) => {
+    const config: Record<string, { label: string; className: string }> = {
+      super_admin: { label: "Owner", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+      admin: { label: "Admin", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+      employee: { label: "Employee", className: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" },
+    };
+    const c = config[role] || config.employee;
+    return (
+      <span className={cn("inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold min-w-[72px] justify-center", c.className)}>
+        {c.label}
+      </span>
+    );
+  };
+
+  const renderUserCard = (u: any) => {
+    const initials = getInitials(u.name);
+    const deptDisplay = getDepartmentDisplay(u.department);
+    const isInactive = u.isActive === false;
+
+    return (
+      <div
+        key={u._id}
+        className={cn(
+          "flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all duration-200 bg-white dark:bg-slate-800",
+          isInactive
+            ? "border-red-100 dark:border-red-950/20 opacity-75"
+            : "border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 cursor-pointer"
+        )}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] items-center gap-x-6 gap-y-1 sm:gap-y-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-slate-900 dark:text-white truncate">{u.name}</span>
+              {isInactive && (
+                <span className="text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400 px-1.5 py-0.5 rounded-md uppercase leading-none">Inactive</span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{u.email}</p>
+          </div>
+          <div className="flex sm:justify-center">
+            {renderRoleBadge(u.role)}
+          </div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 truncate hidden sm:block">
+            {deptDisplay || "—"}
+          </div>
+          <div className="flex items-center gap-1 justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); startEdit(u); }}
+              className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+              title="Edit employee"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            {((isSuperAdmin && u._id !== currentUser!._id) || (currentUser!.role === "admin" && u.managerId === currentUser!._id)) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleUserActiveStatus(u); }}
+                title={isInactive ? "Activate" : "Deactivate"}
+                className={cn(
+                  "w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+                  isInactive
+                    ? "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                    : "text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                )}
+              >
+                {isInactive ? <Check className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
+              </button>
+            )}
+            {isSuperAdmin && (
+              <button
+                onClick={(e) => { e.stopPropagation(); }}
+                className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                title="More options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderInvitationCard = (inv: any, isArchived: boolean) => {
+    const sentDate = inv.sentAt || inv.createdAt;
+    const timeAgo = sentDate ? getTimeAgo(sentDate) : "";
+    const isRetryable = ["email_failed", "failed", "expired"].includes(inv.status) ||
+      ((inv.status === "pending" || inv.status === "email_sent") && inv.expiresAt < Date.now());
+    const isCancellable = ["pending", "email_sent", "email_failed", "failed"].includes(inv.status);
+    const initials = getInitials(inv.name);
+
+    return (
+      <div
+        key={inv._id}
+        className={cn(
+          "flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all duration-200 bg-white dark:bg-slate-800",
+          isArchived
+            ? "border-slate-100 dark:border-slate-700/40 opacity-70"
+            : inv.status === "failed" || inv.status === "email_failed"
+              ? "border-red-100 dark:border-red-950/20 hover:border-red-200 dark:hover:border-red-900/30 shadow-sm"
+              : "border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600"
+        )}
+      >
+        <div className={cn(
+          "w-12 h-12 rounded-xl flex items-center justify-center text-base font-bold shrink-0 shadow-sm",
+          inv.status === "failed" || inv.status === "email_failed"
+            ? "bg-red-50 dark:bg-red-950/20 text-red-500"
+            : inv.status === "expired"
+              ? "bg-orange-50 dark:bg-orange-950/20 text-orange-500"
+              : inv.status === "revoked"
+                ? "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                : "bg-amber-50 dark:bg-amber-950/20 text-amber-500"
+        )}>
+          {inv.status === "failed" || inv.status === "email_failed" ? (
+            <AlertCircle className="w-5 h-5" />
+          ) : inv.status === "expired" ? (
+            <Clock className="w-5 h-5" />
+          ) : inv.status === "revoked" ? (
+            <Ban className="w-5 h-5" />
+          ) : (
+            <Mail className="w-5 h-5" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] items-center gap-x-6 gap-y-1 sm:gap-y-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-slate-900 dark:text-white truncate">
+                {inv.name || "Unnamed"}
+              </span>
+              {renderStatusBadge(inv.status)}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
+              {inv.email} · {inv.role} · {timeAgo}
+            </p>
+          </div>
+          {!isArchived && (
+            <div className="flex items-center gap-1">
+              {isRetryable && (
+                <button
+                  disabled={actionLoadingId !== null}
+                  onClick={() => handleResendInvite(inv._id, inv.email)}
+                  className="flex items-center gap-1.5 px-3.5 h-9 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {actionLoadingId === inv._id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  Retry
+                </button>
+              )}
+              {inv.inviteToken && (
+                <button
+                  onClick={() => handleCopyLink(inv.inviteToken)}
+                  className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                  title="Copy invite link"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
+              {isCancellable && (
+                <button
+                  disabled={actionLoadingId !== null}
+                  onClick={() => handleCancelInvite(inv._id, inv.email)}
+                  className="w-9 h-9 flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Cancel invitation"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => setSelectedInvitation(inv)}
+            className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer shrink-0"
+          >
+            <Info className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Details</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEmpty = (icon: any, title: string, description: string, action?: React.ReactNode) => (
+    <div className="flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+      <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-5">
+        {icon}
+      </div>
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm">{description}</p>
+      {action && <div className="mt-6">{action}</div>}
+    </div>
+  );
+
+  const getTimeAgo = (epoch: number) => {
+    const diff = Date.now() - epoch;
+    if (diff < 60000) return "Just now";
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return "Yesterday";
+    return `${days}d ago`;
+  };
+
+  const tabsContent = {
+    members: (
+      <div className="space-y-3">
+        {filteredUsers.length === 0 ? (
+          renderEmpty(
+            <Users className="w-7 h-7 text-slate-400" />,
+            "No employees yet",
+            "Invite your first employee to start collaborating.",
+            isSuperAdmin ? (
+              <button
+                onClick={() => { resetForm(); setIsInviteOpen(true); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" /> Invite Employee
+              </button>
+            ) : undefined
+          )
+        ) : (
+          filteredUsers.map(renderUserCard)
+        )}
+      </div>
+    ),
+
+    pending: (
+      <div className="space-y-3">
+        {filteredPending.length === 0 ? (
+          renderEmpty(
+            <Inbox className="w-7 h-7 text-slate-400" />,
+            searchTerm || statusFilter || roleFilter ? "No matching invitations" : "No pending invitations",
+            searchTerm || statusFilter || roleFilter
+              ? "Try adjusting your search or filters."
+              : "Invite a new team member to see their invitation here.",
+            isSuperAdmin && !searchTerm && !statusFilter && !roleFilter ? (
+              <button
+                onClick={() => { resetForm(); setIsInviteOpen(true); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" /> Invite Employee
+              </button>
+            ) : undefined
+          )
+        ) : (
+          filteredPending.map((inv: any) => renderInvitationCard(inv, false))
+        )}
+      </div>
+    ),
+
+    archived: (
+      <div className="space-y-3">
+        {filteredArchived.length === 0 ? (
+          renderEmpty(
+            <Inbox className="w-7 h-7 text-slate-400" />,
+            "No archived invitations",
+            "Expired or revoked invitations will appear here."
+          )
+        ) : (
+          filteredArchived.map((inv: any) => renderInvitationCard(inv, true))
+        )}
+      </div>
+    ),
+  };
 
   return (
     <div className="space-y-6 max-w-7xl pb-6 p-6">
@@ -251,23 +601,23 @@ export function EmployeesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Employees & Access Control
+            Employees
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage user roles, organizational structure, deactivations, and permissions.
+            Invite and manage workspace members.
           </p>
         </div>
         {isSuperAdmin && (
           <button
             onClick={() => { resetForm(); setIsInviteOpen(true); }}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10 self-start sm:self-auto"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10 self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" /> Invite Employee
           </button>
         )}
       </div>
 
-      {/* Summary Row */}
+      {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Members", value: metrics?.activeEmployees ?? totalCount - deactivatedCount, icon: UserCheck, bg: "bg-emerald-500" },
@@ -275,729 +625,244 @@ export function EmployeesPage() {
           { label: "Failed Invites", value: failedInvites, icon: ShieldAlert, bg: "bg-red-500" },
           { label: "Expired Invites", value: metrics?.expiredInvites ?? 0, icon: Clock, bg: "bg-slate-500" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{stat.label}</p>
-              <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 leading-none">{stat.value}</h3>
-            </div>
-            <div className={`w-9 h-9 ${stat.bg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs`}>
+          <div key={stat.label} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center gap-4">
+            <div className={`w-11 h-11 ${stat.bg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs`}>
               <stat.icon className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{stat.label}</p>
+              <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white leading-none mt-0.5">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Navigation Tabs & Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-1">
-        <div className="flex flex-wrap gap-1">
-          {[
-            { id: "directory", label: "Team Directory" },
-            { id: "access", label: "Access Settings" },
-            { id: "invitations", label: `Invitations (${allInvitations.length})` },
-            { id: "pending", label: `Pending (${metrics?.pendingInvites ?? 0})` },
-            { id: "failed", label: `Failed (${failedInvites})` },
-            { id: "expired", label: `Expired (${metrics?.expiredInvites ?? 0})` },
-            { id: "cancelled", label: "Cancelled" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? "bg-slate-100 dark:bg-slate-800 text-indigo-650 dark:text-indigo-400"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {/* Tabs + Search + Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-6 border-b border-slate-100 dark:border-slate-700/60">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "relative pb-3 text-sm font-medium transition-colors duration-200 cursor-pointer",
+                  isActive
+                    ? "text-slate-900 dark:text-white font-semibold"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span className={cn(
+                      "text-xs px-1.5 py-0.5 rounded-md",
+                      isActive
+                        ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                    )}>
+                      {tab.count}
+                    </span>
+                  )}
+                </span>
+                {isActive && (
+                  <motion.div
+                    layoutId="tab-underline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
+        {activeTab !== "members" && (
+          <div className="flex items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500 transition-colors"
+            >
+              <option value="">All Status</option>
+              {Object.entries(statusConfig).map(([key, cfg]) => (
+                <option key={key} value={key}>{cfg.label}</option>
+              ))}
+            </select>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500 transition-colors"
+            >
+              {roleOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name, email, or dept..."
-            className="w-full h-10 pl-10 pr-4 text-xs bg-white dark:bg-slate-800 border border-slate-205 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            placeholder={activeTab === "members" ? "Search by name, email, or dept..." : "Search by name, email, or role..."}
+            className="w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
       </div>
 
-      {/* Directory Grid View */}
-      {activeTab === "directory" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUsers.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 text-sm">
-              No employees match your search criteria.
-            </div>
-          ) : (
-            filteredUsers.map((u: any) => {
-              const manager = users?.find((m: any) => m._id === u.managerId);
-              return (
-                <div
-                  key={u._id}
-                  className={`bg-white dark:bg-slate-800 border rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all ${
-                    u.isActive === false
-                      ? "border-red-100 dark:border-red-950/20 opacity-75"
-                      : "border-slate-100 dark:border-slate-700/60 hover:border-slate-205 dark:hover:border-slate-600"
-                  }`}
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
-                          {u.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-1.5 leading-snug">
-                            {u.name}
-                            {u.isActive === false && (
-                              <span className="text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-955/30 dark:text-red-400 px-1.5 py-0.5 rounded-md uppercase">Deactive</span>
-                            )}
-                          </h4>
-                          <p className="text-xs text-slate-455 dark:text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                            <Mail className="w-3 h-3 flex-shrink-0" /> {u.email}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg tracking-wider ${
-                        u.role === "super_admin"
-                          ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                          : u.role === "admin"
-                          ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
-                          : "bg-slate-100 text-slate-650 dark:bg-slate-700 dark:text-slate-350"
-                      }`}>
-                        {u.role === "super_admin" ? "Owner" : u.role === "admin" ? "Admin" : "Rep"}
-                      </span>
-                    </div>
+      {/* Tab Content */}
+      {tabsContent[activeTab]}
 
-                    <div className="grid grid-cols-2 gap-3 text-xs border-t border-slate-50 dark:border-slate-700/40 pt-3">
-                      <div>
-                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Department</span>
-                        <span className="font-medium text-slate-750 dark:text-slate-300 mt-0.5 flex items-center gap-1">
-                          <Building className="w-3 h-3 text-slate-400" />
-                          {u.department || "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Reports To</span>
-                        <span className="font-medium text-slate-750 dark:text-slate-300 mt-0.5 truncate block">
-                          {manager ? manager.name : "—"}
-                        </span>
-                      </div>
+      {/* Detail Drawer */}
+      <AnimatePresence>
+        {selectedInvitation && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/30"
+              onClick={() => setSelectedInvitation(null)}
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 250 }}
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white dark:bg-slate-800 shadow-2xl border-l border-slate-100 dark:border-slate-700/60 flex flex-col"
+            >
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Invitation Details</h3>
+                <button
+                  onClick={() => setSelectedInvitation(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shrink-0",
+                    selectedInvitation.status === "failed" || selectedInvitation.status === "email_failed"
+                      ? "bg-red-50 dark:bg-red-950/20 text-red-500"
+                      : selectedInvitation.status === "expired"
+                        ? "bg-orange-50 dark:bg-orange-950/20 text-orange-500"
+                        : selectedInvitation.status === "revoked"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                          : "bg-amber-50 dark:bg-amber-950/20 text-amber-500"
+                  )}>
+                    <Mail className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-white">
+                      {selectedInvitation.name || "Unnamed"}
+                    </h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{selectedInvitation.email}</p>
+                  </div>
+                </div>
+
+                {renderStatusBadge(selectedInvitation.status)}
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1 capitalize">
+                        {selectedInvitation.role}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">
+                        {selectedInvitation.department || "—"}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sent</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">
+                        {selectedInvitation.sentAt
+                          ? new Date(selectedInvitation.sentAt).toLocaleDateString()
+                          : new Date(selectedInvitation.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Expires</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">
+                        {selectedInvitation.expiresAt
+                          ? new Date(selectedInvitation.expiresAt).toLocaleDateString()
+                          : "—"}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Invited By</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">
+                        {users?.find((u: any) => u._id === selectedInvitation.invitedBy)?.name || "Unknown"}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reminders</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">
+                        {selectedInvitation.reminderCount || 0}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
-                    <span className="text-[10px] text-slate-400">
-                      {u.lastLogin ? `Last Login: ${new Date(u.lastLogin).toLocaleDateString()}` : "Never logged in"}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => startEdit(u)}
-                        title="Edit employee details"
-                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      {/* Allow deactivation for subordinates (admins) and all except self (super admins) */}
-                      {((isSuperAdmin && u._id !== currentUser!._id) || (currentUser!.role === "admin" && u.managerId === currentUser!._id)) && (
+                  <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
+                    <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                      <Link className="w-3.5 h-3.5" />
+                      Invitation Link
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs text-indigo-600 dark:text-indigo-300 bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-indigo-100 dark:border-indigo-900/30 truncate">
+                        {window.location.origin}/invite/{selectedInvitation.inviteToken || "—"}
+                      </code>
+                      {selectedInvitation.inviteToken && (
                         <button
-                          onClick={() => toggleUserActiveStatus(u)}
-                          title={u.isActive !== false ? "Deactivate employee" : "Activate employee"}
-                          className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer ${
-                            u.isActive !== false ? "text-emerald-500 hover:text-red-500" : "text-slate-400 hover:text-emerald-500"
-                          }`}
+                          onClick={() => handleCopyLink(selectedInvitation.inviteToken)}
+                          className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/30 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer shrink-0"
                         >
-                          {u.isActive !== false ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                          <Copy className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* Access Settings Table View */}
-      {activeTab === "access" && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[700px] border-collapse text-left text-slate-900 dark:text-white">
-            <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-800/40 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="px-6 py-4">Employee</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Custom Permissions</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-750/30 text-xs">
-              {filteredUsers.map((u) => (
-                <tr key={u._id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
-                  <td className="px-6 py-3.5">
-                    <div className="font-semibold text-slate-900 dark:text-white">{u.name}</div>
-                    <div className="text-[10px] text-slate-450 mt-0.5">{u.email}</div>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <span className="font-medium capitalize">{u.role}</span>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <span className="text-slate-600 dark:text-slate-300 font-medium">{u.department || "—"}</span>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      u.isActive !== false
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450"
-                        : "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-450"
-                    }`}>
-                      <span className={`w-1 h-1 rounded-full ${u.isActive !== false ? "bg-emerald-500" : "bg-red-500"}`} />
-                      {u.isActive !== false ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    {u.role === "super_admin" ? (
-                      <span className="text-slate-400 italic text-[10px]">All Permissions (Root)</span>
-                    ) : (u.permissions || []).length === 0 ? (
-                      <span className="text-slate-400 italic text-[10px]">None (Role Defaults)</span>
+              </div>
+              <div className="shrink-0 px-6 py-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-3">
+                {["email_failed", "failed", "expired"].includes(selectedInvitation.status) && (
+                  <button
+                    disabled={actionLoadingId !== null}
+                    onClick={() => {
+                      handleResendInvite(selectedInvitation._id, selectedInvitation.email);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-10 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {actionLoadingId === selectedInvitation._id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {(u.permissions || []).map((perm: string) => (
-                          <span key={perm} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-300 rounded text-[9px] font-medium font-sans">
-                            {perm}
-                          </span>
-                        ))}
-                      </div>
+                      <RefreshCw className="w-4 h-4" />
                     )}
-                  </td>
-                  <td className="px-6 py-3.5 text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        onClick={() => startEdit(u)}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-650 border border-slate-205 dark:border-slate-600 text-slate-775 dark:text-slate-200 font-semibold rounded-lg shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-                      >
-                        Edit Access
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Invitations Management Table */}
-      {activeTab === "invitations" && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left text-slate-900 dark:text-white">
-            <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-800/40 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="px-5 py-4">Name</th>
-                <th className="px-5 py-4">Email</th>
-                <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Invited By</th>
-                <th className="px-5 py-4">Invited At</th>
-                <th className="px-5 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-750/30 text-xs">
-              {allInvitations.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
-                    No invitations found.
-                  </td>
-                </tr>
-              ) : (
-                allInvitations.map((inv) => {
-                  const inviter = users?.find((u: any) => u._id === inv.invitedBy);
-                  const statusLabel = inv.status === "email_sent" ? "Email Sent" :
-                    inv.status === "email_failed" ? "Email Failed" :
-                    inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
-                  const statusColor = inv.status === "email_sent" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450" :
-                    inv.status === "email_failed" || inv.status === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-450" :
-                    inv.status === "pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                    inv.status === "accepted" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450" :
-                    inv.status === "expired" ? "bg-slate-100 text-slate-650 dark:bg-slate-700 dark:text-slate-350" :
-                    "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
-                  const isRetryable = ["email_failed", "failed", "expired"].includes(inv.status) ||
-                    ((inv.status === "pending" || inv.status === "email_sent") && inv.expiresAt < Date.now());
-                  const isCancellable = ["pending", "email_sent", "email_failed", "failed"].includes(inv.status);
-                  const showActions = isRetryable || isCancellable || inv.inviteToken;
-
-                  return (
-                    <React.Fragment key={inv._id}>
-                      <tr className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
-                        <td className="px-5 py-3.5 font-semibold text-slate-900 dark:text-white">
-                          {inv.name || "—"}
-                        </td>
-                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{inv.email}</td>
-                        <td className="px-5 py-3.5 capitalize">{inv.role}</td>
-                        <td className="px-5 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>
-                            <span className={`w-1 h-1 rounded-full ${statusColor.includes('emerald') ? 'bg-emerald-500' : statusColor.includes('red') ? 'bg-red-500' : statusColor.includes('amber') ? 'bg-amber-500' : 'bg-slate-500'}`} />
-                            {statusLabel}
-                          </span>
-                          {inv.emailError && (
-                            <p className="text-[9px] text-red-500 mt-1 max-w-[200px] truncate" title={inv.emailError}>
-                              {inv.emailError}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">
-                          {inviter?.name || "Unknown"}
-                        </td>
-                        <td className="px-5 py-3.5 text-slate-500 text-[10px]">
-                          {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          {showActions && (
-                            <div className="inline-flex items-center gap-1">
-                              {isRetryable && (
-                                <button
-                                  disabled={actionLoadingId !== null}
-                                  onClick={() => handleResendInvite(inv._id, inv.email)}
-                                  title="Resend invitation"
-                                  className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-55"
-                                >
-                                  {actionLoadingId === inv._id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="w-3 h-3" />
-                                  )}
-                                  Resend
-                                </button>
-                              )}
-                              {inv.inviteToken && (
-                                <button
-                                  onClick={() => handleCopyLink(inv.inviteToken!)}
-                                  title="Copy invite link"
-                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-indigo-650 transition-colors cursor-pointer"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {isCancellable && (
-                                <button
-                                  disabled={actionLoadingId !== null}
-                                  onClick={() => handleCancelInvite(inv._id, inv.email)}
-                                  title="Cancel invitation"
-                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                      {/* Development Diagnostics Panel */}
-                      <tr>
-                        <td colSpan={7} className="px-5 py-3 bg-slate-900/30 dark:bg-slate-950/20 border-b border-slate-100 dark:border-slate-800/50">
-                          <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500 dark:text-slate-400">
-                            <div>
-                              <span className="font-semibold text-slate-700 dark:text-slate-350">Original Send: </span>
-                              <span>{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : new Date(inv.createdAt).toLocaleString()}</span>
-                            </div>
-                            <div>
-                              <span className="font-semibold text-slate-700 dark:text-slate-350">Last Resend: </span>
-                              <span>{inv.resentAt ? new Date(inv.resentAt).toLocaleString() : "—"}</span>
-                            </div>
-                            <div>
-                              <span className="font-semibold text-slate-700 dark:text-slate-350">Last Message ID: </span>
-                              <code className="text-slate-650 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded">{inv.messageId || "—"}</code>
-                            </div>
-                            <div>
-                              <span className="font-semibold text-slate-700 dark:text-slate-350">SMTP Response: </span>
-                              <span className="italic text-slate-605 dark:text-slate-300">{inv.smtpResponse || "—"}</span>
-                            </div>
-                            <div>
-                              <span className="font-semibold text-slate-700 dark:text-slate-350">Delivery Status: </span>
-                              <span className={`font-semibold capitalize ${inv.lastDeliveryStatus === "sent" ? "text-emerald-500 font-bold" : inv.lastDeliveryStatus === "failed" ? "text-red-500 font-bold" : "text-slate-400"}`}>
-                                {inv.lastDeliveryStatus || "unknown"}
-                              </span>
-                              {inv.lastDeliveryError && (
-                                <span className="text-red-400 ml-1">({inv.lastDeliveryError})</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pending / Sent Tab */}
-      {activeTab === "pending" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(!invitations || invitations.filter(i => i.status === "pending" || i.status === "email_sent").length === 0) ? (
-            <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 text-sm bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl">
-              No pending invitations.
-            </div>
-          ) : (
-            invitations
-              .filter(i => i.status === "pending" || i.status === "email_sent")
-              .map((inv) => {
-                const manager = users?.find((m: any) => m._id === inv.managerId);
-                const daysRemaining = Math.max(0, Math.ceil((inv.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)));
-                const isEmailSent = inv.status === "email_sent";
-                return (
-                  <div
-                    key={inv._id}
-                    className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-100 dark:hover:border-indigo-900/40 transition-all"
+                    Retry Invitation
+                  </button>
+                )}
+                {["pending", "email_sent", "email_failed", "failed"].includes(selectedInvitation.status) && (
+                  <button
+                    disabled={actionLoadingId !== null}
+                    onClick={() => {
+                      handleCancelInvite(selectedInvitation._id, selectedInvitation.email);
+                      setSelectedInvitation(null);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-10 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-sm font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-955/30 text-indigo-650 dark:text-indigo-400 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            <Mail className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.name || "Unnamed"}
-                            </h4>
-                            <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
-                              {inv.email}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {isEmailSent ? (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-lg uppercase tracking-wider">
-                              ✓ Email Sent
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-lg uppercase tracking-wider">
-                              Pending
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs border-t border-slate-50 dark:border-slate-700/40 pt-3">
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Role / Dept</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {inv.role} / {inv.department || "—"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Reports To</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {manager ? manager.name : "—"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Development Diagnostics Panel */}
-                      <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700/40 text-[9px] text-slate-500 dark:text-slate-400 space-y-1 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-xl text-left">
-                        <div>
-                          <span className="font-semibold text-slate-750 dark:text-slate-350">Original Send: </span>
-                          <span>{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : new Date(inv.createdAt).toLocaleString()}</span>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-slate-750 dark:text-slate-350">Last Resend: </span>
-                          <span>{inv.resentAt ? new Date(inv.resentAt).toLocaleString() : "—"}</span>
-                        </div>
-                        <div className="truncate">
-                          <span className="font-semibold text-slate-750 dark:text-slate-350">Message ID: </span>
-                          <code className="text-slate-650 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-1 py-0.25 rounded">{inv.messageId || "—"}</code>
-                        </div>
-                        <div className="truncate">
-                          <span className="font-semibold text-slate-750 dark:text-slate-350">SMTP Response: </span>
-                          <span className="italic text-slate-605 dark:text-slate-300">{inv.smtpResponse || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-slate-750 dark:text-slate-350">Delivery Status: </span>
-                          <span className={`font-semibold capitalize ${inv.lastDeliveryStatus === "sent" ? "text-emerald-500 font-bold" : inv.lastDeliveryStatus === "failed" ? "text-red-500 font-bold" : "text-slate-400"}`}>
-                            {inv.lastDeliveryStatus || "unknown"}
-                          </span>
-                          {inv.lastDeliveryError && (
-                            <span className="text-red-400 ml-1">({inv.lastDeliveryError})</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
-                      <span className="text-[10px] text-amber-650 dark:text-amber-500 flex items-center gap-1 font-medium">
-                        <Clock className="w-3.5 h-3.5" />
-                        {daysRemaining > 0 ? `Expires in ${daysRemaining} days` : "Expires today"}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {inv.inviteToken && (
-                          <button
-                            onClick={() => handleCopyLink(inv.inviteToken!)}
-                            title="Copy invite link"
-                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-indigo-650 transition-colors cursor-pointer"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {!isEmailSent && (
-                          <button
-                            disabled={actionLoadingId !== null}
-                            onClick={() => handleResendInvite(inv._id, inv.email)}
-                            title="Send email"
-                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-55"
-                          >
-                            {actionLoadingId === inv._id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        )}
-                        <button
-                          disabled={actionLoadingId !== null}
-                          onClick={() => handleCancelInvite(inv._id, inv.email)}
-                          title="Revoke invitation"
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-        </div>
-      )}
-
-      {/* Failed Tab */}
-      {activeTab === "failed" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(!invitations || invitations.filter(i => i.status === "failed" || i.status === "email_failed").length === 0) ? (
-            <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 text-sm bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl">
-              No failed invitations.
-            </div>
-          ) : (
-            invitations
-              .filter(i => i.status === "failed" || i.status === "email_failed")
-              .map((inv) => {
-                return (
-                  <div
-                    key={inv._id}
-                    className="bg-white dark:bg-slate-800 border border-red-100 dark:border-red-955/20 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-red-200 dark:hover:border-red-900/30 transition-all"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-red-50 dark:bg-red-955/20 text-red-655 dark:text-red-400 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            <ShieldAlert className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.name || "Unnamed"}
-                            </h4>
-                            <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
-                              {inv.email}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-955/30 dark:text-red-400 px-2 py-0.5 rounded-lg uppercase tracking-wider">
-                          Failed
-                        </span>
-                      </div>
-
-                      <div className="bg-red-50/50 dark:bg-red-955/10 border border-red-100/50 dark:border-red-900/20 rounded-xl p-3">
-                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Error Reason</span>
-                        <p className="text-[11px] text-red-650 dark:text-red-300 mt-1 leading-normal font-sans break-words">
-                          {inv.emailError || "Unknown email delivery failure."}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
-                      <span className="text-[10px] text-slate-400">
-                        Failed: {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          disabled={actionLoadingId !== null}
-                          onClick={() => handleResendInvite(inv._id, inv.email)}
-                          title="Retry sending invitation"
-                          className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-55 shadow-xs"
-                        >
-                          {actionLoadingId === inv._id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-3 h-3" />
-                          )}
-                          Retry Invite
-                        </button>
-                        <button
-                          disabled={actionLoadingId !== null}
-                          onClick={() => handleCancelInvite(inv._id, inv.email)}
-                          title="Revoke invitation"
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-        </div>
-      )}
-
-      {/* Expired Tab */}
-      {activeTab === "expired" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(!invitations || invitations.filter(i => i.status === "expired").length === 0) ? (
-            <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 text-sm bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl">
-              No expired invitations.
-            </div>
-          ) : (
-            invitations
-              .filter(i => i.status === "expired")
-              .map((inv) => {
-                return (
-                  <div
-                    key={inv._id}
-                    className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-205 dark:hover:border-slate-600 transition-all opacity-85"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-450 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            <Clock className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.name || "Unnamed"}
-                            </h4>
-                            <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
-                              {inv.email}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold bg-slate-100 text-slate-650 dark:bg-slate-900 dark:text-slate-450 px-2 py-0.5 rounded-lg uppercase tracking-wider">
-                          Expired
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs border-t border-slate-50 dark:border-slate-700/40 pt-3">
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Role / Dept</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {inv.role} / {inv.department || "—"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Expired At</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {new Date(inv.expiresAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/40 pt-3.5 mt-4">
-                      <span className="text-[10px] text-slate-400">
-                        Sent: {inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : new Date(inv.createdAt).toLocaleDateString()}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          disabled={actionLoadingId !== null}
-                          onClick={() => handleResendInvite(inv._id, inv.email)}
-                          title="Resend invitation email"
-                          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-55 shadow-xs"
-                        >
-                          {actionLoadingId === inv._id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-3 h-3" />
-                          )}
-                          Re-invite
-                        </button>
-                        <button
-                          disabled={actionLoadingId !== null}
-                          onClick={() => handleCancelInvite(inv._id, inv.email)}
-                          title="Revoke invitation"
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-455 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-55"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-        </div>
-      )}
-
-      {/* Cancelled Tab */}
-      {activeTab === "cancelled" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(!invitations || invitations.filter(i => i.status === "revoked").length === 0) ? (
-            <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 text-sm bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl">
-              No cancelled invitations.
-            </div>
-          ) : (
-            invitations
-              .filter(i => i.status === "revoked")
-              .map((inv) => {
-                return (
-                  <div
-                    key={inv._id}
-                    className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-750/30 rounded-2xl p-5 shadow-xs flex flex-col justify-between opacity-75"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 text-slate-400 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            <X className="w-5 h-5 text-slate-450" />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                              {inv.name || "Unnamed"}
-                            </h4>
-                            <p className="text-xs text-slate-450 dark:text-slate-500 truncate mt-0.5">
-                              {inv.email}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-450 px-2 py-0.5 rounded-lg uppercase tracking-wider">
-                          Cancelled
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs border-t border-slate-50 dark:border-slate-700/40 pt-3">
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Role / Dept</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {inv.role} / {inv.department || "—"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider block">Cancelled On</span>
-                          <span className="font-medium text-slate-750 dark:text-slate-350 mt-0.5 truncate block">
-                            {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-        </div>
-      )}
+                    <Ban className="w-4 h-4" />
+                    Cancel Invitation
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Invite Modal */}
       <AnimatePresence>
@@ -1011,7 +876,9 @@ export function EmployeesPage() {
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700/70">
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Invite Team Member</h3>
-                <button onClick={() => setIsInviteOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white"><X className="w-5 h-5" /></button>
+                <button onClick={() => setIsInviteOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
               <form onSubmit={handleInviteSubmit} className="p-6 space-y-4 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
@@ -1023,33 +890,33 @@ export function EmployeesPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Jane Doe"
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Email Address</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Email</label>
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="jane@company.com"
-                      className="w-full h-10 px-3.5 border border-slate-205 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">System Role</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</label>
                     <select
                       value={role}
                       onChange={(e) => setRole(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     >
-                      <option value="employee">Employee (Sales Rep)</option>
-                      <option value="admin">Admin (Manager)</option>
-                      <option value="super_admin">Super Admin (Owner)</option>
+                      <option value="employee">Employee</option>
+                      <option value="admin">Admin</option>
+                      <option value="super_admin">Super Admin</option>
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -1057,7 +924,7 @@ export function EmployeesPage() {
                     <select
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     >
                       {departmentOptions.map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
@@ -1067,13 +934,13 @@ export function EmployeesPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">Assigned Manager</label>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manager</label>
                   <select
                     value={managerId}
                     onChange={(e) => setManagerId(e.target.value)}
-                    className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                    className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                   >
-                    <option value="">No Manager (Reporting Line Ends)</option>
+                    <option value="">No Manager</option>
                     {managerOptions.map((m: any) => (
                       <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
                     ))}
@@ -1081,10 +948,10 @@ export function EmployeesPage() {
                 </div>
 
                 <div className="space-y-2 border-t border-slate-50 dark:border-slate-700/50 pt-3 mt-4">
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Custom Permissions Overrides</label>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Custom Permissions</label>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {permissionOptions.map((opt) => (
-                      <label key={opt.value} className="flex items-start gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
+                      <label key={opt.value} className="flex items-start gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg cursor-pointer transition-colors">
                         <input
                           type="checkbox"
                           className="mt-0.5"
@@ -1098,8 +965,8 @@ export function EmployeesPage() {
                           }}
                         />
                         <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-250 leading-tight">{opt.label}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-0.5 leading-snug">{opt.desc}</p>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{opt.desc}</p>
                         </div>
                       </label>
                     ))}
@@ -1110,7 +977,7 @@ export function EmployeesPage() {
                   <button
                     type="button"
                     onClick={() => setIsInviteOpen(false)}
-                    className="px-4 py-2 border border-slate-205 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1119,7 +986,7 @@ export function EmployeesPage() {
                     disabled={isSubmitting}
                     className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10 disabled:opacity-50"
                   >
-                    {isSubmitting ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Check className="w-4.5 h-4.5" />} Send Invite
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Invitation
                   </button>
                 </div>
               </form>
@@ -1139,30 +1006,34 @@ export function EmployeesPage() {
               className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700/70">
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Edit Employee Access: {selectedUser.name}</h3>
-                <button onClick={() => setSelectedUser(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white"><X className="w-5 h-5" /></button>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Edit Employee: {selectedUser.name}
+                </h3>
+                <button onClick={() => setSelectedUser(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
               <form onSubmit={handleEditSubmit} className="p-6 space-y-4 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">System Role</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</label>
                     <select
                       value={role}
                       disabled={!isSuperAdmin}
                       onChange={(e) => setRole(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-205 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white disabled:opacity-60"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white disabled:opacity-60"
                     >
-                      <option value="employee">Employee (Sales Rep)</option>
-                      <option value="admin">Admin (Manager)</option>
-                      <option value="super_admin">Super Admin (Owner)</option>
+                      <option value="employee">Employee</option>
+                      <option value="admin">Admin</option>
+                      <option value="super_admin">Super Admin</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-555 uppercase tracking-wider">Department</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</label>
                     <select
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-205 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     >
                       {departmentOptions.map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
@@ -1173,15 +1044,15 @@ export function EmployeesPage() {
 
                 {isSuperAdmin && (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">Assigned Manager</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manager</label>
                     <select
                       value={managerId}
                       onChange={(e) => setManagerId(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-55/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
+                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
                     >
-                      <option value="">No Manager (Reporting Line Ends)</option>
+                      <option value="">No Manager</option>
                       {managerOptions
-                        .filter((opt: any) => opt._id !== selectedUser._id) // cannot report to self
+                        .filter((opt: any) => opt._id !== selectedUser._id)
                         .map((m: any) => (
                           <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
                         ))}
@@ -1191,10 +1062,10 @@ export function EmployeesPage() {
 
                 {isSuperAdmin && (
                   <div className="space-y-2 border-t border-slate-50 dark:border-slate-700/50 pt-3 mt-4">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Custom Permissions Overrides</label>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Custom Permissions</label>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                       {permissionOptions.map((opt) => (
-                        <label key={opt.value} className="flex items-start gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
+                        <label key={opt.value} className="flex items-start gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg cursor-pointer transition-colors">
                           <input
                             type="checkbox"
                             className="mt-0.5"
@@ -1208,8 +1079,8 @@ export function EmployeesPage() {
                             }}
                           />
                           <div>
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-250 leading-tight">{opt.label}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-0.5 leading-snug">{opt.desc}</p>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{opt.desc}</p>
                           </div>
                         </label>
                       ))}
@@ -1218,10 +1089,10 @@ export function EmployeesPage() {
                 )}
 
                 {!isSuperAdmin && (
-                  <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-955/20 border border-amber-100 dark:border-amber-900/30 rounded-xl mt-4">
+                  <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl mt-4">
                     <ShieldAlert className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                     <p className="text-[10px] text-amber-800 dark:text-amber-300 leading-normal">
-                      As an Admin, you are only authorized to change this employee's department or toggle deactivation status. Changes to Roles, Managers, and Custom Permissions can only be applied by a Super Admin.
+                      As an Admin, you can only update department or toggle deactivation status. Role, Manager, and Permissions changes require a Super Admin.
                     </p>
                   </div>
                 )}
@@ -1230,7 +1101,7 @@ export function EmployeesPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedUser(null)}
-                    className="px-4 py-2 border border-slate-205 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1239,7 +1110,7 @@ export function EmployeesPage() {
                     disabled={isSubmitting}
                     className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10 disabled:opacity-50"
                   >
-                    {isSubmitting ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Check className="w-4.5 h-4.5" />} Save Changes
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save Changes
                   </button>
                 </div>
               </form>
