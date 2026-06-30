@@ -1056,7 +1056,7 @@ export function DealsPage() {
       <AnimatePresence>
         {isFormOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-end">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFormOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFormOpen(false)} className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" />
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -1311,7 +1311,7 @@ export function DealsPage() {
       <AnimatePresence>
         {isDetailsOpen && selectedDeal && (
           <div className="fixed inset-0 z-50 flex items-center justify-end">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDetailsOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDetailsOpen(false)} className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" />
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}

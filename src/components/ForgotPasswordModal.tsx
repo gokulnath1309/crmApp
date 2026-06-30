@@ -143,7 +143,7 @@ export default function ForgotPasswordModal({ onClose }: ForgotPasswordModalProp
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 16 }}

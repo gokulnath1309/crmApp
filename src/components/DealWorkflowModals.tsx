@@ -48,7 +48,7 @@ export function ClosedLostModal({ open, onClose, onConfirm }: ClosedLostModalPro
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -150,7 +150,7 @@ export function ClosedWonSuccessModal({ open, onClose, dealTitle }: ClosedWonSuc
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)] z-40"
           />
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}

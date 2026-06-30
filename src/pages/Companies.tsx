@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Plus, Search, X, Building, Loader2, Edit, Trash2, Globe, Tag } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { useSearchParams } from "react-router-dom";
 
 interface CompanyForm {
   name: string;
@@ -30,7 +31,7 @@ function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green"
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.55)]" onClick={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-xl w-full max-w-lg mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
@@ -49,10 +50,22 @@ export function CompaniesPage() {
   const updateCompany = useMutation(api.companies.update);
   const deleteCompany = useMutation(api.companies.remove);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CompanyForm>(emptyForm);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      openCreate();
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const filtered = (companies ?? []).filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) ||

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Building, Check, Sparkles, Loader2, UserPlus, LogIn,
@@ -8,7 +8,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth as useAppAuth } from "@/features/auth/AuthProvider";
-import { UpgradeDialog } from "@/components/UpgradeDialog";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const ONBOARDING_PLANS = [
   {
@@ -103,6 +103,14 @@ export default function OnboardingPage() {
   const createWorkspace = useMutation(api.workspaces.createWorkspace);
   const workspaceLimit = useQuery(api.subscriptions.getWorkspaceLimitStatus);
   const atWorkspaceLimit = workspaceLimit?.atLimit === true;
+
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  useEffect(() => {
+    if (workspaceLimit && atWorkspaceLimit) {
+      setShowUpgrade(true);
+    }
+  }, [workspaceLimit, atWorkspaceLimit]);
 
   const [mode, setMode] = useState<"create" | "join">(
     (searchParams.get("mode") as "create" | "join") || "create"
@@ -414,7 +422,7 @@ export default function OnboardingPage() {
 
       {showPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !paying && setShowPayment(false)} />
+          <div className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" onClick={() => !paying && setShowPayment(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => !paying && setShowPayment(false)}
@@ -472,9 +480,12 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      <UpgradeDialog
-        open={atWorkspaceLimit && mode === "create"}
-        onClose={() => {}}
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => {
+          setShowUpgrade(false);
+          navigate("/dashboard");
+        }}
       />
     </div>
   );

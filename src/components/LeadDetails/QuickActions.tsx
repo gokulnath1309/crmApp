@@ -290,7 +290,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
 
       {/* 1. Call Logger Modal */}
       {activeModal === "call" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 border border-slate-100 dark:border-slate-700 shadow-2xl space-y-4">
             <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5 border-b pb-2">
               📞 Log Client Phone Call
@@ -348,7 +348,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
 
       {/* 2. Email Sender Modal */}
       {activeModal === "email" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg p-6 border border-slate-100 dark:border-slate-700 shadow-2xl space-y-4">
             <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5 border-b pb-2">
               ✉️ Send Email Composer
@@ -404,7 +404,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
 
       {/* 3. Schedule Meeting Modal */}
       {activeModal === "meeting" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 border border-slate-100 dark:border-slate-700 shadow-2xl space-y-4">
             <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5 border-b pb-2">
               🗓️ Schedule Meeting

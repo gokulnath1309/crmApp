@@ -104,7 +104,7 @@ export function EventDetailsDrawer({ event, users, onClose, onEdit, onDelete, on
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 h-full shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 z-10 border-b border-slate-100 dark:border-slate-700/70">
           <div className="flex items-center justify-between px-5 py-4">

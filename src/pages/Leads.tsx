@@ -876,7 +876,7 @@ function LeadsPageContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsFormOpen(false)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+              className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
             />
             <motion.div
               initial={{ x: "100%" }}
@@ -1080,7 +1080,7 @@ function LeadsPageContent() {
       <AnimatePresence>
         {isExportOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsExportOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsExportOpen(false)} className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" />
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

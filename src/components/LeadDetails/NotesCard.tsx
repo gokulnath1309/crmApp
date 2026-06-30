@@ -307,7 +307,7 @@ export function NotesCard({ lead }: NotesCardProps) {
 
       {/* Version History Modal Overlay */}
       {viewHistoryNoteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-5 border border-slate-100 dark:border-slate-700 shadow-2xl flex flex-col max-h-[400px]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-750 mb-3.5">
               <h4 className="font-bold text-slate-850 dark:text-white text-sm flex items-center gap-1.5">

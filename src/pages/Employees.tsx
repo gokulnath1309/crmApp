@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "@/features/auth/UserProvider";
@@ -29,6 +30,7 @@ export function EmployeesPage() {
   const { user: currentUser } = useUser();
   const { toast } = useToast();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const users = useQuery(api.users.list);
   const invitations = useQuery(api.workspaceInvitations.listInvitations);
   const metrics = useQuery(api.workspaceInvitations.getInvitationMetrics);
@@ -55,6 +57,19 @@ export function EmployeesPage() {
   const [department, setDepartment] = useState("Sales");
   const [managerId, setManagerId] = useState<string>("");
   const [permissions, setPermissions] = useState<string[]>([]);
+
+  // Quick Create
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      resetForm();
+      setIsInviteOpen(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Role guard — ProtectedRoute above handles auth; this only checks role.
   if (currentUser && currentUser.role !== "super_admin" && currentUser.role !== "admin") {
@@ -987,7 +1002,7 @@ export function EmployeesPage() {
       {/* Invite Modal */}
       <AnimatePresence>
         {isInviteOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1116,7 +1131,7 @@ export function EmployeesPage() {
       {/* Edit Access Modal */}
       <AnimatePresence>
         {selectedUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

@@ -63,7 +63,7 @@ export function UnqualifiedModal({ open, onClose, onConfirm }: UnqualifiedModalP
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -235,7 +235,7 @@ export function LostModal({ open, onClose, onConfirm }: LostModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -366,7 +366,7 @@ export function RequalifyModal({ open, onClose, onConfirm }: RequalifyModalProps
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -453,7 +453,7 @@ export function SpamModal({ open, onClose, onConfirm }: SpamModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -599,7 +599,7 @@ export function DuplicateModal({ open, onClose, onConfirm, leads = [], currentLe
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.55)]"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}

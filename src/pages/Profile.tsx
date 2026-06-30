@@ -964,7 +964,7 @@ export function ProfilePage() {
       {/* Edit Profile Modal (Drawer Side) */}
       <AnimatePresence>
         {isEditProfileOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(15,23,42,0.55)]">
             <motion.div 
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -1336,7 +1336,7 @@ export function ProfilePage() {
       {/* Edit Cover Modal */}
       <AnimatePresence>
         {isEditCoverOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1427,7 +1427,7 @@ export function ProfilePage() {
       {/* Personal Info Modal */}
       <AnimatePresence>
         {isPersonalInfoOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1502,7 +1502,7 @@ export function ProfilePage() {
       {/* Invite User Modal (Super Admin only) */}
       <AnimatePresence>
         {isInviteUserOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1604,7 +1604,7 @@ export function ProfilePage() {
       {/* Manage Roles Modal (Super Admin only) */}
       <AnimatePresence>
         {isManageRolesOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

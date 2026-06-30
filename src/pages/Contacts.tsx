@@ -922,7 +922,7 @@ function ContactsPageContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleCloseDrawer}
-              className="absolute inset-0 bg-black/40 backdrop-blur-md z-10"
+              className="absolute inset-0 bg-[rgba(15,23,42,0.55)] z-10"
             />
 
             {/* Slide-over Drawer (Desktop: 460px right side panel, Mobile: full-screen) */}
@@ -1340,7 +1340,7 @@ function ContactsPageContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDetailsOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-md z-10"
+              className="absolute inset-0 bg-[rgba(15,23,42,0.55)] z-10"
             />
             <motion.div
               initial={{ x: "100%" }}
@@ -1620,7 +1620,7 @@ function ContactsPageContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => { if (!isExporting) setIsExportOpen(false); }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-md z-40"
+              className="absolute inset-0 bg-[rgba(15,23,42,0.55)] z-40"
             />
 
             {/* Modal Dialog Content */}

@@ -4,6 +4,8 @@ import { useDarkMode } from "@/hooks/useDarkMode";
 import { useWorkspace } from "@/features/auth/WorkspaceProvider";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useWorkspaceLimit } from "@/hooks/useWorkspaceLimit";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 import {
   Search, Plus, Menu, ChevronRight, ChevronDown,
@@ -389,10 +391,10 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
                   <QuickItem icon={Users} label="New Contact" desc="Add a contact person" onClick={() => { setCreateOpen(false); navigate("/contacts?new=true"); }} />
                 )}
                 {(currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
-                  <QuickItem icon={Building2} label="New Company" desc="Register a company" onClick={() => { setCreateOpen(false); navigate("/companies"); }} />
+                  <QuickItem icon={Building2} label="New Company" desc="Register a company" onClick={() => { setCreateOpen(false); navigate("/companies?new=true"); }} />
                 )}
-                <QuickItem icon={CheckSquare} label="New Task" desc="Create a follow-up task" onClick={() => { setCreateOpen(false); navigate("/tasks"); }} />
-                <QuickItem icon={Calendar} label="New Event" desc="Schedule an event" onClick={() => { setCreateOpen(false); navigate("/calendar"); }} />
+                <QuickItem icon={CheckSquare} label="New Task" desc="Create a follow-up task" onClick={() => { setCreateOpen(false); navigate("/tasks?new=true"); }} />
+                <QuickItem icon={Calendar} label="New Event" desc="Schedule an event" onClick={() => { setCreateOpen(false); navigate("/calendar?new=true"); }} />
 
                 {(currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
                   <>
@@ -400,8 +402,8 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
                     <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 py-1.5">
                       Administration
                     </div>
-                    <QuickItem icon={UserPlus} label="New Employee" desc="Add a team member" onClick={() => { setCreateOpen(false); navigate("/settings?tab=employees"); }} />
-                    <QuickItem icon={Users} label="New Team" desc="Create a sales team" onClick={() => { setCreateOpen(false); navigate("/settings?tab=teams"); }} />
+                    <QuickItem icon={UserPlus} label="New Employee" desc="Add a team member" onClick={() => { setCreateOpen(false); navigate("/employees?new=true"); }} />
+                    <QuickItem icon={Users} label="New Team" desc="Create a sales team" onClick={() => { setCreateOpen(false); navigate("/teams?new=true"); }} />
                   </>
                 )}
               </motion.div>
@@ -468,8 +470,10 @@ function WorkspaceSwitcher() {
   const { workspaces, activeWorkspace } = useWorkspace();
   const { setActive } = useOrganizationList();
   const [open, setOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { atLimit, isLoading } = useWorkspaceLimit();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -528,7 +532,11 @@ function WorkspaceSwitcher() {
           <button
             onClick={() => {
               setOpen(false);
-              navigate("/onboarding");
+              if (!isLoading && atLimit) {
+                setUpgradeOpen(true);
+              } else {
+                navigate("/onboarding");
+              }
             }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
@@ -561,6 +569,7 @@ function WorkspaceSwitcher() {
           )}
         </div>
       )}
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );
 }

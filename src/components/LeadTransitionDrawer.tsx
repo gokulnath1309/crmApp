@@ -492,7 +492,7 @@ export function LeadTransitionDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(15,23,42,0.55)]">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
