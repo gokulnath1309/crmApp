@@ -126,8 +126,8 @@ function AuthForm() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}/sso-callback`,
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/sso-callback",
       });
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "";
