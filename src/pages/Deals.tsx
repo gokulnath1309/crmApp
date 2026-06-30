@@ -145,7 +145,6 @@ export function DealsPage() {
   const softDeleteDealMutation = useMutation(api.deals.softDelete);
   const archiveDealMutation = useMutation(api.deals.archive);
   const restoreDealMutation = useMutation(api.deals.restore);
-  const reopenDealMutation = useMutation(api.deals.reopen);
 
   // Local Deals State for Optimistic Updates
   const [localDeals, setLocalDeals] = useState<Deal[] | null>(null);

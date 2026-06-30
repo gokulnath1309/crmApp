@@ -82,7 +82,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
     if (isCreatingDeal) return;
     setIsCreatingDeal(true);
     try {
-      const result = await convertToDealMutation({ leadId: lead?._id });
+      if (!lead?._id) return;
+      const result = await convertToDealMutation({ leadId: lead._id });
       toast("success", "Lead converted to deal successfully");
       if (result?.dealId) {
         navigate("/deals");
@@ -221,7 +222,6 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
       setIsContactDrawerOpen(true);
     } else if (targetStage === "Converted" && lead.status === "Qualified") {
       setIsConvertDealOpen(true);
-      setConvertDealValue("");
     } else {
       setTransitionTargetStage(targetStage);
       setIsTransitionDrawerOpen(true);

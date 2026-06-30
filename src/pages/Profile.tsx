@@ -59,7 +59,7 @@ export function ProfilePage() {
 
   const metrics = useQuery(api.dashboard.getMetrics);
   const allUsers = useQuery(api.users.list);
-  const allDeals = useQuery(api.deals.list);
+  const allDeals = useQuery(api.deals.list, {});
   const allTasksData = useQuery(api.tasks.list, {});
   const allTasks = allTasksData?.tasks;
 

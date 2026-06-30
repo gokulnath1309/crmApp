@@ -18,7 +18,7 @@ export const DEAL_STAGE_PROBABILITY: Record<string, number> = Object.fromEntries
 
 export const TERMINAL_STAGES = new Set(["Closed Won", "Closed Lost"]);
 
-export const ACTIVE_PIPELINE_STAGES = new Set(
+export const ACTIVE_PIPELINE_STAGES: Set<string> = new Set(
   DEAL_STAGES.filter(s => !TERMINAL_STAGES.has(s.stage)).map(s => s.stage)
 );
 

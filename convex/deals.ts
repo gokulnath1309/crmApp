@@ -449,7 +449,6 @@ export const remove = mutation({
     }
 
     const userId = currentUser._id;
-    const userName = currentUser.name || "System";
 
     const allowed = await canPermanentDelete(ctx, userId);
     if (!allowed) {

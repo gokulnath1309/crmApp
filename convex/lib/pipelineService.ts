@@ -1,5 +1,5 @@
-import { isValidForwardTransition, isTerminalStage, getDealStageOrder } from "../pipeline";
-import type { Doc, Id } from "../_generated/dataModel";
+import { isValidForwardTransition, isTerminalStage } from "../pipeline";
+import type { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 
 type Ctx = { db: any; scheduler: any };

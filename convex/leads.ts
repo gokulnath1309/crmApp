@@ -68,7 +68,7 @@ async function handleLeadConversion(
   if (lead.email) {
     const existingContacts = await ctx.db
       .query("contacts")
-      .withIndex("by_email", (q) => q.eq("email", lead.email.toLowerCase()))
+      .withIndex("by_email", (q: any) => q.eq("email", lead.email.toLowerCase()))
       .collect();
     if (existingContacts.length === 0) {
       contactId = await ctx.db.insert("contacts", {
