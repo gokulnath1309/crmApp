@@ -56,6 +56,20 @@ export const create = mutation({
     workspaceId: v.optional(v.id("workspaces")),
     contactId: v.optional(v.id("contacts")),
     currency: v.optional(v.string()),
+
+    // Deal metadata
+    dealType: v.optional(v.string()),
+    expectedCloseDate: v.optional(v.number()),
+    priority: v.optional(v.string()),
+
+    // Contract details
+    contractStartDate: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    renewalDate: v.optional(v.number()),
+    billingFrequency: v.optional(v.string()),
+    poNumber: v.optional(v.string()),
+    referenceNumber: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
@@ -178,6 +192,20 @@ export const update = mutation({
     currency: v.optional(v.string()),
     lostReason: v.optional(v.string()),
     lostNotes: v.optional(v.string()),
+
+    // Deal metadata
+    dealType: v.optional(v.string()),
+    expectedCloseDate: v.optional(v.number()),
+    priority: v.optional(v.string()),
+
+    // Contract details
+    contractStartDate: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    renewalDate: v.optional(v.number()),
+    billingFrequency: v.optional(v.string()),
+    poNumber: v.optional(v.string()),
+    referenceNumber: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);

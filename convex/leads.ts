@@ -6,6 +6,183 @@ import { resolveUser, resolveUserReadOnly } from "./lib/getCurrentUser";
 import { canAccessLead, hasPermission, canAssignLead } from "./rbac";
 import { notifyUser, notifyAdmins } from "./lib/notifications";
 
+async function handleLeadConversion(
+  ctx: any,
+  lead: any,
+  currentUser: any,
+  options?: {
+    dealValue?: number;
+    dealCurrency?: string;
+    dealName?: string;
+    dealType?: string;
+    initialStage?: string;
+    expectedCloseDate?: number;
+    priority?: string;
+    contractStartDate?: number;
+    contractEndDate?: number;
+    renewalDate?: number;
+    billingFrequency?: string;
+    poNumber?: string;
+    referenceNumber?: string;
+    notes?: string;
+  },
+) {
+  const now = Date.now();
+  const userName = currentUser.name || "System";
+  const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+  // Resolve target workspace (lead's or user's active)
+  const targetWorkspaceId = lead.workspaceId || workspaceId!;
+
+  // Re‑conversion: fix existing deal in‑place instead of blocking
+  if (lead.dealId) {
+    const existingDeal = await ctx.db.get(lead.dealId);
+    if (existingDeal) {
+      const needsWorkspaceFix = existingDeal.workspaceId !== targetWorkspaceId;
+      const needsStageFix = existingDeal.stage !== "Prospecting" || existingDeal.status !== "Pipeline";
+      if (needsWorkspaceFix || needsStageFix) {
+        await ctx.db.patch(lead.dealId, {
+          workspaceId: targetWorkspaceId,
+          stage: "Prospecting",
+          status: "Pipeline",
+          probability: 10,
+          updatedAt: now,
+          dealType: options?.dealType ?? existingDeal.dealType,
+          expectedCloseDate: options?.expectedCloseDate ?? existingDeal.expectedCloseDate,
+          priority: options?.priority ?? existingDeal.priority,
+          contractStartDate: options?.contractStartDate ?? existingDeal.contractStartDate,
+          contractEndDate: options?.contractEndDate ?? existingDeal.contractEndDate,
+          renewalDate: options?.renewalDate ?? existingDeal.renewalDate,
+          billingFrequency: options?.billingFrequency ?? existingDeal.billingFrequency,
+          poNumber: options?.poNumber ?? existingDeal.poNumber,
+          referenceNumber: options?.referenceNumber ?? existingDeal.referenceNumber,
+        });
+      }
+      return { leadId: lead._id, dealId: lead.dealId, alreadyConverted: true };
+    }
+  }
+
+  // Create contact if not exists by email (in the same workspace)
+  let contactId: Id<"contacts"> | undefined;
+  if (lead.email) {
+    const existingContacts = await ctx.db
+      .query("contacts")
+      .withIndex("by_email", (q) => q.eq("email", lead.email.toLowerCase()))
+      .collect();
+    if (existingContacts.length === 0) {
+      contactId = await ctx.db.insert("contacts", {
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email.toLowerCase(),
+        phone: lead.phone,
+        company: lead.company,
+        jobTitle: lead.jobTitle,
+        status: "Active",
+        tags: ["Converted from Lead"],
+        createdBy: currentUser._id,
+        ownerId: currentUser._id,
+        assignedTo: lead.assignedTo,
+        workspaceId: targetWorkspaceId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else {
+      contactId = existingContacts[0]._id;
+    }
+  }
+
+  // Create deal with proper pipeline stage/status
+  const dealValue = options?.dealValue ?? lead.value ?? 0;
+  const dealCurrency = options?.dealCurrency ?? lead.currency ?? "INR";
+  const dealTitle = options?.dealName || `${lead.company} - ${lead.firstName} ${lead.lastName}`;
+  const initialStage = options?.initialStage || "Prospecting";
+  const initialProbability = initialStage === "Prospecting" ? 10 : initialStage === "Qualification" ? 25 : initialStage === "Proposal" ? 50 : initialStage === "Negotiation" ? 75 : initialStage === "Verbal Commit" ? 90 : 10;
+
+  const dealId = await ctx.db.insert("deals", {
+    title: dealTitle,
+    value: dealValue,
+    currency: dealCurrency,
+    status: "Pipeline",
+    stage: initialStage,
+    probability: initialProbability,
+    company: lead.company,
+    createdBy: currentUser._id,
+    ownerId: currentUser._id,
+    assignedTo: lead.assignedTo,
+    leadId: lead._id,
+    workspaceId: targetWorkspaceId,
+    contactId,
+    stageChangedAt: now,
+    stageChangedBy: userName,
+    createdAt: now,
+    updatedAt: now,
+
+    // New metadata
+    dealType: options?.dealType,
+    expectedCloseDate: options?.expectedCloseDate,
+    priority: options?.priority,
+    contractStartDate: options?.contractStartDate,
+    contractEndDate: options?.contractEndDate,
+    renewalDate: options?.renewalDate,
+    billingFrequency: options?.billingFrequency,
+    poNumber: options?.poNumber,
+    referenceNumber: options?.referenceNumber,
+  });
+
+  // Update lead to Converted with conversion tracking
+  await ctx.db.patch(lead._id, {
+    status: "Converted",
+    statusChangedAt: now,
+    statusChangedBy: userName,
+    convertedAt: now,
+    convertedBy: currentUser._id,
+    dealId,
+    updatedAt: now,
+  });
+
+  // Insert stage transition record
+  await ctx.db.insert("leadStageTransitions", {
+    leadId: lead._id,
+    fromStage: lead.status,
+    toStage: "Converted",
+    userId: currentUser._id,
+    userName,
+    transitionedAt: now,
+    data: { dealId, dealValue },
+    workspaceId: targetWorkspaceId,
+  });
+
+  // Log conversion activity
+  await ctx.scheduler.runAfter(0, internal.activities.log, {
+    type: "lead_converted",
+    description: `converted lead "${lead.company}" to deal`,
+    userId: currentUser._id,
+    userName,
+    entityType: "lead",
+    entityId: lead._id,
+  });
+
+  // Notify assigned user
+  if (lead.assignedTo && lead.assignedTo !== currentUser._id) {
+    await notifyUser(ctx, lead.assignedTo, "lead_converted", {
+      entityName: lead.company,
+      entityType: "lead",
+      entityId: lead._id,
+      createdBy: currentUser._id,
+    });
+  }
+
+  // Notify admins
+  await notifyAdmins(ctx, undefined, "lead_converted", {
+    entityName: lead.company,
+    entityType: "lead",
+    entityId: lead._id,
+    createdBy: currentUser._id,
+  });
+
+  return { leadId: lead._id, dealId, alreadyConverted: false };
+}
+
 export const list = query({
   args: {
     search: v.optional(v.string()),
@@ -322,6 +499,11 @@ export const update = mutation({
         throw new Error(`Invalid status transition from ${existing.status || "New"} to ${args.status}`);
       }
 
+      // INTERCEPT: Converted → automatically create deal
+      if (args.status === "Converted") {
+        return await handleLeadConversion(ctx, existing, currentUser);
+      }
+
       patchData.status = args.status;
       patchData.statusChangedAt = now;
       patchData.statusChangedBy = userName;
@@ -517,6 +699,11 @@ export const transitionStage = mutation({
       throw new Error(`Invalid status transition from ${fromStage} to ${args.toStage}`);
     }
 
+    // INTERCEPT: Converted → automatically create deal
+    if (args.toStage === "Converted") {
+      return await handleLeadConversion(ctx, lead, currentUser);
+    }
+
     const now = Date.now();
 
     await ctx.db.insert("leadStageTransitions", {
@@ -697,6 +884,11 @@ export const changeStatus = mutation({
     const allowed = allowedTransitions[fromStage || "New"];
     if (!allowed || !allowed.includes(args.status)) {
       throw new Error(`Invalid status transition from ${fromStage} to ${args.status}`);
+    }
+
+    // INTERCEPT: Converted → automatically create deal
+    if (args.status === "Converted") {
+      return await handleLeadConversion(ctx, lead, currentUser);
     }
 
     const role = currentUser.role || "employee";
@@ -1441,132 +1633,51 @@ export const convertToDeal = mutation({
     leadId: v.id("leads"),
     dealValue: v.optional(v.number()),
     dealCurrency: v.optional(v.string()),
+    dealName: v.optional(v.string()),
+    dealType: v.optional(v.string()),
+    initialStage: v.optional(v.string()),
+    expectedCloseDate: v.optional(v.number()),
+    priority: v.optional(v.string()),
+    contractStartDate: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    renewalDate: v.optional(v.number()),
+    billingFrequency: v.optional(v.string()),
+    poNumber: v.optional(v.string()),
+    referenceNumber: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentUser = await resolveUser(ctx);
     if (!currentUser || currentUser.isActive === false) throw new Error("Unauthorized");
-    const now = Date.now();
-    const userName = currentUser.name || "System";
 
     const lead = await ctx.db.get(args.leadId);
     if (!lead) throw new Error("Lead not found");
-    if (lead.status !== "Qualified") throw new Error("Lead must be in Qualified status to convert");
+
+    // Allow conversion from any convertible status, including already Converted (re‑run)
+    const convertibleStatuses = ["Qualified", "Contacted", "Converted"];
+    if (!convertibleStatuses.includes(lead.status)) {
+      throw new Error(`Lead must be in Qualified, Contacted, or Converted status to convert`);
+    }
 
     const isAccessible = await canAccessLead(ctx, currentUser._id, lead);
     if (!isAccessible) throw new Error("Unauthorized");
 
-    // Create workspace if not exists
-    let workspaceId: Id<"workspaces">;
-    const existingWorkspaces = await ctx.db
-      .query("workspaces")
-      .withIndex("by_name", (q) => q.eq("name", lead.company))
-      .collect();
-    if (existingWorkspaces.length === 0) {
-      workspaceId = await ctx.db.insert("workspaces", {
-        name: lead.company,
-        status: "Prospect",
-        createdBy: currentUser._id,
-        createdAt: now,
-      });
-    } else {
-      workspaceId = existingWorkspaces[0]._id;
-    }
-
-    // Create contact if not exists
-    let contactId: Id<"contacts">;
-    const existingContacts = await ctx.db
-      .query("contacts")
-      .withIndex("by_email", (q) => q.eq("email", (lead.email || "").toLowerCase()))
-      .collect();
-    if (existingContacts.length === 0) {
-      contactId = await ctx.db.insert("contacts", {
-        firstName: lead.firstName,
-        lastName: lead.lastName,
-        email: (lead.email || "").toLowerCase(),
-        phone: lead.phone,
-        company: lead.company,
-        jobTitle: lead.jobTitle,
-        status: "Active",
-        tags: ["Converted from Lead"],
-        createdBy: currentUser._id,
-        ownerId: currentUser._id,
-        assignedTo: lead.assignedTo,
-        workspaceId,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      contactId = existingContacts[0]._id;
-    }
-
-    // Create deal
-    const dealId = await ctx.db.insert("deals", {
-      title: `${lead.company} - Deal`,
-      value: args.dealValue || 0,
-      currency: args.dealCurrency || "INR",
-      status: "Open",
-      stage: "Qualified",
-      probability: 20,
-      company: lead.company,
-      createdBy: currentUser._id,
-      ownerId: currentUser._id,
-      assignedTo: lead.assignedTo,
-      leadId: args.leadId,
-      workspaceId,
-      contactId,
-      stageChangedAt: now,
-      stageChangedBy: userName,
-      createdAt: now,
-      updatedAt: now,
+    return await handleLeadConversion(ctx, lead, currentUser, {
+      dealValue: args.dealValue,
+      dealCurrency: args.dealCurrency,
+      dealName: args.dealName,
+      dealType: args.dealType,
+      initialStage: args.initialStage,
+      expectedCloseDate: args.expectedCloseDate,
+      priority: args.priority,
+      contractStartDate: args.contractStartDate,
+      contractEndDate: args.contractEndDate,
+      renewalDate: args.renewalDate,
+      billingFrequency: args.billingFrequency,
+      poNumber: args.poNumber,
+      referenceNumber: args.referenceNumber,
+      notes: args.notes,
     });
-
-    // Update lead to Converted
-    await ctx.db.patch(args.leadId, {
-      status: "Converted",
-      statusChangedAt: now,
-      statusChangedBy: userName,
-      convertedAt: now,
-      dealId,
-      updatedAt: now,
-    });
-
-    await ctx.db.insert("leadStageTransitions", {
-      leadId: args.leadId,
-      fromStage: "Qualified",
-      toStage: "Converted",
-      userId: currentUser._id,
-      userName,
-      transitionedAt: now,
-      data: { dealId, dealValue: args.dealValue },
-      workspaceId: lead.workspaceId!,
-    });
-
-    await ctx.scheduler.runAfter(0, internal.activities.log, {
-      type: "lead_converted",
-      description: `converted lead "${lead.company}" to deal`,
-      userId: currentUser._id,
-      userName,
-      entityType: "lead",
-      entityId: args.leadId,
-    });
-
-    if (lead.assignedTo && lead.assignedTo !== currentUser._id) {
-      await notifyUser(ctx, lead.assignedTo, "lead_converted", {
-        entityName: lead.company,
-        entityType: "lead",
-        entityId: args.leadId,
-        createdBy: currentUser._id,
-      });
-    }
-
-    await notifyAdmins(ctx, undefined, "lead_converted", {
-      entityName: lead.company,
-      entityType: "lead",
-      entityId: args.leadId,
-      createdBy: currentUser._id,
-    });
-
-    return { leadId: args.leadId, dealId };
   },
 });
 

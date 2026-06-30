@@ -59,8 +59,8 @@ export default function LandingPage() {
           <div className={styles.navLinks}>
             <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
             <a href="#" onClick={(e) => { e.preventDefault(); navigate("/features"); }}>Features</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); }}>Resources</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); }}>Pricing</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/resources"); }}>Resources</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/pricing"); }}>Pricing</a>
             <a href="#" onClick={(e) => { e.preventDefault(); }}>Info</a>
           </div>
 

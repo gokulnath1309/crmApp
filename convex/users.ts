@@ -539,23 +539,37 @@ export const inviteUser = action({
       throw new Error("Unauthorized: You must belong to a company workspace to invite users.");
     }
 
-    // ── STEP 2: Resolve company and manager names ─────────────────────────────
-    console.log("[inviteUser] Step 2 — Looking up company...");
+    // ── STEP 2: Check plan user limit ────────────────────────────────────────
+    console.log("[inviteUser] Step 2 — Checking plan user limit...");
+    const limitResult: any = await ctx.runMutation(api.subscriptions.checkUserLimit, { workspaceId });
+    if (limitResult.atLimit) {
+      console.error(`[inviteUser] Step 2 ❌ — User limit reached: ${limitResult.currentCount}/${limitResult.maxUsers}`);
+      throw new Error(
+        `User limit reached. Your ${limitResult.plan === "basic" ? "Basic" : "current"} plan allows up to ${limitResult.maxUsers} users. ` +
+        (limitResult.plan === "basic"
+          ? "Upgrade to Professional to add more users."
+          : "Please contact support or upgrade your plan.")
+      );
+    }
+    console.log("[inviteUser] Step 2 ✅ — User limit OK:", `${limitResult.currentCount}/${limitResult.maxUsers}`);
+
+    // ── STEP 3: Resolve company and manager names ─────────────────────────────
+    console.log("[inviteUser] Step 3 — Looking up company...");
     const company: any = await ctx.runQuery(api.workspaces.getById, { id: workspaceId });
     const callerWorkspaceName = company?.name || "CRM Pro";
-    console.log("[inviteUser] Step 2 — Company:", { id: workspaceId, name: callerWorkspaceName });
+    console.log("[inviteUser] Step 3 — Company:", { id: workspaceId, name: callerWorkspaceName });
 
     let callerManagerName: string | undefined;
     if (args.managerId) {
-      console.log("[inviteUser] Step 2 — Looking up manager...");
+      console.log("[inviteUser] Step 3 — Looking up manager...");
       const manager: any = await ctx.runQuery(api.users.getUserById, { id: args.managerId });
       callerManagerName = manager?.name || manager?.email;
-      console.log("[inviteUser] Step 2 — Manager:", { id: args.managerId, name: callerManagerName });
+      console.log("[inviteUser] Step 3 — Manager:", { id: args.managerId, name: callerManagerName });
     }
 
-    // ── STEP 3: Create invitation record (status: pending) ────────────────────
-    console.log("[inviteUser] Step 3 — Creating invitation record in DB...");
-    console.log("[inviteUser] Step 3 — Payload:", {
+    // ── STEP 4: Create invitation record (status: pending) ────────────────────
+    console.log("[inviteUser] Step 4 — Creating invitation record in DB...");
+    console.log("[inviteUser] Step 4 — Payload:", {
       email: args.email,
       name: args.name,
       role: args.role,
@@ -578,12 +592,12 @@ export const inviteUser = action({
       permissions: args.permissions,
       token: args.token,
     }) as any);
-    console.log("[inviteUser] Step 3 ✅ — Invitation record created:", invitationId);
+    console.log("[inviteUser] Step 4 ✅ — Invitation record created:", invitationId);
 
-    // ── STEP 4: Send email via Resend ─────────────────────────────────────────
+    // ── STEP 5: Send email via Resend ─────────────────────────────────────────
     try {
-      console.log("[inviteUser] Step 4 — Preparing to call sendInvitationEmail action...");
-      console.log("[inviteUser] Step 4 — Email args:", {
+      console.log("[inviteUser] Step 5 — Preparing to call sendInvitationEmail action...");
+      console.log("[inviteUser] Step 5 — Email args:", {
         to: args.email.trim().toLowerCase(),
         name: args.name.trim(),
         role: args.role,
@@ -599,9 +613,9 @@ export const inviteUser = action({
         companyName: callerWorkspaceName,
         token: args.token,
       });
-      console.log("[inviteUser] Step 4 ✅ — Resend API response:", JSON.stringify(emailResult));
+      console.log("[inviteUser] Step 5 ✅ — Resend API response:", JSON.stringify(emailResult));
 
-      console.log("[inviteUser] Step 4 — Updating invitation status → email_sent");
+      console.log("[inviteUser] Step 5 — Updating invitation status → email_sent");
       await ctx.runMutation(internal.users.updateInvitationEmailStatus, {
         invitationId,
         status: "email_sent",
@@ -610,8 +624,8 @@ export const inviteUser = action({
         smtpResponse: emailResult.smtpResponse,
       });
 
-      // ── STEP 5: Notify admins ─────────────────────────────────────────────
-      console.log("[inviteUser] Step 5 — Creating success notifications for admins...");
+      // ── STEP 6: Notify admins ─────────────────────────────────────────────
+      console.log("[inviteUser] Step 6 — Creating success notifications for admins...");
       await ctx.runMutation(internal.users.createInviteNotification, {
         workspaceId: workspaceId,
         invitedName: args.name.trim(),

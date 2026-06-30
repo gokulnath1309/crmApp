@@ -144,6 +144,7 @@ export default defineSchema({
 
     // Conversion tracking
     convertedAt: v.optional(v.number()),
+    convertedBy: v.optional(v.id("users")),
     dealId: v.optional(v.id("deals")),
 
     // Extended lead qualification fields
@@ -227,6 +228,19 @@ export default defineSchema({
     lostReason: v.optional(v.string()),
     lostNotes: v.optional(v.string()),
     companyId: v.optional(v.id("companies")),
+
+    // Deal metadata
+    dealType: v.optional(v.string()),
+    expectedCloseDate: v.optional(v.number()),
+    priority: v.optional(v.string()),
+
+    // Contract details
+    contractStartDate: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    renewalDate: v.optional(v.number()),
+    billingFrequency: v.optional(v.string()),
+    poNumber: v.optional(v.string()),
+    referenceNumber: v.optional(v.string()),
   })
     .index("by_assignedTo", ["assignedTo"])
     .index("by_createdBy", ["createdBy"])
@@ -380,6 +394,17 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     status: v.string(), // "active", "inactive"
     clerkOrgId: v.optional(v.string()),
+
+    // Subscription fields
+    plan: v.optional(v.string()), // "basic", "professional", "enterprise"
+    billingCycle: v.optional(v.string()), // "monthly", "annual"
+    subscriptionStatus: v.optional(v.string()), // "active", "trialing", "past_due", "canceled", "incomplete"
+    maxUsers: v.optional(v.number()),
+    maxWorkspaces: v.optional(v.number()),
+    currentUsers: v.optional(v.number()),
+    subscriptionUpdatedAt: v.optional(v.number()),
+    futureBillingProvider: v.optional(v.string()),
+    futureSubscriptionId: v.optional(v.string()),
   })
     .index("by_name", ["name"])
     .index("by_clerkOrgId", ["clerkOrgId"]),

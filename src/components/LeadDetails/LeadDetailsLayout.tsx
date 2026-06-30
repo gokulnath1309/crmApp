@@ -3,9 +3,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { 
   ArrowLeft, FileText, History, Info, Paperclip, CheckCircle, 
-  BellRing, Loader2, DollarSign
+  BellRing, Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { useNavigate } from "react-router-dom";
 
 // Import Reusable Sub-components
 import { LeadHeader } from "./LeadHeader";
@@ -25,6 +26,7 @@ import { RightActionPanel } from "./RightActionPanel";
 import { ContactInteractionDrawer } from "@/components/ContactInteractionDrawer";
 import { LeadTransitionDrawer } from "@/components/LeadTransitionDrawer";
 import { UnqualifiedModal, LostModal, RequalifyModal, SpamModal, DuplicateModal } from "@/components/StatusWorkflowModals";
+import { ConvertToDealModal } from "@/components/ConvertToDealModal";
 
 interface LeadDetailsLayoutProps {
   leadId: string;
@@ -34,6 +36,7 @@ interface LeadDetailsLayoutProps {
 
 export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsLayoutProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   // Realtime Subscriptions
   const lead = useQuery(api.leads.get, { id: leadId as any });
@@ -67,15 +70,29 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
   const [isSpamModalOpen, setIsSpamModalOpen] = useState(false);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [isConvertDealOpen, setIsConvertDealOpen] = useState(false);
-  const [convertDealValue, setConvertDealValue] = useState("");
-  const [convertDealCurrency, setConvertDealCurrency] = useState("INR");
-  const [isConverting, setIsConverting] = useState(false);
+  const [isCreatingDeal, setIsCreatingDeal] = useState(false);
 
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     targetStatus: string;
     onConfirm: (extraFields: Record<string, any>) => void;
     onCancel?: () => void;
   } | null>(null);
+
+  const handleConvertToDeal = async () => {
+    if (isCreatingDeal) return;
+    setIsCreatingDeal(true);
+    try {
+      const result = await convertToDealMutation({ leadId: lead?._id });
+      toast("success", "Lead converted to deal successfully");
+      if (result?.dealId) {
+        navigate("/deals");
+      }
+    } catch (err: any) {
+      toast("error", err.message || "Failed to convert lead");
+    } finally {
+      setIsCreatingDeal(false);
+    }
+  };
 
   if (lead === undefined) {
     return (
@@ -267,6 +284,8 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
         onTransitionClick={handlePipelineStatusRequest}
         onQuickMarkStatus={handlePipelineStatusRequest}
         onReopenClick={() => handlePipelineStatusRequest("Contacted")}
+        isCreatingDeal={isCreatingDeal}
+        onConvertToDeal={handleConvertToDeal}
         currentUserRole={currentUser?.role}
       />
 
@@ -444,93 +463,19 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
         }}
       />
 
-      {/* Convert To Deal Modal */}
-      {isConvertDealOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsConvertDealOpen(false)} />
-          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Convert to Deal</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {lead.company} — {lead.firstName} {lead.lastName}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Expected Deal Value
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={convertDealValue}
-                    onChange={e => setConvertDealValue(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                    placeholder="0"
-                  />
-                  <select
-                    value={convertDealCurrency}
-                    onChange={e => setConvertDealCurrency(e.target.value)}
-                    className="w-24 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  >
-                    <option value="INR">INR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                  </select>
-                </div>
-              </div>
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
-                <p className="flex items-center gap-2">
-                  <Info className="w-4 h-4 flex-shrink-0" />
-                  This will create a deal record, mark the lead as Converted, and move it to read-only mode.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setIsConvertDealOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  setIsConverting(true);
-                  try {
-                    await convertToDealMutation({
-                      leadId: lead._id,
-                      dealValue: convertDealValue ? Number(convertDealValue) : undefined,
-                      dealCurrency: convertDealCurrency,
-                    });
-                    toast("success", "Lead converted to deal successfully");
-                    setIsConvertDealOpen(false);
-                  } catch (err: any) {
-                    toast("error", err.message || "Failed to convert lead");
-                  } finally {
-                    setIsConverting(false);
-                  }
-                }}
-                disabled={isConverting}
-                className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-lg hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 transition-all shadow-sm"
-              >
-                {isConverting ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Converting...
-                  </span>
-                ) : (
-                  "Convert to Deal"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConvertToDealModal
+        open={isConvertDealOpen}
+        onClose={() => setIsConvertDealOpen(false)}
+        lead={{
+          _id: lead._id,
+          company: lead.company,
+          firstName: lead.firstName,
+          lastName: lead.lastName,
+          value: lead.value,
+          currency: lead.currency,
+        }}
+        isCreatingDeal={isCreatingDeal}
+      />
 
       <UnqualifiedModal
         open={isUnqualifiedModalOpen}

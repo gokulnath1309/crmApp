@@ -46,10 +46,10 @@ export function FeaturesPage() {
             <a href="#" className={styles.navLinkActive} onClick={(e) => { e.preventDefault(); }}>
               Features
             </a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/resources"); }}>
               Resources
             </a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/pricing"); }}>
               Pricing
             </a>
             <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>

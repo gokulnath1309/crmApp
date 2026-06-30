@@ -133,7 +133,14 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
             <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-md flex items-center justify-center flex-shrink-0">
               <span className="text-white text-[9px] font-bold">{companyInitials}</span>
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 text-left truncate">{companyName}</span>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block truncate">{companyName}</span>
+              {company?.plan && (
+                <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                  {company.plan === "basic" ? "Basic Plan" : company.plan === "professional" ? "Professional" : "Enterprise"}
+                </span>
+              )}
+            </div>
             {canRename && (
               <button
                 onClick={() => setRenameOpen(true)}

@@ -51,6 +51,38 @@ export interface WorkspaceInfo {
   clerkOrgId?: string;
 }
 
+export type PlanId = "basic" | "professional" | "enterprise";
+export type BillingCycle = "monthly" | "annual";
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "incomplete";
+
+export interface PlanLimits {
+  maxUsers: number;
+  maxWorkspaces: number;
+}
+
+export interface PlanConfig {
+  id: PlanId;
+  name: string;
+  description: string;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  yearlySavingsPercent: number;
+  limits: PlanLimits;
+}
+
+export interface WorkspaceSubscription {
+  plan: PlanId;
+  billingCycle: BillingCycle;
+  status: SubscriptionStatus;
+  maxUsers: number;
+  maxWorkspaces: number;
+  currentUsers: number;
+  assignedAt: number;
+  updatedAt: number;
+  futureBillingProvider?: string;
+  futureSubscriptionId?: string;
+}
+
 export interface TeamMember {
   _id: string;
   name: string;

@@ -31,6 +31,7 @@ import type * as passwordReset from "../passwordReset.js";
 import type * as rbac from "../rbac.js";
 import type * as removeCompanyIdMigration from "../removeCompanyIdMigration.js";
 import type * as search from "../search.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as tasks from "../tasks.js";
 import type * as teams from "../teams.js";
 import type * as testCustomFields from "../testCustomFields.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   rbac: typeof rbac;
   removeCompanyIdMigration: typeof removeCompanyIdMigration;
   search: typeof search;
+  subscriptions: typeof subscriptions;
   tasks: typeof tasks;
   teams: typeof teams;
   testCustomFields: typeof testCustomFields;

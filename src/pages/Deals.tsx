@@ -5,7 +5,7 @@ import {
   Building, Filter, Plus, Search, X, User as UserIcon,
   Loader2, Edit, Trash2, Download, Sparkles,
   Clock, ArrowRight, History, UserCheck, XCircle, CheckCircle2,
-  Briefcase, Percent
+  Briefcase, Percent, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/components/ui/Toast";
@@ -54,6 +54,20 @@ interface Deal {
   stageChangedBy?: string;
   lostReason?: string;
   lostNotes?: string;
+
+  // Deal metadata
+  dealType?: string;
+  expectedCloseDate?: number;
+  priority?: string;
+
+  // Contract details
+  contractStartDate?: number;
+  contractEndDate?: number;
+  renewalDate?: number;
+  billingFrequency?: string;
+  poNumber?: string;
+  referenceNumber?: string;
+  notes?: string;
 }
 
 
@@ -162,7 +176,18 @@ export function DealsPage() {
     stage: "Prospecting",
     company: "",
     assignedTo: "" as any,
+    dealType: "",
+    expectedCloseDate: "",
+    priority: "Medium",
+    contractStartDate: "",
+    contractEndDate: "",
+    renewalDate: "",
+    billingFrequency: "",
+    poNumber: "",
+    referenceNumber: "",
+    notes: "",
   });
+  const [contractOpen, setContractOpen] = useState(false);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const titleRef = useRef<HTMLInputElement>(null);
@@ -242,19 +267,41 @@ export function DealsPage() {
       stage: "Prospecting",
       company: "",
       assignedTo: "",
+      dealType: "",
+      expectedCloseDate: "",
+      priority: "Medium",
+      contractStartDate: "",
+      contractEndDate: "",
+      renewalDate: "",
+      billingFrequency: "",
+      poNumber: "",
+      referenceNumber: "",
+      notes: "",
     });
+    setContractOpen(false);
     setFormErrors({});
     setEditingDealId(null);
   };
 
   const handleEditDeal = (deal: Deal) => {
+    const d = deal as any;
     setForm({
-      title: deal.title,
-      value: deal.value?.toString() || "",
-      currency: deal.currency || "INR",
-      stage: deal.stage,
-      company: deal.company || "",
-      assignedTo: deal.assignedTo || "",
+      title: d.title,
+      value: d.value?.toString() || "",
+      currency: d.currency || "INR",
+      stage: d.stage,
+      company: d.company || "",
+      assignedTo: d.assignedTo || "",
+      dealType: d.dealType || "",
+      expectedCloseDate: d.expectedCloseDate ? new Date(d.expectedCloseDate).toISOString().split("T")[0] : "",
+      priority: d.priority || "Medium",
+      contractStartDate: d.contractStartDate ? new Date(d.contractStartDate).toISOString().split("T")[0] : "",
+      contractEndDate: d.contractEndDate ? new Date(d.contractEndDate).toISOString().split("T")[0] : "",
+      renewalDate: d.renewalDate ? new Date(d.renewalDate).toISOString().split("T")[0] : "",
+      billingFrequency: d.billingFrequency || "",
+      poNumber: d.poNumber || "",
+      referenceNumber: d.referenceNumber || "",
+      notes: d.notes || "",
     });
     setEditingDealId(deal._id);
     setIsDetailsOpen(false);
@@ -276,12 +323,18 @@ export function DealsPage() {
     }
   };
 
+  const dateToTimestamp = (dateStr: string): number | undefined => {
+    if (!dateStr) return undefined;
+    const d = new Date(dateStr + "T00:00:00");
+    return isNaN(d.getTime()) ? undefined : d.getTime();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid()) return;
     setIsSubmitting(true);
 
-    const payload = {
+    const payload: any = {
       title: form.title.trim(),
       value: Number(form.value),
       currency: form.currency,
@@ -289,6 +342,16 @@ export function DealsPage() {
       status: form.stage === "Closed Won" ? "Won" : form.stage === "Closed Lost" ? "Lost" : "Pipeline",
       company: form.company.trim(),
       assignedTo: form.assignedTo ? form.assignedTo : undefined,
+      dealType: form.dealType || undefined,
+      expectedCloseDate: dateToTimestamp(form.expectedCloseDate),
+      priority: form.priority || undefined,
+      contractStartDate: dateToTimestamp(form.contractStartDate),
+      contractEndDate: dateToTimestamp(form.contractEndDate),
+      renewalDate: dateToTimestamp(form.renewalDate),
+      billingFrequency: form.billingFrequency || undefined,
+      poNumber: form.poNumber.trim() || undefined,
+      referenceNumber: form.referenceNumber.trim() || undefined,
+      notes: form.notes.trim() || undefined,
     };
 
     try {
@@ -1043,6 +1106,144 @@ export function DealsPage() {
                     value={form.stage}
                     onChange={(val) => setForm(prev => ({ ...prev, stage: val }))}
                   />
+                </div>
+
+                {/* ───── Section 2: Deal Type (Optional) ───── */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
+                    </div>
+                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      Deal Type
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-medium ml-auto">Optional</span>
+                  </div>
+                  <Select
+                    options={[
+                      { value: "One-Time Sale", label: "One-Time Sale" },
+                      { value: "Service Agreement", label: "Service Agreement" },
+                      { value: "Project-Based", label: "Project-Based" },
+                      { value: "Recurring Contract", label: "Recurring Contract" },
+                      { value: "Subscription", label: "Subscription" },
+                      { value: "Maintenance Contract", label: "Maintenance Contract" },
+                      { value: "Custom", label: "Custom" },
+                    ]}
+                    value={form.dealType}
+                    onChange={(val) => setForm(prev => ({ ...prev, dealType: val }))}
+                    placeholder="Select a deal type..."
+                  />
+                </div>
+
+                {/* ───── Section 3: Contract Details (Collapsible) ───── */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                  <button
+                    type="button"
+                    onClick={() => setContractOpen(!contractOpen)}
+                    className="flex items-center gap-2 w-full text-left"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <span className="text-xs font-bold text-purple-600 dark:text-purple-400">3</span>
+                    </div>
+                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      Contract Details
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-medium ml-auto">
+                      {contractOpen ? "Click to collapse" : "Optional \u00B7 Click to expand"}
+                    </span>
+                    {contractOpen ? (
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+
+                  {contractOpen && (
+                    <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 duration-150">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Contract Start Date</label>
+                          <input
+                            type="date"
+                            value={form.contractStartDate}
+                            onChange={(e) => setForm(prev => ({ ...prev, contractStartDate: e.target.value }))}
+                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Contract End Date</label>
+                          <input
+                            type="date"
+                            value={form.contractEndDate}
+                            onChange={(e) => setForm(prev => ({ ...prev, contractEndDate: e.target.value }))}
+                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Renewal Date</label>
+                          <input
+                            type="date"
+                            value={form.renewalDate}
+                            onChange={(e) => setForm(prev => ({ ...prev, renewalDate: e.target.value }))}
+                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Billing Frequency</label>
+                          <Select
+                            options={[
+                              { value: "One-Time", label: "One-Time" },
+                              { value: "Monthly", label: "Monthly" },
+                              { value: "Quarterly", label: "Quarterly" },
+                              { value: "Semi-Annual", label: "Semi-Annual" },
+                              { value: "Annual", label: "Annual" },
+                              { value: "Custom", label: "Custom" },
+                            ]}
+                            value={form.billingFrequency}
+                            onChange={(val) => setForm(prev => ({ ...prev, billingFrequency: val }))}
+                            placeholder="Select billing..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Purchase Order Number</label>
+                          <input
+                            type="text"
+                            value={form.poNumber}
+                            onChange={(e) => setForm(prev => ({ ...prev, poNumber: e.target.value }))}
+                            placeholder="e.g. PO-2024-001"
+                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Reference Number</label>
+                          <input
+                            type="text"
+                            value={form.referenceNumber}
+                            onChange={(e) => setForm(prev => ({ ...prev, referenceNumber: e.target.value }))}
+                            placeholder="e.g. REF-001"
+                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1.5">Notes</label>
+                        <textarea
+                          value={form.notes}
+                          onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
+                          rows={3}
+                          className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)] resize-none"
+                          placeholder="Additional notes about this deal..."
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </form>
 

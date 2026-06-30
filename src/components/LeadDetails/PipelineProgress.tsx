@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CheckCircle2, Play, AlertCircle } from "lucide-react";
+import { CheckCircle2, Play, AlertCircle, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface PipelineProgressProps {
   lead: any;
@@ -7,16 +8,19 @@ interface PipelineProgressProps {
   onTransitionClick: (targetStage: string) => void;
   onQuickMarkStatus: (targetStage: string) => void;
   onReopenClick?: () => void;
+  onConvertToDeal?: () => void;
+  isCreatingDeal?: boolean;
   currentUserRole?: string;
 }
 
-export function PipelineProgress({ lead, transitions = [], onTransitionClick, onQuickMarkStatus, onReopenClick, currentUserRole }: PipelineProgressProps) {
+export function PipelineProgress({ lead, transitions = [], onTransitionClick, onQuickMarkStatus, onReopenClick, onConvertToDeal, isCreatingDeal = false, currentUserRole }: PipelineProgressProps) {
+  const navigate = useNavigate();
   const [hoveredStage, setHoveredStage] = useState<string | null>(null);
 
   if (!lead) return null;
 
   const isAdminOrManager = currentUserRole === "super_admin" || currentUserRole === "admin" || currentUserRole === "manager";
-  const isClosed = ["Lost", "Unqualified", "Spam", "Duplicate"].includes(lead.status) || lead.isClosed;
+  const isClosed = ["Lost", "Unqualified", "Spam", "Duplicate", "Converted"].includes(lead.status) || lead.isClosed;
 
   const stages = ["New", "Contacted", "Qualified", "Converted"];
   const currentIdx = stages.indexOf(lead.status);
@@ -115,6 +119,33 @@ export function PipelineProgress({ lead, transitions = [], onTransitionClick, on
               className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/10 transition-all cursor-pointer whitespace-nowrap"
             >
               🔄 Reopen Lead
+            </button>
+          )}
+          {lead.status === "Converted" && (
+            <button
+              onClick={() => {
+                if (lead.dealId) {
+                  navigate("/deals");
+                } else if (onConvertToDeal) {
+                  onConvertToDeal();
+                }
+              }}
+              disabled={isCreatingDeal}
+              className={`h-9 px-4 text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed ${
+                lead.dealId
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700"
+                  : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-emerald-500/10"
+              }`}
+            >
+              {isCreatingDeal ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Creating Deal...
+                </span>
+              ) : lead.dealId ? (
+                <span className="flex items-center gap-1.5">📄 View Deal</span>
+              ) : (
+                <span className="flex items-center gap-1.5">➕ Create Deal</span>
+              )}
             </button>
           )}
         </div>

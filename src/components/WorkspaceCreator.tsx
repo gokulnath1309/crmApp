@@ -42,12 +42,24 @@ export default function WorkspaceCreator({
       try {
         const org = await createOrganization({ name: name.trim() });
 
+        // Read selected plan from sessionStorage (set during plan selection before sign-up)
+        const storedPlan = sessionStorage.getItem("selectedPlan");
+        const storedCycle = sessionStorage.getItem("selectedBillingCycle");
+        const plan = storedPlan || "basic";
+        const billingCycle = storedCycle || "monthly";
+
         await syncClerkWorkspace({
           clerkOrgId: org.id,
           name: org.name,
           industry: industry || undefined,
           employeeCount,
+          plan,
+          billingCycle,
         });
+
+        // Clear the stored plan after use
+        sessionStorage.removeItem("selectedPlan");
+        sessionStorage.removeItem("selectedBillingCycle");
 
         if (!cancelled) {
           onCreate();

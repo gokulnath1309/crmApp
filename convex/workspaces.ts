@@ -21,6 +21,8 @@ export const createWorkspace = mutation({
     name: v.string(),
     industry: v.optional(v.string()),
     employeeCount: v.optional(v.number()),
+    plan: v.optional(v.string()),
+    billingCycle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -35,7 +37,24 @@ export const createWorkspace = mutation({
 
     const userId = currentUser._id;
     const now = Date.now();
-    
+    const selectedPlan = args.plan || "basic";
+    const billingCycle = args.billingCycle || "monthly";
+    const planLimitsMap = { basic: { maxUsers: 999999, maxWorkspaces: 1 }, professional: { maxUsers: 999999, maxWorkspaces: 3 }, enterprise: { maxUsers: 999999, maxWorkspaces: 999999 } };
+    const limits = planLimitsMap[selectedPlan as keyof typeof planLimitsMap] ?? planLimitsMap.basic;
+
+    // Check workspace plan limit
+    const userMemberships = await ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    if (userMemberships.length >= limits.maxWorkspaces) {
+      throw new Error(
+        `You've reached the maximum number of workspaces for your ${selectedPlan === "basic" ? "Basic" : "current"} plan. Upgrade to continue.`
+      );
+    }
+
     const workspaceId = await ctx.db.insert("workspaces", {
       name: args.name.trim(),
       industry: args.industry?.trim(),
@@ -44,6 +63,13 @@ export const createWorkspace = mutation({
       status: "active",
       createdAt: now,
       updatedAt: now,
+      plan: selectedPlan,
+      billingCycle,
+      subscriptionStatus: "active",
+      maxUsers: limits.maxUsers,
+      maxWorkspaces: limits.maxWorkspaces,
+      currentUsers: 1,
+      subscriptionUpdatedAt: now,
     });
 
     // Create membership for this user
@@ -293,6 +319,8 @@ export const syncClerkWorkspace = mutation({
     name: v.string(),
     industry: v.optional(v.string()),
     employeeCount: v.optional(v.number()),
+    plan: v.optional(v.string()),
+    billingCycle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -307,6 +335,10 @@ export const syncClerkWorkspace = mutation({
 
     const userId = currentUser._id;
     const now = Date.now();
+    const selectedPlan = args.plan || "basic";
+    const billingCycle = args.billingCycle || "monthly";
+    const planLimits = { basic: { maxUsers: 999999, maxWorkspaces: 1 }, professional: { maxUsers: 999999, maxWorkspaces: 3 }, enterprise: { maxUsers: 999999, maxWorkspaces: 999999 } };
+    const limits = planLimits[selectedPlan as keyof typeof planLimits] ?? planLimits.basic;
 
     // Try to find existing workspace by clerkOrgId
     let workspace = await ctx.db
@@ -322,7 +354,20 @@ export const syncClerkWorkspace = mutation({
         await ctx.db.patch(workspaceId, { name: args.name.trim(), updatedAt: Date.now() });
       }
     } else {
-      // Create new workspace
+      // Check workspace plan limit before creating a new one
+      const userMemberships = await ctx.db
+        .query("workspaceMembers")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .collect();
+
+      if (userMemberships.length >= limits.maxWorkspaces) {
+        throw new Error(
+          `You've reached the maximum number of workspaces included in your ${selectedPlan} plan. Upgrade to continue.`
+        );
+      }
+
+      // Create new workspace with subscription fields
       workspaceId = await ctx.db.insert("workspaces", {
         name: args.name.trim(),
         industry: args.industry?.trim(),
@@ -332,6 +377,13 @@ export const syncClerkWorkspace = mutation({
         createdAt: now,
         updatedAt: now,
         clerkOrgId: args.clerkOrgId,
+        plan: selectedPlan,
+        billingCycle,
+        subscriptionStatus: "active",
+        maxUsers: limits.maxUsers,
+        maxWorkspaces: limits.maxWorkspaces,
+        currentUsers: 1,
+        subscriptionUpdatedAt: now,
       });
 
       // Log activity

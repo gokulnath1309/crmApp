@@ -25,13 +25,15 @@ import { EmployeesPage } from "@/pages/Employees";
 import { ReportsPage } from "@/pages/Reports";
 import { CompaniesPage } from "@/pages/Companies";
 import { CalendarPage } from "@/pages/Calendar";
-import { BillingPage } from "@/pages/Billing";
+import BillingPage from "@/pages/Billing";
+import PlanSelection from "@/pages/PlanSelection";
 import { RoleGuard } from "@/routes/RoleGuard";
-import CreateWorkspace from "@/pages/CreateWorkspace";
 import OnboardingPage from "@/pages/OnboardingPage";
 import { AcceptInvitationPage } from "@/pages/AcceptInvitation";
 import LandingPage from "@/pages/LandingPage";
 import FeaturesPage from "@/pages/Features";
+import ResourcesPage from "@/pages/Resources";
+import PricingPage from "@/pages/Pricing";
 import { TeamsPage } from "@/pages/Teams";
 import { TeamOverviewPage } from "@/pages/TeamOverview";
 import { TeamMembersPage } from "@/pages/TeamMembers";
@@ -77,13 +79,15 @@ function AppRoutes() {
         />
         <Route path="/" element={<LandingPage />} />
         <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/resources" element={<ResourcesPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/plan-selection" element={<PlanSelection />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/verify-otp" element={<VerifyOtpPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/invite/:token" element={<AcceptInvitationPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/create-workspace" element={<CreateWorkspace />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/leads" element={<LeadsPage />} />

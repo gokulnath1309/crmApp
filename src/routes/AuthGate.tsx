@@ -39,6 +39,9 @@ function isPublicPath(path: string) {
   return (
     path === "/" ||
     path === "/features" ||
+    path === "/resources" ||
+    path === "/pricing" ||
+    path === "/plan-selection" ||
     path === "/signin" ||
     path === "/signup" ||
     path === "/verify-otp" ||
@@ -51,7 +54,6 @@ function isPublicPath(path: string) {
 function isOnboardingPath(path: string) {
   return (
     path === "/onboarding" ||
-    path === "/create-workspace" ||
     path.startsWith("/invite/")
   );
 }
@@ -144,13 +146,14 @@ export function AuthGate() {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Authenticated, has workspace → redirect public/onboarding routes to dashboard
+  // Authenticated, has workspace → redirect public routes to dashboard
+  // Onboarding routes are allowed through so users can intentionally access them.
   if (
     !path.startsWith("/invite/") &&
     !path.startsWith("/sso-callback") &&
-    (isPublicPath(path) || isOnboardingPath(path))
+    isPublicPath(path)
   ) {
-    logRedirect(path, "/dashboard", "authenticated, has workspace, on public/onboard path", authState);
+    logRedirect(path, "/dashboard", "authenticated, has workspace, on public path", authState);
     return <Navigate to="/dashboard" replace />;
   }
 
