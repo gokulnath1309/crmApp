@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useToast } from "@/components/ui/Toast";
@@ -6,6 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Select } from "@/components/ui/Select";
 import { TaskDetailModal } from "@/components/tasks/TaskDetailModal";
 import { cn } from "@/lib/cn";
 import {
@@ -48,6 +50,23 @@ const DATE_PRESETS = [
   { value: "this_year", label: "This Year" },
 ];
 
+const DATE_FIELD_OPTIONS = [
+  { value: "dueDate", label: "Due Date" },
+  { value: "createdAt", label: "Created Date" },
+  { value: "completedAt", label: "Completed Date" },
+  { value: "updatedAt", label: "Updated Date" },
+];
+
+const SORT_BY_OPTIONS = [
+  { value: "dueDate", label: "Due Date" },
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "priority", label: "Priority" },
+  { value: "status", label: "Status" },
+  { value: "updatedAt", label: "Recently Updated" },
+  { value: "alphabetical", label: "Alphabetical" },
+];
+
 type ViewMode = "list" | "kanban" | "calendar";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,6 +90,40 @@ export function TasksPage() {
 
   // ── Auth ──
   const users = useQuery(api.users.list);
+
+  const userFilterOptions = useMemo(() => [
+    { value: "", label: "All Employees" },
+    ...(users?.map((u: any) => ({ value: u._id, label: u.name })) ?? [])
+  ], [users]);
+
+  const userFormOptions = useMemo(() => [
+    { value: "", label: "Unassigned (Self)" },
+    ...(users?.map((u: any) => ({ value: u._id, label: u.name })) ?? [])
+  ], [users]);
+
+  const userBulkOptions = useMemo(() => [
+    { value: "", label: "Assign to..." },
+    ...(users?.map((u: any) => ({ value: u._id, label: u.name })) ?? [])
+  ], [users]);
+
+  const statusFilterOptions = useMemo(() => [
+    { value: "", label: "All Statuses" },
+    ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))
+  ], []);
+
+  const priorityFilterOptions = useMemo(() => [
+    { value: "", label: "All Priorities" },
+    ...PRIORITY_OPTIONS.map((p) => ({ value: p, label: p }))
+  ], []);
+
+  const priorityFormOptions = useMemo(() => PRIORITY_OPTIONS.map((p) => ({ value: p, label: p })), []);
+
+  const statusBulkOptions = useMemo(() => [
+    { value: "", label: "Mark as..." },
+    ...STATUS_OPTIONS.map((s) => ({ value: s, label: s }))
+  ], []);
+
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ── State ──
   const [view, setView] = useState<ViewMode>("list");
@@ -99,6 +152,19 @@ export function TasksPage() {
   // ── Bulk State ──
   const [bulkAssignee, setBulkAssignee] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
+
+  // ── Quick Create ──
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setNewTitle(""); setNewDue(""); setNewPriority("Medium"); setNewAssignedTo("");
+      setShowNewForm(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // ── Debounced search ──
   const [searchTimer, setSearchTimer] = useState<any>(null);
@@ -319,7 +385,7 @@ export function TasksPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <div className="space-y-5 px-4 pt-4 pb-6">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -341,10 +407,10 @@ export function TasksPage() {
       </div>
 
       {/* ── Search & Filter Bar ── */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm p-3 space-y-3">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm p-3 space-y-3 mb-5">
         <div className="flex flex-wrap items-center gap-2">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               value={search}
@@ -388,52 +454,58 @@ export function TasksPage() {
         {showFilters && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
             {/* Status */}
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="">All Statuses</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Select
+              options={statusFilterOptions}
+              value={statusFilter}
+              onChange={(val) => setStatusFilter(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Priority */}
-            <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="">All Priorities</option>
-              {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <Select
+              options={priorityFilterOptions}
+              value={priorityFilter}
+              onChange={(val) => setPriorityFilter(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Employee */}
-            <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="">All Employees</option>
-              {users?.map((u: any) => <option key={u._id} value={u._id}>{u.name}</option>)}
-            </select>
+            <Select
+              options={userFilterOptions}
+              value={employeeFilter}
+              onChange={(val) => setEmployeeFilter(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Date Preset */}
-            <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              {DATE_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
+            <Select
+              options={DATE_PRESETS}
+              value={datePreset}
+              onChange={(val) => setDatePreset(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Date Field */}
-            <select value={dateField} onChange={(e) => setDateField(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="dueDate">Due Date</option>
-              <option value="createdAt">Created Date</option>
-              <option value="completedAt">Completed Date</option>
-              <option value="updatedAt">Updated Date</option>
-            </select>
+            <Select
+              options={DATE_FIELD_OPTIONS}
+              value={dateField}
+              onChange={(val) => setDateField(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Sort */}
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="dueDate">Due Date</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="priority">Priority</option>
-              <option value="status">Status</option>
-              <option value="updatedAt">Recently Updated</option>
-              <option value="alphabetical">Alphabetical</option>
-            </select>
+            <Select
+              options={SORT_BY_OPTIONS}
+              value={sortBy}
+              onChange={(val) => setSortBy(val)}
+              className="w-44"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
 
             {/* Toggle filters */}
             <div className="flex items-center gap-1 ml-1">
@@ -468,21 +540,22 @@ export function TasksPage() {
           <div className="flex gap-3">
             <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)}
               className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-            <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
-            </select>
+            <Select
+              options={priorityFormOptions}
+              value={newPriority}
+              onChange={(val) => setNewPriority(val)}
+              className="flex-1"
+              triggerClassName="h-10 px-3 text-sm rounded-xl"
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Assignee</label>
-            <select value={newAssignedTo} onChange={(e) => setNewAssignedTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="">Unassigned (Self)</option>
-              {users?.map((u: any) => <option key={u._id} value={u._id}>{u.name}</option>)}
-            </select>
+            <Select
+              options={userFormOptions}
+              value={newAssignedTo}
+              onChange={(val) => setNewAssignedTo(val)}
+              placeholder="Unassigned (Self)"
+            />
           </div>
           <Button onClick={handleCreate} disabled={!newTitle.trim()} className="w-full" size="sm">
             Create Task
@@ -495,20 +568,26 @@ export function TasksPage() {
         <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800/40 p-3 flex flex-wrap items-center gap-2 animate-in slide-in-from-top duration-200">
           <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mr-1">{selectedTasks.size} selected</span>
 
-          <select value={bulkAssignee} onChange={(e) => setBulkAssignee(e.target.value)}
-            className="h-8 px-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none">
-            <option value="">Assign to...</option>
-            {users?.map((u: any) => <option key={u._id} value={u._id}>{u.name}</option>)}
-          </select>
+          <Select
+            options={userBulkOptions}
+            value={bulkAssignee}
+            onChange={(val) => setBulkAssignee(val)}
+            placeholder="Assign to..."
+            className="w-36"
+            triggerClassName="h-8 px-2.5 text-xs rounded-lg border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-750 dark:text-slate-300"
+          />
           {bulkAssignee && <Button variant="primary" size="sm" onClick={handleBulkAssign}>
             <UserPlus className="w-3 h-3" /> Assign
           </Button>}
 
-          <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}
-            className="h-8 px-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 focus:outline-none">
-            <option value="">Set status...</option>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select
+            options={statusBulkOptions}
+            value={bulkStatus}
+            onChange={(val) => setBulkStatus(val)}
+            placeholder="Set status..."
+            className="w-36"
+            triggerClassName="h-8 px-2.5 text-xs rounded-lg border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-750 dark:text-slate-300"
+          />
           {bulkStatus && <Button variant="primary" size="sm" onClick={handleBulkStatus}>
             <CheckSquare className="w-3 h-3" /> Update
           </Button>}
@@ -767,7 +846,7 @@ function CalendarView({
       </div>
       <div className="grid grid-cols-7">
         {Array.from({ length: firstDay }).map((_, i) => (
-          <div key={`empty-${i}`} className="min-h-[100px] border-r border-b border-slate-50 dark:border-slate-700/40 p-1" />
+          <div key={`empty-${i}`} className="min-h-[clamp(60px,12vw,100px)] border-r border-b border-slate-50 dark:border-slate-700/40 p-1" />
         ))}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
@@ -779,7 +858,7 @@ function CalendarView({
             <div
               key={day}
               className={cn(
-                "min-h-[100px] border-r border-b border-slate-50 dark:border-slate-700/40 p-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors",
+                "min-h-[clamp(60px,12vw,100px)] border-r border-b border-slate-50 dark:border-slate-700/40 p-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors",
                 isToday && "bg-indigo-50/30 dark:bg-indigo-950/20"
               )}
             >

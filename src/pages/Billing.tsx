@@ -2,6 +2,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { Check, Zap, Star, Building, Users, Layout, CreditCard, Shield, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '../../convex/_generated/api';
+import { PageLayout } from "@/components/PageLayout";
 import { pricingPlans, planLimits, planOrder } from '../components/pricing/data';
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -151,13 +152,8 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Billing & Subscription</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your plan, view usage, and billing information.</p>
-        </motion.div>
+    <PageLayout title="Billing & Subscription" subtitle="Manage your plan, view usage, and billing information." maxWidth="max-w-4xl">
+      <div className="space-y-8">
 
         {/* Current Plan Summary */}
         <motion.div
@@ -271,6 +267,6 @@ export default function BillingPage() {
           </div>
         </motion.div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

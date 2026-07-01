@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
+import { Select } from "@/components/ui/Select";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import {
   Calendar, Clock, User, Tag, ArrowRight,
@@ -79,6 +80,26 @@ export function TaskDetailModal({ taskId, open, onClose, onUpdate }: TaskDetailM
   const [assignedTo, setAssignedTo] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const statusOptions = [
+    { value: "Pending", label: "Pending" },
+    { value: "In Progress", label: "In Progress" },
+    { value: "Blocked", label: "Blocked" },
+    { value: "Completed", label: "Completed" },
+    { value: "Cancelled", label: "Cancelled" },
+  ];
+
+  const priorityOptions = [
+    { value: "Low", label: "Low" },
+    { value: "Medium", label: "Medium" },
+    { value: "High", label: "High" },
+    { value: "Urgent", label: "Urgent" },
+  ];
+
+  const assigneeOptions = [
+    { value: "", label: "Unassigned" },
+    ...(users?.map((u: any) => ({ value: u._id, label: u.name })) ?? [])
+  ];
 
   // Reset form when task changes
   const savedTask = task as Doc<"tasks"> | null;
@@ -201,14 +222,11 @@ export function TaskDetailModal({ taskId, open, onClose, onUpdate }: TaskDetailM
             <div>
               <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Status</label>
               {editing ? (
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                  <option value="Pending">Pending</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Blocked">Blocked</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                <Select
+                  options={statusOptions}
+                  value={status}
+                  onChange={(val) => setStatus(val)}
+                />
               ) : (
                 <div className="flex items-center gap-2">
                   <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold", STATUS_COLORS[savedTask.status])}>{savedTask.status}</span>
@@ -219,13 +237,11 @@ export function TaskDetailModal({ taskId, open, onClose, onUpdate }: TaskDetailM
             <div>
               <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Priority</label>
               {editing ? (
-                <select value={priority} onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Urgent">Urgent</option>
-                </select>
+                <Select
+                  options={priorityOptions}
+                  value={priority}
+                  onChange={(val) => setPriority(val)}
+                />
               ) : (
                 <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold", PRIORITY_STYLES[savedTask.priority])}>{savedTask.priority}</span>
               )}
@@ -250,13 +266,11 @@ export function TaskDetailModal({ taskId, open, onClose, onUpdate }: TaskDetailM
             <div>
               <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Assignee</label>
               {editing ? (
-                <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                  <option value="">Unassigned</option>
-                  {users?.map((u: any) => (
-                    <option key={u._id} value={u._id}>{u.name}</option>
-                  ))}
-                </select>
+                <Select
+                  options={assigneeOptions}
+                  value={assignedTo}
+                  onChange={(val) => setAssignedTo(val)}
+                />
               ) : (
                 <div className="flex items-center gap-2">
                   {savedTask.assignedTo ? (

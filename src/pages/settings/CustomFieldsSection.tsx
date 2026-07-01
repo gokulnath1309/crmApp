@@ -4,6 +4,29 @@ import { api } from "../../../convex/_generated/api";
 import { useUser } from "@/features/auth/UserProvider";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
+import { Select } from "@/components/ui/Select";
+
+const fieldTypeOptions = [
+  { value: "Text", label: "Short Text" },
+  { value: "Textarea", label: "Long Textarea" },
+  { value: "Number", label: "Number" },
+  { value: "Currency", label: "Currency" },
+  { value: "Date", label: "Datepicker" },
+  { value: "Checkbox", label: "Checkbox" },
+  { value: "Dropdown", label: "Dropdown Select" },
+  { value: "Multi-select", label: "Multi-select" },
+  { value: "File Upload", label: "File Upload" },
+];
+
+const stageOptions = [
+  { value: "All", label: "All Stages" },
+  { value: "New", label: "New" },
+  { value: "Contacted", label: "Contacted" },
+  { value: "Qualified", label: "Qualified" },
+  { value: "Proposal Sent", label: "Proposal Sent" },
+  { value: "Negotiation", label: "Negotiation" },
+  { value: "Won", label: "Won" },
+];
 import {
   Database, Search, Plus, Trash2, Loader2, ShieldAlert,
   Pencil, Copy, Check, Asterisk, ArrowUpDown,
@@ -169,42 +192,24 @@ export function CustomFieldsSection() {
                     <label htmlFor="field-type" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                       Field Type
                     </label>
-                    <select
-                      id="field-type"
+                    <Select
+                      options={fieldTypeOptions}
                       value={type}
-                      onChange={(e) => setType(e.target.value)}
-                      className="block w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                      <option value="Text">Short Text</option>
-                      <option value="Textarea">Long Textarea</option>
-                      <option value="Number">Number</option>
-                      <option value="Currency">Currency</option>
-                      <option value="Date">Datepicker</option>
-                      <option value="Checkbox">Checkbox</option>
-                      <option value="Dropdown">Dropdown Select</option>
-                      <option value="Multi-select">Multi-select</option>
-                      <option value="File Upload">File Upload</option>
-                    </select>
+                      onChange={(val) => setType(val)}
+                      triggerClassName="h-10 text-sm"
+                    />
                   </div>
 
                   <div>
                     <label htmlFor="field-stage" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                       Transition Stage
                     </label>
-                    <select
-                      id="field-stage"
+                    <Select
+                      options={stageOptions}
                       value={stage}
-                      onChange={(e) => setStage(e.target.value)}
-                      className="block w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                      <option value="All">All Stages</option>
-                      <option value="New">New</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Qualified">Qualified</option>
-                      <option value="Proposal Sent">Proposal Sent</option>
-                      <option value="Negotiation">Negotiation</option>
-                      <option value="Won">Won</option>
-                    </select>
+                      onChange={(val) => setStage(val)}
+                      triggerClassName="h-10 text-sm"
+                    />
                   </div>
                 </div>
 

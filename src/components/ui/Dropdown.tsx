@@ -39,9 +39,9 @@ export function Dropdown({
       {open && (
         <div
           className={cn(
-            "absolute z-50 mt-1 min-w-[200px] rounded-xl border border-outline-variant bg-surface-alt py-1 shadow-lg",
+            "absolute z-50 mt-1 min-w-[160px] sm:min-w-[200px] rounded-xl border border-outline-variant bg-surface-alt py-1 shadow-lg",
             "animate-in fade-in zoom-in-95 duration-100",
-            align === "right" ? "right-0" : "left-0",
+            align === "right" ? "right-0 left-auto" : "left-0 right-auto",
             className,
           )}
         >

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from 'convex/react';
 
 import { AnimatedBackground } from '../components/AnimatedBackground';
+import { MarketingNavbar } from '../components/MarketingNavbar';
 import { pricingPlans, comparisonData, pricingFaqs, pricingBottomCta, planOrder } from '../components/pricing/data';
 import { useAuth } from '../features/auth/AuthProvider';
 import { api } from '../../convex/_generated/api';
@@ -16,38 +17,6 @@ const iconMap: Record<string, React.ReactNode> = {
   professional: <Sparkles className={styles.cardIcon} />,
   enterprise: <Sparkles className={styles.cardIcon} />,
 };
-
-function Navbar() {
-  const navigate = useNavigate();
-
-  return (
-    <nav className={styles.navbar}>
-      <div className={styles.brand} onClick={() => navigate('/')}>
-        <svg viewBox="0 0 24 24" className={styles.brandIcon}>
-          <defs>
-            <linearGradient id="lightning-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#8B5CF6" />
-              <stop offset="100%" stopColor="#3B82F6" />
-            </linearGradient>
-          </defs>
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-        <span>CRM<span className={styles.brandPro}>Pro</span></span>
-      </div>
-      <div className={styles.navLinks}>
-        <a href="/features">Features</a>
-        <a href="/resources">Resources</a>
-        <a href="/pricing" className={styles.navLinkActive}>Pricing</a>
-      </div>
-      <div className={styles.navActions}>
-        <a href="/signin" className={styles.loginLink}>Log in</a>
-        <button className={styles.btnPrimarySmall} onClick={() => navigate('/signup')}>
-          Start Free Trial
-        </button>
-      </div>
-    </nav>
-  );
-}
 
 function PlanCard({
   plan, index, annual, isAuthenticated, currentPlan, onSelectPlan,
@@ -391,7 +360,7 @@ export default function PricingPage() {
     <div className={styles.pageWrapper}>
       <AnimatedBackground />
       <div className={styles.container}>
-        <Navbar />
+        <MarketingNavbar />
         <PricingHero />
         <BillingToggle annual={annual} setAnnual={setAnnual} />
         <PricingCards annual={annual} isAuthenticated={isAuthenticated} currentPlan={currentPlan} onSelectPlan={handleSelectPlan} />

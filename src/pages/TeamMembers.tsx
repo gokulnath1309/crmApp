@@ -30,7 +30,7 @@ export function TeamMembersPage() {
 
   if (team === undefined) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-6 space-y-5">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 rounded-2xl" />
@@ -63,7 +63,7 @@ export function TeamMembersPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 pt-4 pb-6 space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

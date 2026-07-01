@@ -9,6 +9,7 @@ import { api } from "../../convex/_generated/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth as useAppAuth } from "@/features/auth/AuthProvider";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { Select } from "@/components/ui/Select";
 
 const ONBOARDING_PLANS = [
   {
@@ -92,6 +93,26 @@ const TIMEZONES = [
   { value: "Africa/Cairo", label: "Cairo (EET)" },
   { value: "Africa/Johannesburg", label: "Johannesburg (SAST)" },
   { value: "America/Argentina/Buenos_Aires", label: "Buenos Aires (ART)" },
+];
+
+const industrySelectOptions = [
+  { value: "", label: "Select Industry" },
+  ...INDUSTRIES.map((ind) => ({ value: ind, label: ind }))
+];
+
+const countrySelectOptions = [
+  { value: "", label: "Select Country" },
+  ...COUNTRIES.map((c) => ({ value: c, label: c }))
+];
+
+const sizeSelectOptions = SIZE_OPTIONS.map((opt) => ({
+  value: String(opt.value),
+  label: opt.label,
+}));
+
+const timezoneSelectOptions = [
+  { value: "", label: "Select Timezone" },
+  ...TIMEZONES
 ];
 
 export default function OnboardingPage() {
@@ -244,31 +265,22 @@ export default function OnboardingPage() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     Industry
                   </label>
-                  <select
+                  <Select
+                    options={industrySelectOptions}
                     value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="">Select Industry</option>
-                    {INDUSTRIES.map((ind) => (
-                      <option key={ind} value={ind}>{ind}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setIndustry(val)}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     Company Size
                   </label>
-                  <select
-                    value={employeeCount}
-                    onChange={(e) => setEmployeeCount(Number(e.target.value))}
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all appearance-none cursor-pointer"
-                  >
-                    {SIZE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  <Select
+                    options={sizeSelectOptions}
+                    value={String(employeeCount)}
+                    onChange={(val) => setEmployeeCount(Number(val))}
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -277,16 +289,11 @@ export default function OnboardingPage() {
                       <Globe className="w-3 h-3 inline mr-1" />
                       Country
                     </label>
-                    <select
+                    <Select
+                      options={countrySelectOptions}
                       value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="">Select Country</option>
-                      {COUNTRIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCountry(val)}
+                    />
                   </div>
 
                   <div>
@@ -294,16 +301,11 @@ export default function OnboardingPage() {
                       <Clock className="w-3 h-3 inline mr-1" />
                       Timezone
                     </label>
-                    <select
+                    <Select
+                      options={timezoneSelectOptions}
                       value={timezone}
-                      onChange={(e) => setTimezone(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="">Select Timezone</option>
-                      {TIMEZONES.map((tz) => (
-                        <option key={tz.value} value={tz.value}>{tz.label}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setTimezone(val)}
+                    />
                   </div>
                 </div>
               </div>

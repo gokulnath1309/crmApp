@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Zap, ChevronDown, Building2 } from "lucide-react";
+import { ChevronDown, Building2, Zap } from "lucide-react";
 import { AnimatedBackground } from "../components/AnimatedBackground";
+import { MarketingNavbar } from "../components/MarketingNavbar";
 import styles from "./Resources.module.css";
 import {
   heroData,
@@ -15,37 +16,6 @@ import {
   resourceLibrary,
   finalCtaData,
 } from "../components/resources/data";
-
-function Navbar({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
-  return (
-    <motion.nav
-      className={styles.navbar}
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className={styles.brand} onClick={() => navigate("/")}>
-        <Zap className={styles.brandIcon} />
-        <div className={styles.brandPro}>CRMPro</div>
-      </div>
-      <div className={styles.navLinks}>
-        <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
-        <a href="#" onClick={(e) => { e.preventDefault(); navigate("/features"); }}>Features</a>
-        <a href="#" className={styles.navLinkActive} onClick={(e) => { e.preventDefault(); }}>Resources</a>
-        <a href="#" onClick={(e) => { e.preventDefault(); navigate("/pricing"); }}>Pricing</a>
-        <a href="#" onClick={(e) => { e.preventDefault(); }}>Info</a>
-      </div>
-      <div className={styles.navActions}>
-        <a href="#" className={styles.loginLink} onClick={(e) => { e.preventDefault(); navigate("/signin"); }}>
-          Log in
-        </a>
-        <button className={styles.btnPrimarySmall} onClick={() => navigate("/signup")}>
-          Sign Up
-        </button>
-      </div>
-    </motion.nav>
-  );
-}
 
 function Hero() {
   const navigate = useNavigate();
@@ -513,7 +483,7 @@ export default function ResourcesPage() {
     <div className={styles.pageWrapper}>
       <AnimatedBackground />
       <div className={styles.container}>
-        <Navbar navigate={useNavigate()} />
+        <MarketingNavbar />
         <Hero />
       </div>
       <WhatIsCRMPro />

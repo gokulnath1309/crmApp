@@ -49,7 +49,7 @@ export function TeamSettingsPage() {
 
   if (team === undefined || employees === undefined) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-6 space-y-5">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 rounded-2xl" />
         <Skeleton className="h-48 rounded-2xl" />
@@ -126,7 +126,7 @@ export function TeamSettingsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="px-4 pt-4 pb-6 space-y-5 max-w-3xl">
       <div>
         <button
           onClick={() => navigate(`/teams/${id}`)}
@@ -165,7 +165,7 @@ export function TeamSettingsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Department"
               value={department}

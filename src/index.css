@@ -41,6 +41,18 @@
   --sidebar-accent-foreground: #4338CA;
   --sidebar-border: rgba(15, 23, 42, 0.07);
   --sidebar-ring: #4F46E5;
+
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 64px;
+  --topnav-height: 56px;
+  --bottomnav-height: 64px;
+  --layout-transition: 300ms;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --sidebar-width: min(80vw, 260px);
+  }
 }
 
 .dark {
@@ -170,5 +182,55 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .snap-x-mandatory {
+    scroll-snap-type: x mandatory;
+  }
+
+  .snap-start {
+    scroll-snap-align: start;
+  }
+
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 639px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 17px;
   }
 }

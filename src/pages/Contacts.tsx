@@ -8,6 +8,15 @@ import { api } from "../../convex/_generated/api";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { PageLayout } from "@/components/PageLayout";
+import { Select } from "@/components/ui/Select";
+
+const contactStatusOptions = [
+  { value: "Lead", label: "Lead" },
+  { value: "Prospect", label: "Prospect" },
+  { value: "Customer", label: "Customer" },
+  { value: "Inactive", label: "Inactive" },
+];
 
 interface Contact {
   id: string;
@@ -732,18 +741,14 @@ function ContactsPageContent() {
   });
 
   return (
-    <div className="space-y-5 max-w-7xl pb-6 p-6">
-      {/* Title Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Contacts</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{contacts.length} total contacts</p>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {/* Desktop Export Button */}
+    <PageLayout
+      title="Contacts"
+      subtitle={`${contacts.length} total contacts`}
+      actions={
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setIsExportOpen(true)}
-            className="hidden sm:flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 active:scale-95 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-all hover:shadow-sm cursor-pointer"
+            className="hidden sm:flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-55 dark:hover:bg-slate-700/80 active:scale-95 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-all hover:shadow-sm cursor-pointer"
           >
             <svg className="w-4 h-4 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -755,12 +760,11 @@ function ContactsPageContent() {
 
           <button
             onClick={() => { resetForm(); setIsEditOpen(true); }}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 dark:shadow-indigo-900/30 cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 dark:shadow-indigo-900/30 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Contact
           </button>
 
-          {/* Mobile Overflow Menu */}
           <div className="relative sm:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -799,11 +803,11 @@ function ContactsPageContent() {
             </AnimatePresence>
           </div>
         </div>
-      </div>
-
+      }
+    >
       {/* Filter and Search Bar */}
       {contacts.length > 0 && (
-        <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm">
+        <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm mb-5">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
             <input
@@ -1206,18 +1210,11 @@ function ContactsPageContent() {
                     <label className="text-xs font-semibold text-slate-600 dark:text-slate-400" htmlFor="status">
                       Status
                     </label>
-                    <select
-                      id="status"
-                      name="status"
+                    <Select
+                      options={contactStatusOptions}
                       value={form.status}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition-all"
-                    >
-                      <option value="Lead">Lead</option>
-                      <option value="Prospect">Prospect</option>
-                      <option value="Customer">Customer</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
+                      onChange={(val) => setForm(prev => ({ ...prev, status: val }))}
+                    />
                   </div>
 
                   {/* Notes Area */}
@@ -1697,7 +1694,7 @@ function ContactsPageContent() {
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                       Custom Date Range
                     </span>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400" htmlFor="exportStart">
                           From:
@@ -1860,7 +1857,7 @@ function ContactsPageContent() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </PageLayout>
   );
 }
 
@@ -1868,7 +1865,7 @@ function ContactsPageContent() {
 
 function ContactsSkeleton() {
   return (
-    <div className="space-y-6 max-w-7xl pb-6 p-6 animate-pulse">
+    <div className="space-y-5 max-w-7xl pb-6 px-4 pt-4 animate-pulse">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <Skeleton className="h-8 w-40" />

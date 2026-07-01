@@ -33,7 +33,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2 sm:items-end">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onClose={() => removeToast(t.id)} />
         ))}
@@ -71,13 +71,13 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   const Icon = iconMap[toast.type];
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-xl border-l-4 px-4 py-3 shadow-lg min-w-[300px] max-w-[420px]",
-        "animate-in slide-in-from-right fade-in duration-300",
-        colorMap[toast.type],
-      )}
-    >
+      <div
+        className={cn(
+          "flex items-center gap-3 rounded-xl border-l-4 px-4 py-3 shadow-lg w-full sm:w-auto sm:min-w-[300px] max-w-[420px]",
+          "animate-in slide-in-from-right fade-in duration-300",
+          colorMap[toast.type],
+        )}
+      >
       <Icon className="h-5 w-5 shrink-0" />
       <p className="flex-1 text-sm font-medium">{toast.message}</p>
       <button onClick={onClose} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">

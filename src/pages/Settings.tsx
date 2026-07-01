@@ -11,6 +11,7 @@ import { WorkspaceSection } from "./settings/WorkspaceSection";
 import { SecuritySection } from "./settings/SecuritySection";
 import { BillingSection } from "./settings/BillingSection";
 import { DangerZoneSection } from "./settings/DangerZoneSection";
+import { PageLayout } from "@/components/PageLayout";
 
 const sections = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -49,15 +50,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl pb-6 p-6">
-      <div>
-        <h1 className="text-[32px] font-bold tracking-tight text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Settings
-        </h1>
-        <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-          Configure appearance, notifications, workspace, and more.
-        </p>
-      </div>
+    <PageLayout title="Settings" subtitle="Configure appearance, notifications, workspace, and more.">
 
       <div className="flex flex-col lg:flex-row gap-6">
         <nav className="lg:w-56 xl:w-64 flex-shrink-0">
@@ -93,6 +86,6 @@ export function SettingsPage() {
           {renderSection()}
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

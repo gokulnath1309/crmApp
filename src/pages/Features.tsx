@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
 import { Zap } from "lucide-react";
 import { AnimatedBackground } from "../components/AnimatedBackground";
+import { MarketingNavbar } from "../components/MarketingNavbar";
 import { FeatureHero } from "../components/features/FeatureHero";
 import { FeatureGrid } from "../components/features/FeatureGrid";
 import { FeatureShowcase } from "../components/features/FeatureShowcase";
@@ -16,60 +16,16 @@ import styles from "./Features.module.css";
 export function FeaturesPage() {
   const navigate = useNavigate();
 
-  // Scroll to top on page load
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   return (
     <div className={styles.pageWrapper}>
-      {/* Background Orbs & Effects */}
       <AnimatedBackground />
 
       <div className={styles.container}>
-        {/* Navigation Bar (Identical style to landing page) */}
-        <motion.nav 
-          className={styles.navbar}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className={styles.brand} onClick={() => navigate("/")}>
-            <Zap className={styles.brandIcon} />
-            <div className={styles.brandPro}>CRMPro</div>
-          </div>
-
-          <div className={styles.navLinks}>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
-              Home
-            </a>
-            <a href="#" className={styles.navLinkActive} onClick={(e) => { e.preventDefault(); }}>
-              Features
-            </a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/resources"); }}>
-              Resources
-            </a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/pricing"); }}>
-              Pricing
-            </a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
-              Info
-            </a>
-          </div>
-
-          <div className={styles.navActions}>
-            <a 
-              href="#" 
-              className={styles.loginLink} 
-              onClick={(e) => { e.preventDefault(); navigate("/signin"); }}
-            >
-              Log in
-            </a>
-            <button className={styles.btnPrimarySmall} onClick={() => navigate("/signup")}>
-              Sign Up
-            </button>
-          </div>
-        </motion.nav>
+        <MarketingNavbar />
 
         {/* Hero Section */}
         <FeatureHero />

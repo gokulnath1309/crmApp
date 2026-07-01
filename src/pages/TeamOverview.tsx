@@ -24,7 +24,7 @@ export function TeamOverviewPage() {
 
   if (team === undefined || metrics === undefined) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-6 space-y-5">
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-48 rounded-2xl" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -67,7 +67,7 @@ export function TeamOverviewPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 pt-4 pb-6 space-y-5">
       {/* Back button */}
       <button
         onClick={() => navigate("/teams")}

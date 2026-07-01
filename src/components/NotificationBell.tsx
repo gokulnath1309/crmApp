@@ -31,12 +31,12 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="relative w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+        className="relative w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
       >
         {unreadCount && unreadCount > 0 ? (
-          <BellRing className="w-4 h-4" />
+          <BellRing className="w-5 h-5" />
         ) : (
-          <Bell className="w-4 h-4" />
+          <Bell className="w-5 h-5" />
         )}
         {unreadCount && unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">

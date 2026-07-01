@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, AlertCircle, CheckCircle2, FileText, Settings, UserPlus } from "lucide-react";
+import { Select } from "@/components/ui/Select";
 
 interface ClosedLostModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function ClosedLostModal({ open, onClose, onConfirm }: ClosedLostModalPro
     "Cancelled",
     "Other",
   ];
+  const reasonOptions = reasons.map(r => ({ value: r, label: r }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,18 +71,14 @@ export function ClosedLostModal({ open, onClose, onConfirm }: ClosedLostModalPro
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">Lost Reason *</label>
-                <select
+                <Select
+                  options={reasonOptions}
                   value={reason}
-                  onChange={(e) => {
-                    setReason(e.target.value);
+                  onChange={(val) => {
+                    setReason(val);
                     setError("");
                   }}
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
-                >
-                  {reasons.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+                />
               </div>
 
               {reason === "Other" && (

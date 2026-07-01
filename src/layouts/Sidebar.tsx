@@ -201,13 +201,6 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
               <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.name}</p>
               <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{user.email}</p>
             </div>
-            <button
-              onClick={(e) => { e.preventDefault(); signOut(); }}
-              title="Sign out"
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </NavLink>
         )}
 
@@ -219,7 +212,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
           >
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          {!collapsed && signOut && (
+          {signOut && (
             <button
               onClick={signOut}
               className="flex items-center justify-center rounded-lg p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-1 cursor-pointer"
@@ -253,15 +246,16 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
         <>
           {mobileOpen && (
             <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm lg:hidden"
               onClick={onMobileClose}
             />
           )}
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 w-[260px] transform transition-transform duration-300 lg:hidden",
+              "fixed inset-y-0 left-0 z-[70] transform transition-transform duration-300 lg:hidden",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}
+            style={{ width: "var(--sidebar-width, 260px)" }}
           >
             {sidebarContent}
           </aside>
@@ -270,8 +264,9 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
         <aside
           className={cn(
             "fixed inset-y-0 left-0 z-30 transition-all duration-300 hidden lg:flex flex-col",
-            collapsed ? "w-16" : "w-[260px]"
+            collapsed && "w-16"
           )}
+          style={{ width: collapsed ? undefined : "var(--sidebar-width, 260px)" }}
         >
           {sidebarContent}
         </aside>

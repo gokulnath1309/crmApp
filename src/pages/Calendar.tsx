@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { CreateEventModal } from "../components/calendar/CreateEventModal";
@@ -97,12 +98,24 @@ function CalendarPage() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [defaultDate, setDefaultDate] = useState<number | undefined>(undefined);
   const [viewEvent, setViewEvent] = useState<any>(null);
   const [editEvent, setEditEvent] = useState<any>(null);
   const [duplicateEvent, setDuplicateEvent] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setCreateOpen(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -224,7 +237,7 @@ function CalendarPage() {
   const userOptions = (users || []).map((u: any) => ({ value: u._id, label: u.name || u.email || "Unknown" }));
 
   return (
-    <div className="space-y-5 pb-6 p-6">
+    <div className="space-y-5 pb-6 px-4 pt-4">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -354,7 +367,7 @@ function CalendarPage() {
                   onDoubleClick={() => onDayDoubleClick(day)}
                   onDragOver={(e) => handleDragOver(e, day)}
                   onDrop={(e) => handleDrop(e, day)}
-                  className={`min-h-[100px] border-b border-r border-slate-50 dark:border-slate-700/40 p-1.5 cursor-pointer transition-colors ${
+                  className={`min-h-[clamp(60px,12vw,100px)] border-b border-r border-slate-50 dark:border-slate-700/40 p-1.5 cursor-pointer transition-colors ${
                     day === null ? "bg-slate-50/50 dark:bg-slate-800/30" : "hover:bg-slate-50/50 dark:hover:bg-slate-700/20"
                   } ${isTodayDay ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} ${isDragOver ? "bg-indigo-100/50 dark:bg-indigo-900/30" : ""}`}
                 >

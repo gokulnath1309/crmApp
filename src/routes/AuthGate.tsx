@@ -41,6 +41,7 @@ function isPublicPath(path: string) {
     path === "/features" ||
     path === "/resources" ||
     path === "/pricing" ||
+    path === "/info" ||
     path === "/plan-selection" ||
     path === "/signin" ||
     path === "/signup" ||

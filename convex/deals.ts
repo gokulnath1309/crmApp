@@ -596,3 +596,43 @@ export const listStageHistory = query({
       .collect();
   },
 });
+
+export const clearTrash = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const currentUser = await resolveUser(ctx);
+    if (!currentUser || currentUser.isActive === false) {
+      throw new Error("Unauthorized");
+    }
+    const userId = currentUser._id;
+    const workspaceId = currentUser.activeWorkspaceId || currentUser.workspaceId;
+
+    const allowed = await canPermanentDelete(ctx, userId);
+    if (!allowed) {
+      throw new Error("Unauthorized: Only Administrators and Workspace Owners can permanently delete deals");
+    }
+
+    const allDeals = await ctx.db
+      .query("deals")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspaceId!))
+      .collect();
+
+    const trashedDeals = allDeals.filter((d) => d.isDeleted === true);
+
+    let count = 0;
+    for (const deal of trashedDeals) {
+      await permanentDeleteEntity(ctx, "deals", deal._id);
+      count++;
+    }
+
+    await ctx.scheduler.runAfter(0, internal.activities.log, {
+      type: "deals_trash_cleared",
+      description: `permanently deleted ${count} deal(s) from trash`,
+      userId,
+      userName: currentUser.name || "System",
+      entityType: "deal",
+    });
+
+    return { deleted: count };
+  },
+});

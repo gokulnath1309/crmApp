@@ -34,6 +34,7 @@ import LandingPage from "@/pages/LandingPage";
 import FeaturesPage from "@/pages/Features";
 import ResourcesPage from "@/pages/Resources";
 import PricingPage from "@/pages/Pricing";
+import InfoPage from "@/pages/Info";
 import { TeamsPage } from "@/pages/Teams";
 import { TeamOverviewPage } from "@/pages/TeamOverview";
 import { TeamMembersPage } from "@/pages/TeamMembers";
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="/features" element={<FeaturesPage />} />
         <Route path="/resources" element={<ResourcesPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/info" element={<InfoPage />} />
         <Route path="/plan-selection" element={<PlanSelection />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignUpPage />} />

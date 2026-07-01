@@ -10,7 +10,7 @@ export function Card({ className, glass, hover, children, ...props }: CardProps)
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-surface-alt p-6 shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)]",
+        "rounded-xl border border-border bg-surface-alt p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.05),0px_10px_15px_-5px_rgba(0,0,0,0.03)]",
         glass && "glass-card",
         hover && "transition-all duration-300 hover:shadow-md hover:border-primary/20",
         className,

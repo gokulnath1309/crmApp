@@ -40,8 +40,8 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
       />
       <div
         className={cn(
-          "relative z-10 w-full max-w-lg bg-white rounded-[20px] border border-[#E8EAF3] shadow-[0_20px_60px_rgba(15,23,42,0.12)]",
-          "p-6 animate-in fade-in zoom-in-95 duration-200",
+          "relative z-10 w-[calc(100%-2rem)] sm:w-full max-w-lg bg-white rounded-[20px] border border-[#E8EAF3] shadow-[0_20px_60px_rgba(15,23,42,0.12)]",
+          "p-6 max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200",
           className,
         )}
       >

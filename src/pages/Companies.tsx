@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Plus, Search, X, Building, Loader2, Edit, Trash2, Globe, Tag } from "lucide-react";
+import { PageLayout } from "@/components/PageLayout";
 import { useToast } from "@/components/ui/Toast";
 import { useSearchParams } from "react-router-dom";
 
@@ -16,6 +17,8 @@ interface CompanyForm {
 
 const emptyForm: CompanyForm = { name: "", domain: "", industry: "", phone: "", website: "", status: "Prospect" };
 const statusOptions = ["Prospect", "Active", "Customer", "Partner", "Inactive"];
+const statusSelectOptions = statusOptions.map(s => ({ value: s, label: s }));
+import { Select } from "@/components/ui/Select";
 
 function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
   const styles = {
@@ -111,21 +114,18 @@ export function CompaniesPage() {
   }
 
   return (
-    <div className="space-y-5 pb-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Companies</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {companies === undefined ? "Loading..." : `${filtered.length} companies`}
-          </p>
-        </div>
-        <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
+    <PageLayout
+      title="Companies"
+      subtitle={companies === undefined ? "Loading..." : `${filtered.length} companies`}
+      actions={
+        <button onClick={openCreate} className="w-full sm:w-auto justify-center flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
           <Plus className="w-3.5 h-3.5" /> Add Company
         </button>
-      </div>
+      }
+    >
 
       {/* Search */}
-      <div className="relative max-w-xs">
+      <div className="relative max-w-xs mb-5">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           value={search}
@@ -144,7 +144,7 @@ export function CompaniesPage() {
           <p className="text-sm text-slate-400">{search ? "No companies match your search." : "No companies yet. Add one to get started."}</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700/40">
@@ -215,9 +215,11 @@ export function CompaniesPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select
+                options={statusSelectOptions}
+                value={form.status}
+                onChange={val => setForm({ ...form, status: val })}
+              />
             </div>
           </div>
           <div className="flex gap-3 pt-2">
@@ -226,6 +228,6 @@ export function CompaniesPage() {
           </div>
         </Modal>
       )}
-    </div>
+    </PageLayout>
   );
 }

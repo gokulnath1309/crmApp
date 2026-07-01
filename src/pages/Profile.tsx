@@ -8,8 +8,11 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Edit2, User, Mail, Phone, Building, Shield, Target, Calendar, Clock,
-  CheckCircle, Award, Globe, MapPin, Users, X, Upload, Loader2, Check, ToggleLeft, ToggleRight, Lock, Camera
+  CheckCircle, Award, Globe, MapPin, Users, X, Upload, Loader2, Check, ToggleLeft, ToggleRight, Lock, Camera,
+  ChevronRight, Briefcase, Activity
 } from "lucide-react";
+import { PageLayout } from "@/components/PageLayout";
+import { Select } from "@/components/ui/Select";
 import { uploadProfileImage, uploadBannerImage } from "@/lib/imageUpload";
 
 function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
@@ -63,6 +66,32 @@ export function ProfilePage() {
   const allTasksData = useQuery(api.tasks.list, {});
   const allTasks = allTasksData?.tasks;
 
+  const timezoneOptions = [
+    { value: "America/New_York", label: "Eastern (EST)" },
+    { value: "America/Chicago", label: "Central (CST)" },
+    { value: "America/Denver", label: "Mountain (MST)" },
+    { value: "America/Los_Angeles", label: "Pacific (PST)" },
+    { value: "Asia/Kolkata", label: "India (IST)" },
+    { value: "Europe/London", label: "London (GMT)" },
+    { value: "Europe/Paris", label: "Europe (CET)" },
+    { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  ];
+
+  const systemRoleOptions = [
+    { value: "employee", label: "Employee" },
+    { value: "admin", label: "Admin" },
+    { value: "super_admin", label: "Super Admin" },
+  ];
+
+  const departmentFormOptions = [
+    { value: "Sales", label: "Sales" },
+    { value: "Marketing", label: "Marketing" },
+    { value: "Customer Success", label: "Customer Success" },
+    { value: "Support", label: "Support" },
+    { value: "Finance", label: "Finance" },
+    { value: "Product", label: "Product" },
+  ];
+
   // Mutations
   const updateProfileDetailsMutation = useMutation(api.users.updateProfileDetails);
   const updateProfileImageMutation = useMutation(api.users.updateProfileImage);
@@ -72,9 +101,13 @@ export function ProfilePage() {
   const inviteUserAction = useAction(api.users.inviteUser);
   const updateUserRoleMutation = useMutation(api.users.updateUserRole);
 
+
   // Pagination for Activities
   const [activityLimit, setActivityLimit] = useState(10);
   const activities = useQuery(api.activities.list, { limit: activityLimit });
+
+  // Manage Workspace bottom sheet
+  const [isManageWorkspaceOpen, setIsManageWorkspaceOpen] = useState(false);
 
   // Modal Open States
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -117,6 +150,21 @@ export function ProfilePage() {
   const [selectedUserRole, setSelectedUserRole] = useState("employee");
   const [selectedUserManagerId, setSelectedUserManagerId] = useState("");
   const [selectedUserActive, setSelectedUserActive] = useState(true);
+
+  const managerListOptions = [
+    { value: "", label: "No Manager" },
+    ...(allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).map((mgr) => ({ value: mgr._id, label: `${mgr.name} (${mgr.role})` })) ?? [])
+  ];
+
+  const employeeOptions = [
+    { value: "", label: "-- Choose Employee --" },
+    ...(allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== user?._id).map((emp) => ({ value: emp._id, label: `${emp.name} (${emp.role})` })) ?? [])
+  ];
+
+  const editRoleManagerOptions = [
+    { value: "", label: "No Manager" },
+    ...(allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== selectedRoleUserId && (u.role === "admin" || u.role === "super_admin")).map((mgr) => ({ value: mgr._id, label: `${mgr.name} (${mgr.role})` })) ?? [])
+  ];
 
   // Initialize edit states when user changes
   useEffect(() => {
@@ -408,7 +456,7 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="w-full flex flex-col gap-6 pb-6 p-6">
+    <PageLayout title="Profile">
       {/* Header card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
         {/* Cover */}
@@ -526,7 +574,8 @@ export function ProfilePage() {
 
       {/* Tab Content */}
       {activeProfileTab === "overview" && (
-        <>
+        <div>
+        <div className="hidden lg:block">
       {/* Role-Based Actions & Authority Card */}
       {user.role === "super_admin" && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-5 shadow-sm">
@@ -854,7 +903,229 @@ export function ProfilePage() {
           </>
         )}
       </div>
-        </>
+
+      {/* ═══ Mobile Overview (redesigned) ═══ */}
+      <div className="lg:hidden space-y-6">
+        {/* Workspace Administration - Compact Card */}
+        <button
+          onClick={() => setIsManageWorkspaceOpen(true)}
+          className="w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-4 shadow-sm flex items-center justify-between gap-3 text-left cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Workspace Administration</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role.replace("_", " ")}</span>
+                {(user.role === "super_admin" || user.role === "admin") && (
+                  <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 text-[9px] font-extrabold uppercase rounded-md tracking-wider">
+                    Root Access
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+        </button>
+
+        {/* Actions Row */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsInviteUserOpen(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 h-11 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <User className="w-4 h-4" /> Invite User
+          </button>
+          <button
+            onClick={() => setIsManageWorkspaceOpen(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 h-11 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+          >
+            <Building className="w-4 h-4" /> Manage Workspace
+          </button>
+        </div>
+
+        {/* Quick Stats - 2x2 Grid */}
+        {user.role === "super_admin" && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Quick Stats</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Link to="/employees" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Users</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{allUsers?.length || 0}</p>
+              </Link>
+              <Link to="/employees" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Employees</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u.role === "employee").length || 0}</p>
+              </Link>
+              <Link to="/employees" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Admins</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).length || 0}</p>
+              </Link>
+              <Link to="/reports" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Revenue</p>
+                <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {metrics?.closedRevenue && Object.keys(metrics.closedRevenue).length > 0
+                    ? `${Object.entries(metrics.closedRevenue)[0][1].toLocaleString()}`
+                    : "—"}
+                </p>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {user.role === "admin" && metrics && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Quick Stats</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Team Members</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{subordinates.length}</p>
+              </div>
+              <Link to="/leads?team=true" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Team Leads</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{metrics.totalLeads}</p>
+              </Link>
+              <Link to="/deals?team=true" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Open Deals</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">
+                  {Object.entries(metrics.dealsByStage || {})
+                    .filter(([stage]) => stage !== "Closed Won" && stage !== "Closed Lost")
+                    .reduce((sum, [_, val]) => sum + val, 0)}
+                </p>
+              </Link>
+              <Link to="/reports" className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Revenue</p>
+                <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {metrics.closedRevenue && Object.keys(metrics.closedRevenue).length > 0
+                    ? `${Object.entries(metrics.closedRevenue)[0][1].toLocaleString()}`
+                    : "—"}
+                </p>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {user.role !== "admin" && user.role !== "super_admin" && metrics && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Quick Stats</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Link to={`/leads?assignedTo=${user._id}`} className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Assigned Leads</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{metrics.totalLeads}</p>
+              </Link>
+              <Link to={`/tasks?status=pending&assignedTo=${user._id}`} className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Pending Tasks</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{metrics.pendingTasks}</p>
+              </Link>
+              <Link to={`/deals?assignedTo=${user._id}`} className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 hover:border-indigo-500 transition-colors border border-transparent">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Assigned Deals</p>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">{myDealsCount}</p>
+              </Link>
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Win Rate</p>
+                <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{metrics.winRate.toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recent Activity */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700/70">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Clock className="w-4 h-4 text-slate-400" />
+              Recent Activity
+            </h3>
+            <button onClick={() => setActiveProfileTab("activity")} className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+              View All
+            </button>
+          </div>
+          <div className="p-4">
+            {!activities || activities.length === 0 ? (
+              <p className="text-xs text-slate-400 py-2">No recent activity.</p>
+            ) : (
+              <div className="space-y-3">
+                {activities.slice(0, 5).map((item: any) => {
+                  const IconComponent = getActivityIcon(item.type);
+                  const colorCls = getActivityColor(item.type);
+                  return (
+                    <div key={item._id} className="flex items-start gap-3">
+                      <div className={`w-5 h-5 rounded-full ${colorCls} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <IconComponent className="w-2.5 h-2.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-snug">{item.description}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{formatActivityTime(item.createdAt)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Deals */}
+        {allDeals && allDeals.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700/70">
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-slate-400" />
+                Recent Deals
+              </h3>
+              <button onClick={() => setActiveProfileTab("deals")} className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+                View All
+              </button>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {(user.role === "super_admin" || user.role === "admin"
+                ? allDeals
+                : allDeals.filter((d: any) => d.assignedTo === user._id)
+              ).slice(0, 5).map((deal: any) => (
+                <Link key={deal._id} to={`/deals?dealId=${deal._id}`} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{deal.title}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{deal.company || "No Company"} · {deal.stage}</p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
+                    {formatCurrency(deal.value, deal.currency || "INR")}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Performance */}
+        {metrics && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-slate-400" />
+              Performance
+            </h3>
+            <div className="flex items-center justify-around text-center">
+              <div>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white">{myCompletedTasksCount}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Completed Tasks</p>
+              </div>
+              <div className="w-px h-10 bg-slate-100 dark:bg-slate-700" />
+              <div>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white">{myDealsCount}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Assigned Deals</p>
+              </div>
+              <div className="w-px h-10 bg-slate-100 dark:bg-slate-700" />
+              <div>
+                <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{metrics.winRate?.toFixed(1) || "0.0"}%</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Win Rate</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+        </div>
+        </div>
       )}
 
       {activeProfileTab === "settings" && (
@@ -1135,19 +1406,13 @@ export function ProfilePage() {
                     Manager {!canEditFieldClient("managerId") && <Lock className="w-3 h-3 text-slate-450" />}
                   </label>
                   <div className="relative">
-                    <select
-                      disabled={!canEditFieldClient("managerId")}
+                    <Select
+                      options={managerListOptions}
                       value={user.managerId || ""}
                       onChange={() => {}} // Read-only view in edit profile
-                      className={`w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white pr-8 ${
-                        !canEditFieldClient("managerId") ? "opacity-60 bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <option value="">No Manager</option>
-                      {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).map((mgr) => (
-                        <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
-                      ))}
-                    </select>
+                      disabled={!canEditFieldClient("managerId")}
+                      triggerClassName="h-10 text-xs"
+                    />
                     {!canEditFieldClient("managerId") && (
                       <Lock className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     )}
@@ -1266,23 +1531,13 @@ export function ProfilePage() {
                       Timezone {!canEditFieldClient("timezone") && <Lock className="w-3 h-3 text-slate-450" />}
                     </label>
                     <div className="relative">
-                      <select 
+                      <Select
+                        options={timezoneOptions}
                         value={editTimezone}
                         disabled={!canEditFieldClient("timezone")}
-                        onChange={(e) => setEditTimezone(e.target.value)}
-                        className={`w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white pr-8 ${
-                          !canEditFieldClient("timezone") ? "opacity-60 bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        <option value="America/New_York">Eastern (EST)</option>
-                        <option value="America/Chicago">Central (CST)</option>
-                        <option value="America/Denver">Mountain (MST)</option>
-                        <option value="America/Los_Angeles">Pacific (PST)</option>
-                        <option value="Asia/Kolkata">India (IST)</option>
-                        <option value="Europe/London">London (GMT)</option>
-                        <option value="Europe/Paris">Europe (CET)</option>
-                        <option value="Asia/Singapore">Singapore (SGT)</option>
-                      </select>
+                        onChange={(val) => setEditTimezone(val)}
+                        triggerClassName="h-10 text-xs"
+                      />
                       {!canEditFieldClient("timezone") && (
                         <Lock className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       )}
@@ -1539,44 +1794,31 @@ export function ProfilePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">System Role</label>
-                    <select 
+                    <Select
+                      options={systemRoleOptions}
                       value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      <option value="employee">Employee</option>
-                      <option value="admin">Admin</option>
-                      <option value="super_admin">Super Admin</option>
-                    </select>
+                      onChange={(val) => setInviteRole(val)}
+                      triggerClassName="h-10 text-xs"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</label>
-                    <select 
+                    <Select
+                      options={departmentFormOptions}
                       value={inviteDept}
-                      onChange={(e) => setInviteDept(e.target.value)}
-                      className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      <option value="Sales">Sales</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Customer Success">Customer Success</option>
-                      <option value="Support">Support</option>
-                      <option value="Finance">Finance</option>
-                      <option value="Product">Product</option>
-                    </select>
+                      onChange={(val) => setInviteDept(val)}
+                      triggerClassName="h-10 text-xs"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manager</label>
-                  <select 
+                  <Select
+                    options={managerListOptions}
                     value={inviteManagerId}
-                    onChange={(e) => setInviteManagerId(e.target.value)}
-                    className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                  >
-                    <option value="">No Manager</option>
-                    {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && (u.role === "admin" || u.role === "super_admin")).map((mgr) => (
-                      <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setInviteManagerId(val)}
+                    triggerClassName="h-10 text-xs"
+                  />
                 </div>
 
                 <div className="flex gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-700/60 mt-4">
@@ -1618,17 +1860,12 @@ export function ProfilePage() {
               <form onSubmit={handleManageRolesSubmit} className="p-6 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Select Employee</label>
-                  <select 
-                    required
+                  <Select
+                    options={employeeOptions}
                     value={selectedRoleUserId}
-                    onChange={(e) => handleUserSelectForRoleEdit(e.target.value)}
-                    className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                  >
-                    <option value="">-- Choose Employee --</option>
-                    {allUsers?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== user._id).map((emp) => (
-                      <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleUserSelectForRoleEdit(val)}
+                    triggerClassName="h-10 text-xs"
+                  />
                 </div>
 
                 {selectedRoleUserId && (
@@ -1636,15 +1873,12 @@ export function ProfilePage() {
                     <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">System Role</label>
-                        <select 
+                        <Select
+                          options={systemRoleOptions}
                           value={selectedUserRole}
-                          onChange={(e) => setSelectedUserRole(e.target.value)}
-                          className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                        >
-                          <option value="employee">Employee</option>
-                          <option value="admin">Admin</option>
-                          <option value="super_admin">Super Admin</option>
-                        </select>
+                          onChange={(val) => setSelectedUserRole(val)}
+                          triggerClassName="h-10 text-xs"
+                        />
                       </div>
                       <div className="space-y-1.5 flex flex-col justify-end">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Status</label>
@@ -1661,18 +1895,12 @@ export function ProfilePage() {
 
                     <div className="space-y-1.5 animate-in fade-in duration-200">
                       <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Assigned Manager</label>
-                      <select 
+                      <Select
+                        options={editRoleManagerOptions}
                         value={selectedUserManagerId}
-                        onChange={(e) => setSelectedUserManagerId(e.target.value)}
-                        className="w-full h-10 px-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                      >
-                        <option value="">No Manager</option>
-                        {allUsers
-                          ?.filter((u): u is NonNullable<typeof u> => u != null && u._id !== selectedRoleUserId && (u.role === "admin" || u.role === "super_admin"))
-                          .map((mgr) => (
-                            <option key={mgr._id} value={mgr._id}>{mgr.name} ({mgr.role})</option>
-                          ))}
-                      </select>
+                        onChange={(val) => setSelectedUserManagerId(val)}
+                        triggerClassName="h-10 text-xs"
+                      />
                     </div>
                   </>
                 )}
@@ -1698,6 +1926,93 @@ export function ProfilePage() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+
+      {/* ═══ Manage Workspace Bottom Sheet (Mobile) ═══ */}
+      {isManageWorkspaceOpen && (
+        <div className="fixed inset-0 z-[200] lg:hidden">
+          <div className="absolute inset-0 bg-[rgba(15,23,42,0.55)]" onClick={() => setIsManageWorkspaceOpen(false)} />
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl max-h-[80vh] overflow-y-auto shadow-2xl z-10"
+          >
+            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-3 flex-shrink-0" />
+            <div className="px-5 pb-4 border-b border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Manage Workspace</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Administration and configuration</p>
+              </div>
+              <button onClick={() => setIsManageWorkspaceOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              <button
+                onClick={() => { setIsManageWorkspaceOpen(false); setIsInviteUserOpen(true); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Invite User</p>
+                  <p className="text-xs text-slate-400">Add new members to the workspace</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { setIsManageWorkspaceOpen(false); setIsManageRolesOpen(true); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Manage Roles</p>
+                  <p className="text-xs text-slate-400">Update user roles and permissions</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { setIsManageWorkspaceOpen(false); toast("info", "Teams management coming soon."); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Teams</p>
+                  <p className="text-xs text-slate-400">Organize employees into teams</p>
+                </div>
+              </button>
+              <Link
+                to="/reports"
+                onClick={() => setIsManageWorkspaceOpen(false)}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
+                  <Activity className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Reports</p>
+                  <p className="text-xs text-slate-400">View workspace analytics and reports</p>
+                </div>
+              </Link>
+              <Link
+                to="/settings"
+                onClick={() => setIsManageWorkspaceOpen(false)}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                  <Building className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Workspace Settings</p>
+                  <p className="text-xs text-slate-400">Configure workspace preferences</p>
+                </div>
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </PageLayout>
   );
 }

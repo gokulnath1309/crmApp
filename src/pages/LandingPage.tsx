@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { Zap, Layout, Layers, MessageSquare, Code, Globe } from "lucide-react";
+import { Layout, Layers, MessageSquare, Code, Globe } from "lucide-react";
 import styles from "./LandingPage.module.css";
+import { MarketingNavbar } from "../components/MarketingNavbar";
 
 const avatars = [
   "https://i.pravatar.cc/100?img=33",
@@ -45,34 +46,7 @@ export default function LandingPage() {
       <AnimatedBackground />
 
       <div className={styles.container}>
-        <motion.nav 
-          className={styles.navbar}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className={styles.brand} onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-            <Zap className={styles.brandIcon} />
-            <div className={styles.brandPro}>CRMPro</div>
-          </div>
-
-          <div className={styles.navLinks}>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/features"); }}>Features</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/resources"); }}>Resources</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); navigate("/pricing"); }}>Pricing</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); }}>Info</a>
-          </div>
-
-          <div className={styles.navActions}>
-            <a href="#login" className={styles.loginLink} onClick={(e) => { e.preventDefault(); navigate("/signin"); }}>
-              Log in
-            </a>
-            <button className={styles.btnPrimarySmall} onClick={() => navigate("/signup")}>
-              Sign Up
-            </button>
-          </div>
-        </motion.nav>
+        <MarketingNavbar />
 
         <motion.div 
           className={styles.heroSection}

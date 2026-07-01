@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "@/features/auth/UserProvider";
@@ -8,6 +9,7 @@ import { CreateTeamModal } from "@/components/teams/CreateTeamModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
+import { PageLayout } from "@/components/PageLayout";
 import {
   Users, Plus, Search, Archive,
 } from "lucide-react";
@@ -15,7 +17,19 @@ import {
 export function TeamsPage() {
   const { user } = useUser();
   const permissions = getPermissions(user);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setShowCreate(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
@@ -36,7 +50,7 @@ export function TeamsPage() {
 
   if (teamsData === undefined) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-6 space-y-5">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <Skeleton className="h-8 w-48" />
@@ -57,24 +71,18 @@ export function TeamsPage() {
   const archivedTeams = filteredTeams.filter((t: any) => t.archived);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Teams
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Organize employees into teams for collaboration and CRM ownership
-          </p>
-        </div>
-        {permissions.canCreateTeam && (
+    <PageLayout
+      title="Teams"
+      subtitle="Organize employees into teams for collaboration and CRM ownership"
+      actions={
+        permissions.canCreateTeam ? (
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4" />
             Create Team
           </Button>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
 
       {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -151,6 +159,6 @@ export function TeamsPage() {
 
       {/* Create Team Modal */}
       <CreateTeamModal open={showCreate} onClose={() => setShowCreate(false)} />
-    </div>
+    </PageLayout>
   );
 }

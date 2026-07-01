@@ -5,13 +5,16 @@ import { api } from "../../convex/_generated/api";
 import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/components/ui/Toast";
+import { EmployeeRow } from "@/components/teams/EmployeeRow";
 import {
-  UserCheck, Plus, Search, X, Check, Edit2, Loader2, Mail,
+  UserCheck, Plus, Search, X, Check, Loader2, Mail,
   ShieldAlert, Clock, Copy, RefreshCw, Inbox, Users, UserPlus,
-  AlertCircle, Ban, UserMinus, Info, Send, Link, MoreHorizontal, Trash2, Archive,
+  AlertCircle, Ban, Info, Send, Link, Trash2, Archive,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { PageLayout } from "@/components/PageLayout";
 import { cn } from "@/lib/cn";
+import { Select } from "@/components/ui/Select";
 
 const departmentOptions = ["Sales", "Marketing", "Customer Success", "Support", "Product", "Finance", "HR"];
 const permissionOptions = [
@@ -44,35 +47,7 @@ const roleOptions = [
   { value: "employee", label: "Employee" },
 ];
 
-const departmentIcons: Record<string, string> = {
-  Sales: "📈",
-  Marketing: "📣",
-  "Customer Success": "🤝",
-  Support: "🎧",
-  Product: "🛠",
-  Finance: "💰",
-  HR: "👥",
-  Management: "🏢",
-  Engineering: "⚙️",
-  Design: "🎨",
-};
-
 type TabId = "members" | "pending" | "archived";
-
-function getInitials(name?: string) {
-  if (!name || name === "User") return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return parts[0][0].toUpperCase();
-}
-
-function getDepartmentDisplay(dept?: string) {
-  if (!dept) return null;
-  const icon = departmentIcons[dept] || "📋";
-  return `${icon} ${dept}`;
-}
 
 export function EmployeesPage() {
   const { user: currentUser } = useUser();
@@ -294,6 +269,37 @@ export function EmployeesPage() {
   const deactivatedCount = filteredUsers.filter((u: any) => u?.isActive === false).length;
   const managerOptions = (users || []).filter((u: any) => u.role === "super_admin" || u.role === "admin");
 
+  const statusOptions = [
+    { value: "", label: "All Status" },
+    { value: "pending", label: "Pending" },
+    { value: "email_failed", label: "Failed" },
+    { value: "accepted", label: "Accepted" },
+    { value: "expired", label: "Expired" },
+    { value: "revoked", label: "Revoked" },
+  ];
+
+  const roleFormOptions = [
+    { value: "employee", label: "Employee" },
+    { value: "admin", label: "Admin" },
+    { value: "super_admin", label: "Owner" },
+  ];
+
+  const departmentFormOptions = departmentOptions.map(dept => ({ value: dept, label: dept }));
+
+  const managerFormOptions = [
+    { value: "", label: "No Manager" },
+    ...(managerOptions?.map((m: any) => ({ value: m._id, label: m.name })) ?? [])
+  ];
+
+  const editManagerFormOptions = selectedUser
+    ? [
+        { value: "", label: "No Manager" },
+        ...managerOptions
+          .filter((opt: any) => opt._id !== selectedUser._id)
+          .map((m: any) => ({ value: m._id, label: `${m.name} (${m.role})` }))
+      ]
+    : [];
+
   const pendingInvitations = allInvitations.filter((inv: any) =>
     ["pending", "email_sent", "email_failed", "failed"].includes(inv.status)
   );
@@ -341,90 +347,16 @@ export function EmployeesPage() {
     );
   };
 
-  const renderRoleBadge = (role: string) => {
-    const config: Record<string, { label: string; className: string }> = {
-      super_admin: { label: "Owner", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-      admin: { label: "Admin", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-      employee: { label: "Employee", className: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" },
-    };
-    const c = config[role] || config.employee;
-    return (
-      <span className={cn("inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold min-w-[72px] justify-center", c.className)}>
-        {c.label}
-      </span>
-    );
-  };
-
-  const renderUserCard = (u: any) => {
-    const initials = getInitials(u.name);
-    const deptDisplay = getDepartmentDisplay(u.department);
-    const isInactive = u.isActive === false;
-
-    return (
-      <div
-        key={u._id}
-        className={cn(
-          "flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all duration-200 bg-white dark:bg-slate-800",
-          isInactive
-            ? "border-red-100 dark:border-red-950/20 opacity-75"
-            : "border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 cursor-pointer"
-        )}
-      >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] items-center gap-x-6 gap-y-1 sm:gap-y-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-slate-900 dark:text-white truncate">{u.name}</span>
-              {isInactive && (
-                <span className="text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400 px-1.5 py-0.5 rounded-md uppercase leading-none">Inactive</span>
-              )}
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{u.email}</p>
-          </div>
-          <div className="flex sm:justify-center">
-            {renderRoleBadge(u.role)}
-          </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400 truncate hidden sm:block">
-            {deptDisplay || "—"}
-          </div>
-          <div className="flex items-center gap-1 justify-end">
-            <button
-              onClick={(e) => { e.stopPropagation(); startEdit(u); }}
-              className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-              title="Edit employee"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
-            {((isSuperAdmin && u._id !== currentUser!._id) || (currentUser!.role === "admin" && u.managerId === currentUser!._id)) && (
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleUserActiveStatus(u); }}
-                title={isInactive ? "Activate" : "Deactivate"}
-                className={cn(
-                  "w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
-                  isInactive
-                    ? "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-                    : "text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-                )}
-              >
-                {isInactive ? <Check className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
-              </button>
-            )}
-            {isSuperAdmin && (
-              <button
-                onClick={(e) => { e.stopPropagation(); }}
-                className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                title="More options"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const renderUserCard = (u: any) => (
+    <EmployeeRow
+      key={u._id}
+      user={u}
+      currentUserId={currentUser!._id}
+      currentUserRole={currentUser!.role}
+      onEdit={startEdit}
+      onToggleActive={toggleUserActiveStatus}
+    />
+  );
 
   const renderInvitationCard = (inv: any, isArchived: boolean) => {
     const sentDate = inv.sentAt || inv.createdAt;
@@ -623,36 +555,30 @@ export function EmployeesPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl pb-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Employees
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Invite and manage workspace members.
-          </p>
-        </div>
-        {isSuperAdmin && (
+    <PageLayout
+      title="Employees"
+      subtitle="Invite and manage workspace members."
+      actions={
+        isSuperAdmin ? (
           <button
             onClick={() => { resetForm(); setIsInviteOpen(true); }}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10 self-start sm:self-auto"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10"
           >
             <Plus className="w-4 h-4" /> Invite Employee
           </button>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 [&>*]:h-full">
         {[
           { label: "Active Members", value: metrics?.activeEmployees ?? totalCount - deactivatedCount, icon: UserCheck, bg: "bg-emerald-500" },
           { label: "Pending Invites", value: (metrics?.pendingInvites ?? 0) + emailSentInvites, icon: Mail, bg: "bg-indigo-500" },
           { label: "Failed Invites", value: failedInvites, icon: ShieldAlert, bg: "bg-red-500" },
           { label: "Expired Invites", value: metrics?.expiredInvites ?? 0, icon: Clock, bg: "bg-slate-500" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center gap-4">
+          <div key={stat.label} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center gap-4 h-full">
             <div className={`w-11 h-11 ${stat.bg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs`}>
               <stat.icon className="w-5 h-5 text-white" />
             </div>
@@ -665,8 +591,8 @@ export function EmployeesPage() {
       </div>
 
       {/* Tabs + Search + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-6 border-b border-slate-100 dark:border-slate-700/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+        <div className="flex items-center border-b border-slate-100 dark:border-slate-700/60 w-full sm:w-auto justify-between sm:justify-start gap-4 sm:gap-6">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -674,13 +600,13 @@ export function EmployeesPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "relative pb-3 text-sm font-medium transition-colors duration-200 cursor-pointer",
+                  "relative pb-3 text-sm font-medium transition-colors duration-200 cursor-pointer flex-1 sm:flex-initial text-center flex justify-center",
                   isActive
                     ? "text-slate-900 dark:text-white font-semibold"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 )}
               >
-                <span className="flex items-center gap-2">
+                <span className="relative inline-flex items-center gap-2">
                   {tab.label}
                   {tab.count !== undefined && (
                     <span className={cn(
@@ -692,39 +618,34 @@ export function EmployeesPage() {
                       {tab.count}
                     </span>
                   )}
+                  {isActive && (
+                    <motion.div
+                      layoutId="tab-underline"
+                      className="absolute -bottom-3 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
                 </span>
-                {isActive && (
-                  <motion.div
-                    layoutId="tab-underline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
               </button>
             );
           })}
         </div>
         {activeTab !== "members" && (
           <div className="flex items-center gap-2">
-            <select
+            <Select
+              options={statusOptions}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500 transition-colors"
-            >
-              <option value="">All Status</option>
-              {Object.entries(statusConfig).map(([key, cfg]) => (
-                <option key={key} value={key}>{cfg.label}</option>
-              ))}
-            </select>
-            <select
+              onChange={(val) => setStatusFilter(val)}
+              className="w-36"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
+            <Select
+              options={roleOptions}
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 outline-none focus:border-indigo-500 transition-colors"
-            >
-              {roleOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              onChange={(val) => setRoleFilter(val)}
+              className="w-36"
+              triggerClassName="h-9 px-3 text-xs rounded-xl"
+            />
           </div>
         )}
         <div className="relative w-full sm:w-80">
@@ -791,7 +712,7 @@ export function EmployeesPage() {
                 {renderStatusBadge(selectedInvitation.status)}
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
                       <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</p>
                       <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1 capitalize">
@@ -936,42 +857,32 @@ export function EmployeesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</label>
-                    <select
+                    <Select
+                      options={roleFormOptions}
                       value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      <option value="employee">Employee</option>
-                      <option value="admin">Admin</option>
-                      <option value="super_admin">Super Admin</option>
-                    </select>
+                      onChange={(val) => setRole(val)}
+                      triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</label>
-                    <select
+                    <Select
+                      options={departmentFormOptions}
                       value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      {departmentOptions.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setDepartment(val)}
+                      triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manager</label>
-                  <select
+                  <Select
+                    options={managerFormOptions}
                     value={managerId}
-                    onChange={(e) => setManagerId(e.target.value)}
-                    className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                  >
-                    <option value="">No Manager</option>
-                    {managerOptions.map((m: any) => (
-                      <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setManagerId(val)}
+                    triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                  />
                 </div>
 
                 <div className="space-y-2 border-t border-slate-50 dark:border-slate-700/50 pt-3 mt-4">
@@ -1044,46 +955,34 @@ export function EmployeesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</label>
-                    <select
+                    <Select
+                      options={roleFormOptions}
                       value={role}
                       disabled={!isSuperAdmin}
-                      onChange={(e) => setRole(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white disabled:opacity-60"
-                    >
-                      <option value="employee">Employee</option>
-                      <option value="admin">Admin</option>
-                      <option value="super_admin">Super Admin</option>
-                    </select>
+                      onChange={(val) => setRole(val)}
+                      triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Department</label>
-                    <select
+                    <Select
+                      options={departmentFormOptions}
                       value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      {departmentOptions.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setDepartment(val)}
+                      triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                    />
                   </div>
                 </div>
 
                 {isSuperAdmin && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Manager</label>
-                    <select
+                    <Select
+                      options={editManagerFormOptions}
                       value={managerId}
-                      onChange={(e) => setManagerId(e.target.value)}
-                      className="w-full h-10 px-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-xs focus:border-indigo-500 outline-none text-slate-900 dark:text-white"
-                    >
-                      <option value="">No Manager</option>
-                      {managerOptions
-                        .filter((opt: any) => opt._id !== selectedUser._id)
-                        .map((m: any) => (
-                          <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
-                        ))}
-                    </select>
+                      onChange={(val) => setManagerId(val)}
+                      triggerClassName="h-10 px-3.5 text-xs rounded-xl"
+                    />
                   </div>
                 )}
 
@@ -1196,6 +1095,6 @@ export function EmployeesPage() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </PageLayout>
   );
 }

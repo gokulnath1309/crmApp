@@ -30,7 +30,7 @@ function OTPInput({ value, onChange, onKeyDown, inputIndex, inputRefs, isFilled,
       }}
       onKeyDown={onKeyDown}
       disabled={disabled}
-      className={`w-[48px] h-[48px] rounded-xl border-2 text-center text-[18px] font-bold text-gray-900 outline-none transition-all duration-150
+      className={`w-[clamp(36px,10vw,48px)] h-[clamp(36px,10vw,48px)] rounded-xl border-2 text-center text-[clamp(14px,4vw,18px)] font-bold text-gray-900 outline-none transition-all duration-150
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         ${isFilled
           ? "border-indigo-500 bg-indigo-50/50 shadow-[0_0_0_3px_rgba(79,70,229,0.15)]"

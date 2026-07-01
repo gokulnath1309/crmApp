@@ -113,7 +113,7 @@ export function DashboardPage() {
 
   if (isLoading || !user || !metrics) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-5 px-4 pt-4 pb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-white p-6 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -126,7 +126,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl pb-6 p-6">
+    <div className="space-y-5 max-w-7xl pb-6 px-4 pt-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           {greeting}, {user.name.split(" ")[0]} 👋
@@ -134,13 +134,13 @@ export function DashboardPage() {
         <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Here's what's happening with your CRM today.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <StatCard title="Total Leads" value={String(metrics.totalLeads)} change={`${metrics.openLeadsCount || 0} active leads`} up Icon={Target} iconBg="bg-indigo-500" data={sp1} />
         <StatCard title="Contacts" value={String(metrics.totalContacts)} change="+5% this month" up Icon={Users} iconBg="bg-violet-500" data={sp2} />
         <StatCard
           title="Won Revenue"
           value={
-            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+            <div className="flex flex-col gap-0.5 mt-1 min-w-0">
               {Object.keys(metrics.wonRevenue || {}).length === 0 ? (
                 <span className="text-slate-400 text-sm font-semibold">No revenue</span>
               ) : (
@@ -162,7 +162,7 @@ export function DashboardPage() {
         <StatCard
           title="Revenue Forecast"
           value={
-            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+            <div className="flex flex-col gap-0.5 mt-1 min-w-0">
               {Object.keys(metrics.revenueForecast || {}).length === 0 ? (
                 <span className="text-slate-400 text-sm font-semibold">No forecast</span>
               ) : (
@@ -352,11 +352,11 @@ export function DashboardPage() {
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time breakdown of active sales cycles and performance metrics.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <StatCard
           title="Total Pipeline"
           value={
-            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+            <div className="flex flex-col gap-0.5 mt-1 min-w-0">
               {Object.keys(metrics.totalPipelineValue || {}).length === 0 ? (
                 <span className="text-slate-400 text-sm font-semibold">No active deals</span>
               ) : (
@@ -378,7 +378,7 @@ export function DashboardPage() {
         <StatCard
           title="Weighted Pipeline"
           value={
-            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+            <div className="flex flex-col gap-0.5 mt-1 min-w-0">
               {Object.keys(metrics.weightedPipelineValue || {}).length === 0 ? (
                 <span className="text-slate-400 text-sm font-semibold">No active deals</span>
               ) : (
@@ -400,7 +400,7 @@ export function DashboardPage() {
         <StatCard
           title="Closed Won Revenue"
           value={
-            <div className="flex flex-col gap-0.5 mt-1 min-w-[120px]">
+            <div className="flex flex-col gap-0.5 mt-1 min-w-0">
               {Object.keys(metrics.closedRevenue || {}).length === 0 ? (
                 <span className="text-slate-400 text-sm font-semibold">No closed deals</span>
               ) : (

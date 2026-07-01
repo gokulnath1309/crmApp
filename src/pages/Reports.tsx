@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useUser } from "@/features/auth/UserProvider";
 import { Navigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/currency";
+import { Select } from "@/components/ui/Select";
 import {
   TrendingUp,
   Briefcase,
@@ -12,7 +13,6 @@ import {
   DollarSign,
   Activity,
   Layers,
-  Filter,
   Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -69,6 +69,11 @@ export function ReportsPage() {
       ...Object.keys(metrics.revenueForecast || {}),
     ])
   );
+
+  const currencyOptions = [
+    { value: "ALL", label: "All Currencies" },
+    ...currencies.map(cur => ({ value: cur, label: `${cur} Focus` }))
+  ];
 
   // If selectedCurrency is "ALL" but currencies has items, we default to the first one or INR if it exists
   const activeCurrency = selectedCurrency === "ALL" 
@@ -211,7 +216,7 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl pb-6 p-6">
+    <div className="space-y-5 max-w-7xl pb-6 px-4 pt-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -224,19 +229,13 @@ export function ReportsPage() {
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {currencies.length > 1 && (
-            <div className="relative">
-              <select
-                value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value)}
-                className="h-10 pl-3 pr-8 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 dark:text-slate-350 cursor-pointer appearance-none font-semibold shadow-2xs"
-              >
-                <option value="ALL">All Currencies</option>
-                {currencies.map(cur => (
-                  <option key={cur} value={cur}>{cur} Focus</option>
-                ))}
-              </select>
-              <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+            <Select
+              options={currencyOptions}
+              value={selectedCurrency}
+              onChange={(val) => setSelectedCurrency(val)}
+              className="w-36"
+              triggerClassName="h-10 text-xs font-semibold"
+            />
           )}
           <button
             onClick={handleExportCSV}
@@ -354,7 +353,7 @@ export function ReportsPage() {
               {/* Funnel & Employee Conversion Rate Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Funnel Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[400px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(250px,40vw,400px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Lead Qualification Conversion Funnel
@@ -405,7 +404,7 @@ export function ReportsPage() {
                 </div>
 
                 {/* Employee Conversion Rates Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[400px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(250px,40vw,400px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Employee Conversion Rates
@@ -437,7 +436,7 @@ export function ReportsPage() {
               {/* Unqualified & Lost Reasons Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Unqualified Reasons Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(220px,35vw,350px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Unqualified Leads by Reason
@@ -466,7 +465,7 @@ export function ReportsPage() {
                 </div>
 
                 {/* Lost Reasons Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(220px,35vw,350px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Lost Leads by Reason
@@ -498,7 +497,7 @@ export function ReportsPage() {
               {/* Lead Aging & Lead Quality Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Lead Aging Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(220px,35vw,350px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Lead Aging Distribution
@@ -538,7 +537,7 @@ export function ReportsPage() {
                 </div>
 
                 {/* Lead Quality breakdown Card */}
-                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[350px]">
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex flex-col justify-between min-h-[clamp(220px,35vw,350px)]">
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Lead Database Quality
@@ -581,7 +580,7 @@ export function ReportsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
+          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[clamp(280px,45vw,420px)]">
           <AnimatePresence mode="wait">
             {activeTab === "revenue" && (
               <motion.div
@@ -730,7 +729,7 @@ export function ReportsPage() {
         </div>
 
         {/* Currency Focus Widget */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[420px]">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 p-6 shadow-sm flex flex-col justify-between min-h-[clamp(280px,45vw,420px)]">
           <div>
             <h3 className="font-bold text-sm text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               {activeCurrency} Performance Summary

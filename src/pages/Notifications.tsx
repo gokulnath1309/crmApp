@@ -19,6 +19,7 @@ import { QuickActions } from "@/components/notifications/QuickActions";
 import { WorkspaceActivity } from "@/components/notifications/WorkspaceActivity";
 
 // Import Lucide icons dynamically to render by name
+import { PageLayout } from "@/components/PageLayout";
 import * as Lucide from "lucide-react";
 
 export function NotificationsPage() {
@@ -146,23 +147,10 @@ export function NotificationsPage() {
         currentUser={currentUser}
       />
 
-      {/* Header Panel */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-150 dark:border-slate-700/50 px-6 py-6 sm:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
-              Notifications
-              {unreadCount !== undefined && unreadCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 dark:text-indigo-400 text-xs font-extrabold animate-pulse">
-                  {unreadCount} Unread
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-405 dark:text-slate-450 font-medium mt-1">
-              Stay updated with everything happening across your workspace.
-            </p>
-          </div>
-
+      <PageLayout 
+        title="Notifications"
+        subtitle="Stay updated with everything happening across your workspace."
+        actions={
           <div className="flex items-center gap-2.5">
             {unreadCount !== undefined && unreadCount > 0 && (
               <button
@@ -181,11 +169,8 @@ export function NotificationsPage() {
               <Settings className="w-4.5 h-4.5" />
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Main Layout Container */}
-      <div className="max-w-7xl mx-auto px-6 py-6 sm:px-8">
+        }
+      >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           {/* Main Feed Column (2/3 width) */}
@@ -421,7 +406,7 @@ export function NotificationsPage() {
           </div>
 
         </div>
-      </div>
+      </PageLayout>
 
       {/* Floating bulk actions select bar */}
       <BulkActionToolbar
