@@ -419,6 +419,9 @@ export default defineSchema({
     status: v.string(), // "active", "inactive"
     clerkOrgId: v.optional(v.string()),
 
+    // Sales settings
+    monthlySalesTarget: v.optional(v.number()),
+
     // Subscription fields
     plan: v.optional(v.string()), // "basic", "professional", "enterprise"
     billingCycle: v.optional(v.string()), // "monthly", "annual"

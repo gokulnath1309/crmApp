@@ -40,6 +40,7 @@ import type * as teams from "../teams.js";
 import type * as testCustomFields from "../testCustomFields.js";
 import type * as testLeadDetails from "../testLeadDetails.js";
 import type * as users from "../users.js";
+import type * as workspace from "../workspace.js";
 import type * as workspaceInvitations from "../workspaceInvitations.js";
 import type * as workspaceInvitationsTests from "../workspaceInvitationsTests.js";
 import type * as workspaceInvitations_test from "../workspaceInvitations_test.js";
@@ -85,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   testCustomFields: typeof testCustomFields;
   testLeadDetails: typeof testLeadDetails;
   users: typeof users;
+  workspace: typeof workspace;
   workspaceInvitations: typeof workspaceInvitations;
   workspaceInvitationsTests: typeof workspaceInvitationsTests;
   workspaceInvitations_test: typeof workspaceInvitations_test;

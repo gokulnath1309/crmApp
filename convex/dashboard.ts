@@ -19,6 +19,13 @@ export const getMetrics = query({
         leadRevenue: {},
         openLeadsCount: 0,
         wonRevenue: {},
+        wonRevenueChange: {},
+        expectedRevenue: {},
+        dealConversionRate: 0,
+        averageDealSize: 0,
+        dealsClosingSoon: 0,
+        overdueDeals: 0,
+        revenueTrend: [],
         revenueForecast: {},
         winRate: 0,
         lostRate: 0,
@@ -214,16 +221,98 @@ export const getMetrics = query({
       (l) => l.status !== "Won" && l.status !== "Lost" && l.status !== "Unqualified"
     ).length;
 
-    // 8. Calculate wonRevenue and revenueForecast from DEALS (not leads)
+    // 8. Calculate wonRevenue and new KPIs from DEALS
     const wonRevenue: Record<string, number> = {};
-    const revenueForecast: Record<string, number> = {};
-    const forecastStageSet = new Set(["Proposal", "Negotiation", "Verbal Commit"]);
+    const wonRevenueByMonth: Record<string, number> = {};
+    let totalWonValue = 0;
+    let totalWonCount = 0;
+    const now = Date.now();
+    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const twoMonthsAgo = now - 60 * 24 * 60 * 60 * 1000;
+    const thisMonthWon: Record<string, number> = {};
+    const prevMonthWon: Record<string, number> = {};
+
     for (const deal of deals) {
       const cur = deal.currency || "INR";
       const val = deal.value || 0;
       if (deal.stage === "Closed Won") {
         wonRevenue[cur] = (wonRevenue[cur] || 0) + val;
+        totalWonValue += val;
+        totalWonCount++;
+        if (deal.stageChangedAt && deal.stageChangedAt >= oneMonthAgo) {
+          thisMonthWon[cur] = (thisMonthWon[cur] || 0) + val;
+        }
+        if (deal.stageChangedAt && deal.stageChangedAt >= twoMonthsAgo && deal.stageChangedAt < oneMonthAgo) {
+          prevMonthWon[cur] = (prevMonthWon[cur] || 0) + val;
+        }
+        if (deal.stageChangedAt) {
+          const monthKey = new Date(deal.stageChangedAt).toISOString().slice(0, 7);
+          wonRevenueByMonth[monthKey] = (wonRevenueByMonth[monthKey] || 0) + val;
+        }
       }
+    }
+
+    // Won revenue % change vs previous month
+    const wonRevenueChange: Record<string, number> = {};
+    for (const cur of new Set([...Object.keys(thisMonthWon), ...Object.keys(prevMonthWon)])) {
+      const curr = thisMonthWon[cur] || 0;
+      const prev = prevMonthWon[cur] || 0;
+      wonRevenueChange[cur] = prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
+    }
+
+    // Expected revenue: open deals with expectedCloseDate in current month
+    const expectedRevenue: Record<string, number> = {};
+    const nowDate = new Date(now);
+    const startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+    const startOfNextMonth = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 1).getTime();
+    for (const deal of deals) {
+      if (deal.expectedCloseDate && deal.expectedCloseDate >= startOfMonth && deal.expectedCloseDate < startOfNextMonth) {
+        if (deal.stage !== "Closed Won" && deal.stage !== "Closed Lost") {
+          const cur = deal.currency || "INR";
+          expectedRevenue[cur] = (expectedRevenue[cur] || 0) + (deal.value || 0);
+        }
+      }
+    }
+
+    // Deal conversion rate (won / total non-lost qualified deals)
+    const qualifiedDealCount = deals.filter(d => d.stage === "Qualification" || d.stage === "Proposal" || d.stage === "Negotiation" || d.stage === "Verbal Commit").length;
+    const dealConversionRate = qualifiedDealCount > 0 ? (totalWonCount / (qualifiedDealCount + totalWonCount)) * 100 : 0;
+
+    // Average deal size (won deals)
+    const averageDealSize = totalWonCount > 0 ? totalWonValue / totalWonCount : 0;
+
+    // Deals closing soon (expectedCloseDate within 7 days)
+    const closingSoonThreshold = now + 7 * 24 * 60 * 60 * 1000;
+    const dealsClosingSoon = deals.filter(d =>
+      d.expectedCloseDate &&
+      d.expectedCloseDate >= now &&
+      d.expectedCloseDate <= closingSoonThreshold &&
+      d.stage !== "Closed Won" &&
+      d.stage !== "Closed Lost"
+    ).length;
+
+    // Overdue deals (expectedCloseDate < now, stage not terminal)
+    const overdueDeals = deals.filter(d =>
+      d.expectedCloseDate &&
+      d.expectedCloseDate < now &&
+      d.stage !== "Closed Won" &&
+      d.stage !== "Closed Lost"
+    ).length;
+
+    // Revenue trend (last 6 months)
+    const revenueTrend: { month: string; revenue: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+      const key = d.toISOString().slice(0, 7);
+      revenueTrend.push({ month: key, revenue: wonRevenueByMonth[key] || 0 });
+    }
+
+    // Forecast stage set for legacy
+    const forecastStageSet = new Set(["Proposal", "Negotiation", "Verbal Commit"]);
+    const revenueForecast: Record<string, number> = {};
+    for (const deal of deals) {
+      const cur = deal.currency || "INR";
+      const val = deal.value || 0;
       if (forecastStageSet.has(deal.stage)) {
         revenueForecast[cur] = (revenueForecast[cur] || 0) + val;
       }
@@ -322,7 +411,6 @@ export const getMetrics = query({
     const avgResponseTimeMin = responseCount > 0 ? Math.round((totalResponseTimeMs / responseCount) / 60000) : 0;
 
     // Lead Aging
-    const now = Date.now();
     const leadAging = {
       "0-7 Days": 0,
       "8-30 Days": 0,
@@ -372,6 +460,13 @@ export const getMetrics = query({
       leadRevenue,
       openLeadsCount,
       wonRevenue,
+      wonRevenueChange,
+      expectedRevenue,
+      dealConversionRate,
+      averageDealSize,
+      dealsClosingSoon,
+      overdueDeals,
+      revenueTrend,
       revenueForecast,
       winRate,
       lostRate,

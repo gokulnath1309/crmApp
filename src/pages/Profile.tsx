@@ -14,18 +14,7 @@ import {
 import { PageLayout } from "@/components/PageLayout";
 import { Select } from "@/components/ui/Select";
 import { uploadProfileImage, uploadBannerImage } from "@/lib/imageUpload";
-
-function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green" | "blue" | "orange" | "red" | "purple" }) {
-  const styles = {
-    neutral: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
-    green: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-    red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    purple: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
-  }[v];
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>{label}</span>;
-}
+import { formatCurrency } from "@/lib/currency";
 
 export function ProfilePage() {
   const { user } = useUser();
@@ -458,31 +447,32 @@ export function ProfilePage() {
   return (
     <PageLayout title="Profile">
       {/* Header card */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl max-sm:rounded-[20px] border border-slate-100 dark:border-slate-700/70 shadow-sm overflow-hidden">
         {/* Cover */}
         <div className="relative">
           <div 
-            className="h-48 md:h-64 lg:h-[300px] bg-cover bg-center relative rounded-t-2xl overflow-hidden transition-all"
+            className="h-36 sm:h-48 md:h-64 lg:h-[300px] bg-cover bg-center relative overflow-hidden transition-all"
             style={{
-              backgroundImage: user.coverImage ? `url(${user.coverImage})` : undefined,
-              background: user.coverImage ? undefined : "linear-gradient(to right, var(--color-indigo-500), var(--color-violet-500), var(--color-purple-600))"
+              backgroundImage: user.coverImage 
+                ? `url("${user.coverImage}")` 
+                : "linear-gradient(to right, #6366f1, #8b5cf6, #d946ef)"
             }}
           >
             <button 
               onClick={() => setIsEditCoverOpen(true)}
-              className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/30 hover:bg-black/45 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/30 hover:bg-black/45 text-white text-[11px] sm:text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
             >
-              <Edit2 className="w-3.5 h-3.5" /> Edit Cover
+              <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Edit Cover
             </button>
           </div>
 
           {/* Avatar overlapping cover */}
-          <div className="absolute left-1/2 -translate-x-1/2 lg:left-10 lg:translate-x-0 bottom-[-50px] md:bottom-[-55px] lg:bottom-[-60px] z-10">
-            <div className="w-24 h-24 md:w-[120px] md:h-[120px] lg:w-[140px] lg:h-[140px] rounded-full border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600 relative group">
+          <div className="absolute left-1/2 -translate-x-1/2 lg:left-10 lg:translate-x-0 bottom-[-40px] sm:bottom-[-50px] md:bottom-[-55px] lg:bottom-[-60px] z-10">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-[120px] md:h-[120px] lg:w-[140px] lg:h-[140px] rounded-full border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden bg-gradient-to-br from-indigo-500 to-violet-600 relative group">
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-white text-2xl md:text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full select-none" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                <span className="text-white text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full select-none" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   {user.name.split(" ").map(n => n[0]).join("")}
                 </span>
               )}
@@ -495,58 +485,75 @@ export function ProfilePage() {
         </div>
 
         {/* Profile Info */}
-        <div className="pt-16 md:pt-20 lg:pt-[88px] px-6 pb-4">
+        <div className="pt-12 sm:pt-16 md:pt-20 lg:pt-[88px] px-5 sm:px-6 pb-5">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-            <div className="text-center lg:text-left flex-1 min-w-0">
-              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {user.name}
-              </h1>
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mt-1">
-                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
-                {user.role === "super_admin" && (
-                  <>
-                    <Chip label="SUPER ADMIN" v="purple" />
-                    {user.email === "gokulnath13092001@gmail.com" && <Chip label="Founder" v="blue" />}
-                  </>
-                )}
-                {user.role === "admin" && <Chip label="ADMIN" v="blue" />}
-                {user.role === "sales_rep" && <Chip label="SALES REP" v="green" />}
-                {user.role === "marketing" && <Chip label="MARKETING" v="orange" />}
-                {user.role === "support" && <Chip label="SUPPORT" v="red" />}
-                {user.role === "employee" && <Chip label="EMPLOYEE" v="neutral" />}
+            
+            {/* Title & Email section */}
+            <div className="text-center lg:text-left flex-1 min-w-0 flex flex-col items-center lg:items-start">
+              <div className="w-full flex flex-col items-center lg:items-start pb-3 border-b border-slate-900/10 dark:border-slate-100/10 lg:border-b-0 lg:pb-0">
+                <h1 className="text-[20px] sm:text-xl lg:text-2xl font-bold text-slate-900 dark:text-white leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {user.name}
+                </h1>
+                <p className="text-[13px] sm:text-sm text-slate-500 dark:text-slate-400 mt-1 sm:mt-0.5">{user.email}</p>
               </div>
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-2">
-                <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-                  <Building className="w-3.5 h-3.5" /> <span>{user.company || "Acme Corp"}</span>
-                </div>
+
+              {/* Tags & Metadata Container */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-4 mt-3 w-full">
+                {/* Role Chip */}
+                {user.role === "super_admin" && (
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold leading-none bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                    Owner
+                  </span>
+                )}
+                {user.role === "admin" && (
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold leading-none bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                    Admin
+                  </span>
+                )}
+                {user.role === "sales_rep" && (
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold leading-none bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    Sales Rep
+                  </span>
+                )}
+                {user.role === "employee" && (
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold leading-none bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-350">
+                    Employee
+                  </span>
+                )}
+
+                {/* Department Tag */}
                 {user.department && (
-                  <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-1 text-[12px] sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
                     <Shield className="w-3.5 h-3.5" /> <span>{user.department}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+
+                {/* Location Tag */}
+                <div className="flex items-center gap-1 text-[12px] sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
                   <MapPin className="w-3.5 h-3.5" /> <span>{user.location || "San Francisco, CA"}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-sm">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${user.isActive !== false ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${user.isActive !== false ? "bg-emerald-500" : "bg-red-500"}`} />
-                    {user.isActive !== false ? "Active" : "Inactive"}
-                  </span>
-                </div>
+
+                {/* Active Tag */}
+                <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-semibold leading-none ${user.isActive !== false ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400"}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${user.isActive !== false ? "bg-emerald-500" : "bg-red-500"}`} />
+                  {user.isActive !== false ? "Active" : "Inactive"}
+                </span>
               </div>
             </div>
+
+            {/* Edit Profile Button */}
             <button 
               onClick={() => setIsEditProfileOpen(true)}
-              className="self-center lg:self-start flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-650 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors cursor-pointer shrink-0"
+              className="w-full lg:w-auto self-stretch lg:self-start flex items-center justify-center gap-1.5 px-4 h-10 lg:h-9 border-0 lg:border border-slate-200 dark:border-slate-650 bg-indigo-50 dark:bg-slate-700/60 lg:bg-transparent lg:dark:bg-transparent rounded-xl text-xs sm:text-sm font-bold lg:font-medium text-indigo-650 dark:text-indigo-400 lg:text-slate-700 lg:dark:text-slate-350 hover:bg-indigo-100 dark:hover:bg-slate-700 transition-colors cursor-pointer shrink-0 mt-2 lg:mt-0"
             >
               <Edit2 className="w-3.5 h-3.5" /> Edit Profile
             </button>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="border-t border-slate-100 dark:border-slate-700/70 px-6">
-          <div className="flex gap-6 overflow-x-auto scrollbar-none">
+        {/* Navigation Tabs (Premium Segmented Style) */}
+        <div className="border-t border-slate-100 dark:border-slate-700/70 px-5 sm:px-6 py-2.5 bg-slate-50/50 dark:bg-slate-900/10">
+          <div className="flex gap-2.5 overflow-x-auto scrollbar-none py-0.5">
             {[
               { id: "overview", label: "Overview" },
               { id: "activity", label: "Activity" },
@@ -559,10 +566,10 @@ export function ProfilePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveProfileTab(tab.id)}
-                className={`py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                   activeProfileTab === tab.id
-                    ? "border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-indigo-600 text-white dark:bg-indigo-500 shadow-sm shadow-indigo-600/10"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 }`}
               >
                 {tab.label}
@@ -574,7 +581,7 @@ export function ProfilePage() {
 
       {/* Tab Content */}
       {activeProfileTab === "overview" && (
-        <div>
+        <div className="mt-6">
         <div className="hidden lg:block">
       {/* Role-Based Actions & Authority Card */}
       {user.role === "super_admin" && (
@@ -1129,7 +1136,7 @@ export function ProfilePage() {
       )}
 
       {activeProfileTab === "settings" && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Personal Info */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/70">
@@ -1191,7 +1198,7 @@ export function ProfilePage() {
       )}
 
       {activeProfileTab === "activity" && (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm mt-6">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center justify-between">
           <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Recent Activity</h2>
         </div>

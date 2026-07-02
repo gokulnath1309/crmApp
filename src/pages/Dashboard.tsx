@@ -1,16 +1,18 @@
+import React, { useState } from "react";
 import { useUser } from "@/features/auth/UserProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Card } from "@/components/ui/Card";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { formatCurrency } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 
 import { motion } from "motion/react";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   Users, Briefcase, CheckSquare, ChevronRight, TrendingUp, TrendingDown,
-  Clock, Target, UserCheck, CheckCircle2, Percent,
+  Clock, Target, UserCheck, CheckCircle2, Percent, AlertTriangle, Zap,
+  DollarSign, BarChart3, Activity, Edit3, Calendar,
 } from "lucide-react";
 
 // Sparkline datasets
@@ -54,12 +56,13 @@ function Chip({ label, v = "neutral" }: { label: string; v?: "neutral" | "green"
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>{label}</span>;
 }
 
-function StatCard({ title, value, change, up, Icon, iconBg, data }: { title: string; value: string | React.ReactNode; change: string; up: boolean; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; iconBg: string; data: { v: number }[] }) {
+function StatCard({ title, value, change, up, Icon, iconBg, data, onClick }: { title: string; value: string | React.ReactNode; change: string; up: boolean; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; iconBg: string; data: { v: number }[]; onClick?: () => void }) {
   return (
     <motion.div
-      whileHover={{ y: -3, boxShadow: "0 16px 40px -12px rgba(79,70,229,0.12)" }}
+      whileHover={onClick ? { y: -3, boxShadow: "0 16px 40px -12px rgba(79,70,229,0.12)" } : {}}
       transition={{ duration: 0.18 }}
-      className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/70 shadow-sm"
+      onClick={onClick}
+      className={`bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/70 shadow-sm ${onClick ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-start justify-between mb-4">
         <div>
@@ -108,6 +111,10 @@ export function DashboardPage() {
   const metrics = useQuery(api.dashboard.getMetrics);
   const currentUser = useQuery(api.users.getCurrentUser, {});
   const teamMetrics = useQuery(api.teams.getDashboardMetrics, {});
+  const workspaceSettings = useQuery(api.workspace.getSettings);
+  const setMonthlyTarget = useMutation(api.workspace.setMonthlyTarget);
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState("");
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 
@@ -160,13 +167,13 @@ export function DashboardPage() {
           data={sp3}
         />
         <StatCard
-          title="Revenue Forecast"
+          title="Expected Revenue"
           value={
             <div className="flex flex-col gap-0.5 mt-1 min-w-0">
-              {Object.keys(metrics.revenueForecast || {}).length === 0 ? (
-                <span className="text-slate-400 text-sm font-semibold">No forecast</span>
+              {Object.keys(metrics.expectedRevenue || {}).length === 0 ? (
+                <span className="text-slate-400 text-sm font-semibold">No expected</span>
               ) : (
-                Object.entries(metrics.revenueForecast).map(([currency, amount]) => (
+                Object.entries(metrics.expectedRevenue).map(([currency, amount]) => (
                   <div key={currency} className="text-sm font-semibold flex items-center justify-between gap-4">
                     <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{currency}</span>
                     <span className="text-[15px] font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
@@ -175,13 +182,131 @@ export function DashboardPage() {
               )}
             </div>
           }
-          change="Proposal/Neg."
+          change="Closing this month"
           up
-          Icon={TrendingUp}
+          Icon={Calendar}
           iconBg="bg-orange-500"
           data={sp4}
         />
       </div>
+
+      {/* New KPI Cards Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Won Revenue Change
+            </p>
+            <div className="flex flex-col gap-0.5 mt-1">
+              {Object.keys(metrics.wonRevenueChange || {}).length === 0 ? (
+                <span className="text-lg font-bold text-slate-900 dark:text-white">—</span>
+              ) : (
+                Object.entries(metrics.wonRevenueChange).map(([currency, change]) => (
+                  <span key={currency} className={`text-lg font-extrabold ${(change as number) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                    {(change as number) >= 0 ? '+' : ''}{(change as number).toFixed(1)}%
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">vs last month</p>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <Briefcase className="w-3 h-3" /> Pipeline Value
+            </p>
+            <div className="flex flex-col gap-0.5 mt-1">
+              {Object.keys(metrics.totalPipelineValue || {}).length === 0 ? (
+                <span className="text-lg font-bold text-slate-900 dark:text-white">—</span>
+              ) : (
+                Object.entries(metrics.totalPipelineValue).slice(0, 2).map(([currency, amount]) => (
+                  <span key={currency} className="text-sm font-extrabold text-slate-900 dark:text-white">{formatCurrency(amount as number, currency)}</span>
+                ))
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Active stages</p>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <Percent className="w-3 h-3" /> Deal Conversion
+            </p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">
+              {metrics.dealConversionRate.toFixed(1)}%
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Won / Qualified</p>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <DollarSign className="w-3 h-3" /> Avg Deal Size
+            </p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">
+              {metrics.averageDealSize > 0 ? formatCurrency(metrics.averageDealSize, "INR") : "—"}
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Won deals avg</p>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <Zap className="w-3 h-3" /> Closing Soon
+            </p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">
+              {metrics.dealsClosingSoon}
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Within 7 days</p>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Overdue
+            </p>
+            <p className={`text-lg font-extrabold mt-1 ${metrics.overdueDeals > 0 ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+              {metrics.overdueDeals}
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Past close date</p>
+        </Card>
+      </div>
+
+      {/* Revenue Trend Chart */}
+      {metrics.revenueTrend && metrics.revenueTrend.length > 0 && (
+        <Card className="p-5 border border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-indigo-500" />
+                Revenue Trend
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Monthly closed-won revenue (last 6 months)</p>
+            </div>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={metrics.revenueTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+                  formatter={(value: any) => [formatCurrency(Number(value), "INR"), "Revenue"]}
+                />
+                <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       {/* Lead Qualification Metrics Section (Visible to Admins / Managers) */}
       {currentUser && (currentUser.role === "super_admin" || currentUser.role === "admin" || currentUser.role === "manager") && metrics.leadMetrics && (
@@ -506,8 +631,77 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Actions + Tasks */}
+        {/* Right Sidebar: Quick Actions + Widgets */}
         <div className="flex flex-col gap-4">
+
+          {/* Monthly Target */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center gap-2">
+              <Target className="w-3.5 h-3.5 text-indigo-500" />
+              <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Monthly Target</h2>
+              {currentUser && (currentUser.role === "super_admin" || currentUser.role === "admin") && (
+                <button onClick={() => { setEditingTarget(!editingTarget); if (!editingTarget) setTargetInput(String(workspaceSettings?.monthlySalesTarget || '')); }} className="ml-auto text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer">
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="p-4">
+              {workspaceSettings === undefined ? (
+                <Skeleton className="h-8 w-full rounded-lg" />
+              ) : editingTarget ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={targetInput}
+                    onChange={(e) => setTargetInput(e.target.value)}
+                    placeholder="Target amount"
+                    className="flex-1 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    onClick={async () => {
+                      const val = Number(targetInput);
+                      if (val > 0) {
+                        await setMonthlyTarget({ target: val });
+                        setEditingTarget(false);
+                      }
+                    }}
+                    className="h-10 px-3 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Save
+                  </button>
+                  <button onClick={() => setEditingTarget(false)} className="h-10 px-3 rounded-xl border border-slate-200 text-xs font-bold cursor-pointer">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg font-extrabold text-slate-900 dark:text-white">
+                      {(workspaceSettings?.monthlySalesTarget ?? 0) > 0 ? formatCurrency(workspaceSettings?.monthlySalesTarget ?? 0, "INR") : "Not set"}
+                    </span>
+                    {(workspaceSettings?.monthlySalesTarget ?? 0) > 0 && (
+                      <span className="text-xs text-slate-500">this month</span>
+                    )}
+                  </div>
+                  {(workspaceSettings?.monthlySalesTarget ?? 0) > 0 && (
+                    <div className="space-y-1">
+                      <div className="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, (metrics.totalPipelineValue?.["INR"] || 0) / (workspaceSettings?.monthlySalesTarget ?? 1) * 100)}%` }}
+                          className="h-full rounded-full bg-indigo-500"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        {Math.round(Math.min(100, (metrics.totalPipelineValue?.["INR"] || 0) / (workspaceSettings?.monthlySalesTarget ?? 1) * 100))}% of target
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/70">
               <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Quick Actions</h2>
@@ -556,17 +750,42 @@ export function DashboardPage() {
             </div>
           </div>
 
+          {/* Upcoming Activities */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-              <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Deals by Stage</h2>
+              <Activity className="w-3.5 h-3.5 text-slate-400" />
+              <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Upcoming Activities</h2>
+            </div>
+            <div className="p-4 space-y-2.5">
+              {metrics.activities.length === 0 ? (
+                <div className="text-xs text-slate-500 dark:text-slate-400">No recent activities.</div>
+              ) : (
+                metrics.activities.slice(0, 5).map(a => (
+                  <div key={a._id} className="flex items-start gap-2.5">
+                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 bg-indigo-400 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-snug truncate">{a.description}</p>
+                      <span className="text-[10px] text-slate-400">
+                        {a.userName || "System"} • {new Date(a.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Pipeline Widget - Deals by Stage with values */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/70 flex items-center gap-2">
+              <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+              <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Pipeline by Stage</h2>
             </div>
             <div className="p-4 space-y-3">
               {Object.entries(metrics.dealsByStage).map(([stage, count]) => {
                 const maxCount = Math.max(...Object.values(metrics.dealsByStage), 1);
                 const percent = (count / maxCount) * 100;
                 
-                // stage-specific color mappings
                 let barColor = "bg-indigo-500 dark:bg-indigo-600";
                 if (stage === "Closed Won") barColor = "bg-emerald-500 dark:bg-emerald-600";
                 else if (stage === "Closed Lost") barColor = "bg-red-500 dark:bg-red-600";

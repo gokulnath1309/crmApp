@@ -85,12 +85,22 @@ export async function resolveUser(ctx: MutationCtx): Promise<any> {
     const isSuperAdminEmail = email === "gokulnath13092001@gmail.com";
 
     if (user) {
-      if (!user.clerkId || isSuperAdminEmail) {
-        console.log(PREFIX, "Found by email, linking clerkId & bootstrapping super_admin:", user._id);
+      const hasPlaceholderName = !user.name || user.name === "User" || user.name === user.email?.split('@')[0];
+      const identityName = identity.name || (identity.givenName && identity.familyName ? `${identity.givenName} ${identity.familyName}` : identity.givenName || identity.nickname);
+      
+      const shouldUpdateClerkId = !user.clerkId;
+      const shouldUpdateName = hasPlaceholderName && identityName && identityName !== "User" && identityName !== user.name;
+      
+      if (shouldUpdateClerkId || shouldUpdateName || isSuperAdminEmail) {
+        console.log(PREFIX, "Updating user from Clerk:", user._id);
         const patch: any = {
           updatedAt: Date.now(),
         };
-        if (!user.clerkId) patch.clerkId = identity.subject;
+        if (shouldUpdateClerkId) patch.clerkId = identity.subject;
+        if (shouldUpdateName) {
+          console.log(PREFIX, `Syncing name from Clerk: "${user.name}" -> "${identityName}"`);
+          patch.name = identityName;
+        }
         if (isSuperAdminEmail) {
           patch.activeWorkspaceId = user.activeWorkspaceId || (user as any).workspaceId;
         }

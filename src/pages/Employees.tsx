@@ -72,6 +72,13 @@ export function EmployeesPage() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedInvitation, setSelectedInvitation] = useState<any | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [deactivateConfirmUser, setDeactivateConfirmUser] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (deactivateConfirmUser) {
+      console.log("[Deactivate] Confirming deactivation for:", deactivateConfirmUser.name);
+    }
+  }, [deactivateConfirmUser]);
   const [isClearing, setIsClearing] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -211,7 +218,7 @@ export function EmployeesPage() {
     }
   };
 
-  const toggleUserActiveStatus = async (userToToggle: any) => {
+  const performToggleActive = async (userToToggle: any) => {
     try {
       await updateUserRoleMutation({
         id: userToToggle._id as any,
@@ -221,6 +228,27 @@ export function EmployeesPage() {
     } catch (_err: any) {
       console.error("[ToggleUser]", _err);
       toast("error", "Failed to update status.");
+    }
+  };
+
+  const toggleUserActiveStatus = async (userToToggle: any) => {
+    if (userToToggle.isActive !== false) {
+      setDeactivateConfirmUser(userToToggle);
+    } else {
+      await performToggleActive(userToToggle);
+    }
+  };
+
+  const handleUpdateRole = async (userToUpdate: any, newRole: string) => {
+    try {
+      await updateUserRoleMutation({
+        id: userToUpdate._id as any,
+        role: newRole,
+      });
+      toast("success", `Role updated to ${newRole === "super_admin" ? "Owner" : newRole.charAt(0).toUpperCase() + newRole.slice(1)} for ${userToUpdate.name}.`);
+    } catch (_err: any) {
+      console.error("[UpdateRole]", _err);
+      toast("error", "Failed to update role.");
     }
   };
 
@@ -355,6 +383,7 @@ export function EmployeesPage() {
       currentUserRole={currentUser!.role}
       onEdit={startEdit}
       onToggleActive={toggleUserActiveStatus}
+      onUpdateRole={handleUpdateRole}
     />
   );
 
@@ -483,7 +512,7 @@ export function EmployeesPage() {
 
   const tabsContent = {
     members: (
-      <div className="space-y-3">
+      <div className="space-y-3 max-sm:space-y-4">
         {filteredUsers.length === 0 ? (
           renderEmpty(
             <Users className="w-7 h-7 text-slate-400" />,
@@ -505,7 +534,7 @@ export function EmployeesPage() {
     ),
 
     pending: (
-      <div className="space-y-3">
+      <div className="space-y-3 max-sm:space-y-4">
         {filteredPending.length === 0 ? (
           renderEmpty(
             <Inbox className="w-7 h-7 text-slate-400" />,
@@ -529,7 +558,7 @@ export function EmployeesPage() {
     ),
 
     archived: (
-      <div className="space-y-3">
+      <div className="space-y-3 max-sm:space-y-4">
         {filteredArchived.length > 0 && (currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
           <div className="flex justify-end">
             <button
@@ -562,7 +591,7 @@ export function EmployeesPage() {
         isSuperAdmin ? (
           <button
             onClick={() => { resetForm(); setIsInviteOpen(true); }}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 max-sm:h-12 max-sm:mt-2 max-sm:mb-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-indigo-500/10"
           >
             <Plus className="w-4 h-4" /> Invite Employee
           </button>
@@ -571,27 +600,27 @@ export function EmployeesPage() {
     >
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 [&>*]:h-full">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-sm:gap-3 [&>*]:h-full">
         {[
           { label: "Active Members", value: metrics?.activeEmployees ?? totalCount - deactivatedCount, icon: UserCheck, bg: "bg-emerald-500" },
           { label: "Pending Invites", value: (metrics?.pendingInvites ?? 0) + emailSentInvites, icon: Mail, bg: "bg-indigo-500" },
           { label: "Failed Invites", value: failedInvites, icon: ShieldAlert, bg: "bg-red-500" },
           { label: "Expired Invites", value: metrics?.expiredInvites ?? 0, icon: Clock, bg: "bg-slate-500" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center gap-4 h-full">
-            <div className={`w-11 h-11 ${stat.bg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs`}>
-              <stat.icon className="w-5 h-5 text-white" />
+          <div key={stat.label} className="bg-white dark:bg-slate-800 p-5 max-sm:p-4 max-sm:min-h-[96px] rounded-2xl border border-slate-100 dark:border-slate-700/70 shadow-sm flex items-center gap-4 h-full">
+            <div className={`w-11 h-11 max-sm:w-12 max-sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs`}>
+              <stat.icon className="w-5 h-5 max-sm:w-6 max-sm:h-6 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">{stat.label}</p>
-              <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white leading-none mt-0.5">{stat.value}</h3>
+              <p className="text-xs max-sm:text-[14px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider max-sm:whitespace-normal max-sm:overflow-visible max-sm:leading-tight">{stat.label}</p>
+              <h3 className="text-2xl max-sm:text-[24px] font-extrabold text-slate-900 dark:text-white leading-none mt-0.5">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
       {/* Tabs + Search + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-sm:mt-5 max-sm:mb-5">
         <div className="flex items-center border-b border-slate-100 dark:border-slate-700/60 w-full sm:w-auto justify-between sm:justify-start gap-4 sm:gap-6">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -600,7 +629,7 @@ export function EmployeesPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "relative pb-3 text-sm font-medium transition-colors duration-200 cursor-pointer flex-1 sm:flex-initial text-center flex justify-center",
+                  "relative pb-3 max-sm:pb-2 text-sm max-sm:text-[15px] font-medium transition-colors duration-200 cursor-pointer flex-1 sm:flex-initial text-center flex justify-center",
                   isActive
                     ? "text-slate-900 dark:text-white font-semibold"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
@@ -655,7 +684,7 @@ export function EmployeesPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={activeTab === "members" ? "Search by name, email, or dept..." : "Search by name, email, or role..."}
-            className="w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            className="w-full h-11 max-sm:h-11 pl-10 pr-4 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
       </div>
@@ -1089,6 +1118,55 @@ export function EmployeesPage() {
                     <Trash2 className="w-4 h-4" />
                   )}
                   Clear Archive
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Deactivate User Confirmation Modal */}
+      <AnimatePresence>
+        {deactivateConfirmUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
+                    <Ban className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Deactivate {deactivateConfirmUser.name}?
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Are you sure you want to deactivate this employee? They will lose access to the CRM and all workspace tools immediately.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-slate-100 dark:border-slate-700/60">
+                <button
+                  onClick={() => setDeactivateConfirmUser(null)}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    const user = deactivateConfirmUser;
+                    setDeactivateConfirmUser(null);
+                    await performToggleActive(user);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors"
+                >
+                  <Ban className="w-4 h-4" />
+                  Deactivate Employee
                 </button>
               </div>
             </motion.div>

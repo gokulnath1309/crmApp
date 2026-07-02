@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useUser } from "@/features/auth/UserProvider";
@@ -70,9 +70,9 @@ export function AuthGate() {
   const location = useLocation();
   const path = location.pathname;
 
-  const everAuthenticated = useRef(false);
-  if (isAuthenticated) {
-    everAuthenticated.current = true;
+  const [everAuthenticated, setEverAuthenticated] = useState(false);
+  if (isAuthenticated && !everAuthenticated) {
+    setEverAuthenticated(true);
   }
 
   const authState = {
@@ -81,7 +81,7 @@ export function AuthGate() {
     isUserLoading,
     isWorkspaceLoading,
     hasMemberships,
-    everAuthenticated: everAuthenticated.current,
+    everAuthenticated: everAuthenticated,
     pendingAuthTransition: _pendingAuthTransition,
     pendingInviteToken: typeof window !== "undefined" ? sessionStorage.getItem("pending_invite_token") : null,
   };
@@ -104,7 +104,7 @@ export function AuthGate() {
       console.log("[AuthGate] Phase 2: render public/onboarding route:", path);
       return <Outlet />;
     }
-    if (everAuthenticated.current) {
+    if (everAuthenticated) {
       logRedirect(path, "/", "everAuthenticated=true on non-public path", authState);
       return <Navigate to="/" replace />;
     }

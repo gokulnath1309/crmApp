@@ -153,20 +153,28 @@ export function AppLayout() {
       >
         <TopNavbar onMenuClick={() => setMobileOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto pb-24 lg:pb-0">
+        <main className="flex-1 overflow-y-auto pb-24 max-sm:pb-[88px] lg:pb-0">
           <Outlet />
         </main>
       </div>
 
       {/* BottomNavBar (Mobile & Tablet) */}
-      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 lg:hidden px-4 pb-[env(safe-area-inset-bottom)] bg-white/80 dark:bg-inverse-surface/80 backdrop-blur-xl border-t border-outline-variant dark:border-outline shadow-lg">
+      {/*
+        Root cause: The previous implementation used Material Design 3 token names
+        (inverse-surface, outline-variant, outline, on-surface-variant, primary-container)
+        that were never defined in @theme inline in index.css. Tailwind v4 silently
+        drops undefined color tokens, so dark:bg-inverse-surface/80 had no effect,
+        and the element stayed on bg-white/80 even in dark mode.
+        Fixed by using the same theme pattern as TopNavbar: bg-white/80 dark:bg-slate-900/80.
+      */}
+      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 max-sm:h-[72px] lg:hidden px-4 max-sm:px-2 max-sm:pt-2 pb-[env(safe-area-inset-bottom)] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 shadow-lg">
         <NavLink
           to="/dashboard"
           end
           className={({ isActive }) =>
             cn(
-              "rounded-full p-2 duration-200 transition-all flex items-center justify-center",
-              isActive ? "text-primary bg-primary-container/20" : "text-on-surface-variant hover:text-primary"
+              "rounded-full p-2 max-sm:p-2.5 duration-200 transition-all flex items-center justify-center",
+              isActive ? "text-primary bg-indigo-100/50 dark:bg-indigo-900/30" : "text-slate-500 dark:text-slate-400 hover:text-primary"
             )
           }
         >
@@ -176,8 +184,8 @@ export function AppLayout() {
           to="/leads"
           className={({ isActive }) =>
             cn(
-              "rounded-full p-2 duration-200 transition-all flex items-center justify-center",
-              isActive ? "text-primary bg-primary-container/20" : "text-on-surface-variant hover:text-primary"
+              "rounded-full p-2 max-sm:p-2.5 duration-200 transition-all flex items-center justify-center",
+              isActive ? "text-primary bg-indigo-100/50 dark:bg-indigo-900/30" : "text-slate-500 dark:text-slate-400 hover:text-primary"
             )
           }
         >
@@ -185,7 +193,7 @@ export function AppLayout() {
         </NavLink>
         <button
           onClick={() => setCreateOpen(true)}
-          className="text-primary active:scale-90 duration-200 flex items-center justify-center"
+          className="text-primary active:scale-90 duration-200 flex items-center justify-center max-sm:p-2"
         >
           <span className="material-symbols-outlined text-[32px]">add_circle</span>
         </button>
@@ -193,8 +201,8 @@ export function AppLayout() {
           to="/deals"
           className={({ isActive }) =>
             cn(
-              "rounded-full p-2 duration-200 transition-all flex items-center justify-center",
-              isActive ? "text-primary bg-primary-container/20" : "text-on-surface-variant hover:text-primary"
+              "rounded-full p-2 max-sm:p-2.5 duration-200 transition-all flex items-center justify-center",
+              isActive ? "text-primary bg-indigo-100/50 dark:bg-indigo-900/30" : "text-slate-500 dark:text-slate-400 hover:text-primary"
             )
           }
         >
@@ -204,8 +212,8 @@ export function AppLayout() {
           to="/profile"
           className={({ isActive }) =>
             cn(
-              "rounded-full p-2 duration-200 transition-all flex items-center justify-center",
-              isActive ? "text-primary bg-primary-container/20" : "text-on-surface-variant hover:text-primary"
+              "rounded-full p-2 max-sm:p-2.5 duration-200 transition-all flex items-center justify-center",
+              isActive ? "text-primary bg-indigo-100/50 dark:bg-indigo-900/30" : "text-slate-500 dark:text-slate-400 hover:text-primary"
             )
           }
         >

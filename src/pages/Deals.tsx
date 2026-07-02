@@ -159,6 +159,10 @@ export function DealsPage() {
   const deals = useQuery(api.deals.list, { filter: pipelineFilter });
   const users = useQuery(api.users.list);
   const analytics = useQuery(api.analytics.getDealAnalytics);
+  const ownerOptions = [
+    { value: "all", label: "All Owners" },
+    ...(users?.map((u: any) => ({ value: u._id, label: u.name || u.email })) ?? []),
+  ];
 
   const createDealMutation = useMutation(api.deals.create);
   const updateDealMutation = useMutation(api.deals.update);
@@ -444,20 +448,6 @@ export function DealsPage() {
     }
   };
 
-  const handlePermanentDeleteDeal = async (dealId: string, title: string) => {
-    if (window.confirm(`Permanently delete "${title}"? This action cannot be undone.`)) {
-      try {
-        await removeDealMutation({ id: dealId as any });
-        if (selectedDeal?._id === dealId) {
-          setIsDetailsOpen(false);
-          setSelectedDeal(null);
-        }
-        toast("success", "Deal permanently deleted.");
-      } catch (err: any) {
-        toast("error", err.message || "Failed to permanently delete deal");
-      }
-    }
-  };
 
   const dateToTimestamp = (dateStr: string): number | undefined => {
     if (!dateStr) return undefined;
@@ -778,6 +768,26 @@ export function DealsPage() {
   };
 
   // ─── Filter & Search Logic on Local State ───
+  const applyCloseDateFilter = (d: Deal) => {
+    const cdFilter = searchParams.get("closeDate") || "all";
+    if (cdFilter === "all") return true;
+    if (!d.expectedCloseDate) return false;
+    const cd = new Date(d.expectedCloseDate);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    if (cdFilter === "today" && cd.getTime() !== today.getTime()) return false;
+    if (cdFilter === "thisWeek" && (cd < today || cd > endOfWeek)) return false;
+    if (cdFilter === "thisMonth" && (cd < startOfMonth || cd > endOfMonth)) return false;
+    if (cdFilter === "nextMonth" && (cd < startOfNextMonth || cd > new Date(today.getFullYear(), today.getMonth() + 2, 0))) return false;
+    if (cdFilter === "overdue" && (cd >= today || d.stage === "Closed Won" || d.stage === "Closed Lost")) return false;
+    return true;
+  };
+
   const filteredDeals = localDeals?.filter(d => {
     // Search
     if (debouncedSearch) {
@@ -792,6 +802,8 @@ export function DealsPage() {
     if (currencyFilter !== "all" && (d.currency || "INR") !== currencyFilter) return false;
     // Stage
     if (stageFilter !== "all" && d.stage !== stageFilter) return false;
+    // Close Date
+    if (!applyCloseDateFilter(d)) return false;
 
     return true;
   });
@@ -805,6 +817,7 @@ export function DealsPage() {
     }
     if (assignedFilter !== "all" && d.assignedTo !== assignedFilter) return false;
     if (currencyFilter !== "all" && (d.currency || "INR") !== currencyFilter) return false;
+    if (!applyCloseDateFilter(d)) return false;
     return true;
   });
 
@@ -1041,6 +1054,22 @@ export function DealsPage() {
               />
             </div>
 
+            <div>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2 uppercase tracking-wider">Close Date</label>
+              <select
+                value={searchParams.get("closeDate") || "all"}
+                onChange={(e) => updateSearchParams("closeDate", e.target.value)}
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Due Today</option>
+                <option value="thisWeek">Due This Week</option>
+                <option value="thisMonth">Due This Month</option>
+                <option value="nextMonth">Due Next Month</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+
             <div className="sm:col-span-3 flex justify-end">
               <button onClick={handleClearFilters} className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
                 Clear Filters
@@ -1090,14 +1119,6 @@ export function DealsPage() {
             <AnimatePresence mode="popLayout">
               {mobileDisplayDeals.map((d) => {
                 const assignedUser = users?.find((u: any) => u._id === d.assignedTo);
-                const ownerInitials = assignedUser
-                  ? assignedUser.name
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2)
-                  : "UA";
 
                 const priorityColors: Record<string, string> = {
                   High: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30",
@@ -1357,7 +1378,26 @@ export function DealsPage() {
                             <span className="truncate">{d.company || "No Company"}</span>
                           </p>
 
-                          <div className="flex items-center justify-between mt-3.5 pt-2.5 border-t border-slate-50 dark:border-slate-700/40">
+                          {/* Close date + priority row */}
+                          <div className="flex items-center gap-2 mt-1.5 text-[9px] text-slate-400">
+                            {d.priority && (
+                              <span className={cn("px-1 py-0.5 rounded text-[8px] font-bold border",
+                                d.priority === "High" ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30" :
+                                d.priority === "Medium" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30" :
+                                "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/35 dark:text-slate-400 dark:border-slate-800"
+                              )}>
+                                {d.priority}
+                              </span>
+                            )}
+                            {d.expectedCloseDate && (
+                              <span className={`flex items-center gap-0.5 ${d.expectedCloseDate < Date.now() && d.stage !== "Closed Won" && d.stage !== "Closed Lost" ? "text-red-400 font-bold" : ""}`}>
+                                <Calendar className="w-2.5 h-2.5" />
+                                {new Date(d.expectedCloseDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-slate-50 dark:border-slate-700/40">
                             <span className="text-xs font-bold text-slate-900 dark:text-white">
                               {formatCurrency(d.value, d.currency || "INR")}
                             </span>
@@ -1518,7 +1558,45 @@ export function DealsPage() {
                   />
                 </div>
 
-                {/* ───── Section 3: Contract Details (Collapsible) ───── */}
+                {/* ───── Section 3: Timeline & Priority (New) ───── */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400">3</span>
+                    </div>
+                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      Timeline & Priority
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-medium ml-auto">Optional</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 block mb-1.5">Expected Close Date</label>
+                      <input
+                        type="date"
+                        name="expectedCloseDate"
+                        value={form.expectedCloseDate}
+                        onChange={handleInputChange}
+                        className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all focus:shadow-[0_0_0_3px_rgba(79,70,229,0.08)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 block mb-1.5">Priority</label>
+                      <select
+                        name="priority"
+                        value={form.priority}
+                        onChange={handleInputChange}
+                        className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-sm outline-none focus:border-indigo-500"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ───── Section 4: Contract Details (Collapsible) ───── */}
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
                   <button
                     type="button"
@@ -1526,7 +1604,7 @@ export function DealsPage() {
                     className="flex items-center gap-2 w-full text-left"
                   >
                     <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                      <span className="text-xs font-bold text-purple-600 dark:text-purple-400">3</span>
+                      <span className="text-xs font-bold text-purple-600 dark:text-purple-400">4</span>
                     </div>
                     <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                       Contract Details
@@ -1745,6 +1823,14 @@ export function DealsPage() {
                       Owner: <strong className="text-slate-900 dark:text-white">{users?.find((u: any) => u._id === selectedDeal.assignedTo)?.name || "Unassigned"}</strong>
                     </span>
                   </div>
+                  {selectedDeal.priority && (
+                    <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      <span>
+                        Priority: <strong className={`text-slate-900 dark:text-white ${selectedDeal.priority === "High" ? "text-red-500" : selectedDeal.priority === "Medium" ? "text-amber-500" : ""}`}>{selectedDeal.priority}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1760,6 +1846,17 @@ export function DealsPage() {
                     <p className="text-xs text-slate-400 mb-1">Last Updated</p>
                     <p className="font-semibold">{new Date(selectedDeal.updatedAt).toLocaleDateString()}</p>
                   </div>
+                  {selectedDeal.expectedCloseDate && (
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1">Expected Close Date</p>
+                      <p className="font-semibold text-indigo-600 dark:text-indigo-400">
+                        {new Date(selectedDeal.expectedCloseDate).toLocaleDateString()}
+                        {selectedDeal.expectedCloseDate < Date.now() && selectedDeal.stage !== "Closed Won" && selectedDeal.stage !== "Closed Lost" && (
+                          <span className="ml-2 text-[10px] text-red-500 font-bold">⚠ Overdue</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                   {selectedDeal.stageChangedAt && (
                     <div className="col-span-2 pt-2 border-t border-slate-50 dark:border-slate-800">
                       <p className="text-xs text-slate-400 mb-1">Last Stage Change</p>

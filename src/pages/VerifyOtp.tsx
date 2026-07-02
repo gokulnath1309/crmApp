@@ -154,7 +154,10 @@ export function VerifyOtpPage() {
 
   useEffect(() => {
     if (otp.every(Boolean)) {
-      handleVerify();
+      const timer = setTimeout(() => {
+        handleVerify();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [otp, handleVerify]);
 

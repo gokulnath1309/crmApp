@@ -696,7 +696,7 @@ export const updateUserRole = mutation({
         q.eq("userId", targetUser._id).eq("workspaceId", workspaceId)
       )
       .first();
-    if (!targetMembership || targetMembership.status !== "active") {
+    if (!targetMembership || (targetMembership.status !== "active" && targetMembership.status !== "inactive")) {
       throw new Error("Unauthorized: Cannot modify user outside your company");
     }
 
@@ -713,10 +713,12 @@ export const updateUserRole = mutation({
     }
 
     const patch: any = { updatedAt: Date.now() };
+    const memberPatch: any = {};
 
     if (args.role !== undefined) {
       if (!isSuperAdmin) throw new Error("Unauthorized to change roles");
       patch.role = args.role;
+      memberPatch.role = args.role;
 
       if (targetUser.role !== args.role) {
         await ctx.scheduler.runAfter(0, internal.activities.log, {
@@ -730,7 +732,10 @@ export const updateUserRole = mutation({
       }
     }
 
-    if (args.department !== undefined) patch.department = args.department;
+    if (args.department !== undefined) {
+      patch.department = args.department;
+      memberPatch.department = args.department;
+    }
     if (args.jobTitle !== undefined) patch.jobTitle = args.jobTitle;
     if (args.managerId !== undefined) {
       if (!isSuperAdmin) throw new Error("Unauthorized to change manager");
@@ -742,9 +747,14 @@ export const updateUserRole = mutation({
     }
     if (args.isActive !== undefined) {
       patch.isActive = args.isActive;
+      memberPatch.status = args.isActive ? "active" : "inactive";
     }
 
     await ctx.db.patch(args.id, patch);
+
+    if (Object.keys(memberPatch).length > 0 && targetMembership) {
+      await ctx.db.patch(targetMembership._id, memberPatch);
+    }
 
     if (args.role !== undefined && targetUser.role !== args.role) {
       await notifyUser(ctx, args.id, "role_changed", {

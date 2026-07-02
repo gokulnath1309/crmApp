@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useUser } from "@/features/auth/UserProvider";
@@ -19,9 +19,9 @@ export function RoleGuard({ children, allowedRoles, requiredPermission }: RoleGu
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const everAuthenticated = useRef(false);
-  if (isAuthenticated) {
-    everAuthenticated.current = true;
+  const [everAuthenticated, setEverAuthenticated] = useState(false);
+  if (isAuthenticated && !everAuthenticated) {
+    setEverAuthenticated(true);
   }
 
   const permissions = getPermissions(user);
@@ -55,7 +55,7 @@ export function RoleGuard({ children, allowedRoles, requiredPermission }: RoleGu
   }
 
   if (!isAuthenticated || !user) {
-    if (everAuthenticated.current) {
+    if (everAuthenticated) {
       return <Navigate to="/" replace />;
     }
     return <Navigate to="/signin" replace />;
