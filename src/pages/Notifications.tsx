@@ -139,7 +139,7 @@ export function NotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-905 pb-16">
+    <div className="min-h-screen bg-background pb-16">
       {/* Settings Dialog */}
       <NotificationSettingsModal
         isOpen={isSettingsOpen}
@@ -155,7 +155,7 @@ export function NotificationsPage() {
             {unreadCount !== undefined && unreadCount > 0 && (
               <button
                 onClick={() => markAllAsRead()}
-                className="flex items-center gap-1.5 px-4 py-2 border border-slate-150 dark:border-slate-700 bg-white dark:bg-slate-805 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-650 dark:text-slate-205 rounded-xl shadow-xs transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 border border-border bg-card hover:bg-accent text-xs font-bold text-muted-foreground rounded-xl shadow-xs transition-all"
               >
                 <CheckCheck className="w-4 h-4 text-emerald-500" />
                 Mark all read
@@ -163,7 +163,7 @@ export function NotificationsPage() {
             )}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2 border border-slate-150 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-slate-650 transition-colors"
+              className="p-2 border border-border hover:bg-accent rounded-xl text-muted-foreground transition-colors"
               title="Notification Settings"
             >
               <Settings className="w-4.5 h-4.5" />
@@ -174,20 +174,20 @@ export function NotificationsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           {/* Main Feed Column (2/3 width) */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-[30px]">
             
             {/* Search, Sort and Filter Pills Bar */}
-            <div className="space-y-4">
+            <div className="space-y-4 mx-2">
               {/* Search & Sort Row */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search notifications by title, description or category..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500/20"
+                    className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-2xl text-xs font-medium text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-500/20"
                   />
                 </div>
                 
@@ -195,16 +195,16 @@ export function NotificationsPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setSortBy(prev => prev === "newest" ? "oldest" : prev === "oldest" ? "priority" : "newest")}
-                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl text-xs font-bold text-slate-500 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-card border border-border rounded-2xl text-xs font-bold text-muted-foreground hover:bg-accent transition-colors"
                   >
-                    <ArrowUpDown className="w-4 h-4 text-slate-405" />
+                    <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
                     Sort: {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}
                   </button>
                 </div>
               </div>
 
               {/* Tabs list (Animated pill select) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-nowrap scrollbar-thin scrollbar-thumb-slate-200">
+              <div className="flex items-center gap-2.5 overflow-x-auto pb-1 flex-nowrap scrollbar-none">
                 {[
                   { id: "all", label: "All" },
                   { id: "unread", label: "Unread" },
@@ -219,21 +219,29 @@ export function NotificationsPage() {
                   { id: "reports", label: "Reports" }
                 ].map(tab => {
                   const count = categoryCounts ? (categoryCounts as any)[tab.id] : 0;
-                  const countLabel = count > 0 ? ` (${count})` : "";
                   const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={cn(
-                        "px-3 py-1.5 text-xs font-bold rounded-full transition-all shrink-0",
+                        "px-[18px] py-2.5 min-h-10 text-xs rounded-full transition-all duration-200 shrink-0",
                         isActive
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
-                          : "bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 text-slate-505 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 font-semibold"
+                          : "bg-card border border-border text-muted-foreground hover:bg-accent hover:border-foreground/20 hover:-translate-y-0.5 hover:shadow-md font-bold"
                       )}
                     >
-                      {tab.label}
-                      {countLabel}
+                      <span className="flex items-center gap-1.5">
+                        {tab.label}
+                        {count > 0 && (
+                          <span className={cn(
+                            "px-2 py-1 rounded-full text-[10px] leading-none",
+                            isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                          )}>
+                            {count}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -244,11 +252,11 @@ export function NotificationsPage() {
             {isLoading ? (
               <div className="flex flex-col justify-center items-center py-20 gap-4">
                 <Spinner size="lg" />
-                <p className="text-xs text-slate-400 font-semibold">Loading your workspace feed...</p>
+                <p className="text-xs text-muted-foreground font-semibold">Loading your workspace feed...</p>
               </div>
             ) : notifications.length === 0 ? (
               <EmptyState
-                icon={<Bell className="w-12 h-12 text-slate-350" />}
+                icon={<Bell className="w-12 h-12 text-muted-foreground" />}
                 title="Feed is clean!"
                 description={activeTab === "unread" ? "You have no unread notifications." : "No matching notifications found."}
               />
@@ -257,12 +265,12 @@ export function NotificationsPage() {
                 
                 {/* Select All Row */}
                 <div className="flex items-center justify-between px-2 text-xs">
-                  <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-405 hover:text-slate-700 dark:hover:text-slate-205 transition-colors">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-muted-foreground hover:text-foreground transition-colors">
                     <input
                       type="checkbox"
                       checked={selectedIds.length === notifications.length}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-border text-indigo-600 focus:ring-indigo-500"
                     />
                     Select All ({notifications.length})
                   </label>
@@ -273,7 +281,7 @@ export function NotificationsPage() {
                   if (list.length === 0) return null;
                   return (
                     <div key={groupTitle} className="space-y-2.5 animate-in fade-in slide-in-from-top-4 duration-300">
-                      <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">
+                      <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">
                         {groupTitle}
                       </h3>
                       <div className="space-y-2">
@@ -286,7 +294,7 @@ export function NotificationsPage() {
                                 "flex items-start gap-4 p-4 rounded-2xl border transition-all relative group",
                                 !n.read 
                                   ? "bg-indigo-50/15 dark:bg-indigo-950/5 border-indigo-100/60 dark:border-indigo-950/20" 
-                                  : "bg-white dark:bg-slate-800 border-slate-150 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-750/30"
+                                  : "bg-card border-border hover:bg-accent/50"
                               )}
                             >
                               {/* Selection checkbox */}
@@ -295,7 +303,7 @@ export function NotificationsPage() {
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={() => toggleSelect(n._id)}
-                                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                  className="rounded border-border text-indigo-600 focus:ring-indigo-500"
                                 />
                               </div>
 
@@ -321,29 +329,29 @@ export function NotificationsPage() {
                                 }}
                               >
                                 <div className="flex items-center gap-2">
-                                  <p className={cn("text-xs leading-snug truncate", !n.read ? "font-black text-slate-850 dark:text-slate-100" : "font-bold text-slate-650 dark:text-slate-350")}>
+                                  <p className={cn("text-xs leading-snug truncate", !n.read ? "font-black text-foreground" : "font-bold text-muted-foreground")}>
                                     {n.title}
                                   </p>
                                   {n.pinned && (
                                     <Pin className="w-3 h-3 text-indigo-650 shrink-0 transform rotate-45" />
                                   )}
                                 </div>
-                                <p className="text-[11px] text-slate-450 dark:text-slate-450 leading-relaxed mt-1 pr-6">{n.message}</p>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed mt-1 pr-6">{n.message}</p>
                                 
                                 <div className="flex items-center gap-2 mt-2">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase">{formatRelativeTime(n.createdAt)}</span>
+                                  <span className="text-[9px] text-muted-foreground font-extrabold uppercase">{formatRelativeTime(n.createdAt)}</span>
                                   {n.workspaceId && (
-                                    <span className="text-[9px] text-slate-350 dark:text-slate-550">• Workspace</span>
+                                    <span className="text-[9px] text-muted-foreground">• Workspace</span>
                                   )}
                                 </div>
                               </div>
 
                               {/* Micro Actions (Mark read, Pin, Archive, Trash) */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 top-4 bg-white dark:bg-slate-800 p-1.5 rounded-xl border border-slate-100 dark:border-slate-700/60 shadow-md">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 top-4 bg-card p-1.5 rounded-xl border border-border shadow-md">
                                 {n.read ? (
                                   <button
                                     onClick={() => markAsUnread({ id: n._id })}
-                                    className="p-1 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-405 hover:text-indigo-650 rounded-md transition-colors"
+                                    className="p-1 hover:bg-accent text-muted-foreground hover:text-indigo-650 rounded-md transition-colors"
                                     title="Mark as unread"
                                   >
                                     <EyeOff className="w-3.5 h-3.5" />
@@ -351,7 +359,7 @@ export function NotificationsPage() {
                                 ) : (
                                   <button
                                     onClick={() => markAsRead({ id: n._id })}
-                                    className="p-1 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-405 hover:text-emerald-500 rounded-md transition-colors"
+                                    className="p-1 hover:bg-accent text-muted-foreground hover:text-emerald-500 rounded-md transition-colors"
                                     title="Mark as read"
                                   >
                                     <Check className="w-3.5 h-3.5" />
@@ -359,21 +367,21 @@ export function NotificationsPage() {
                                 )}
                                 <button
                                   onClick={() => pinNotification({ id: n._id, pinned: !n.pinned })}
-                                  className="p-1 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-405 hover:text-indigo-600 rounded-md transition-colors"
+                                  className="p-1 hover:bg-accent text-muted-foreground hover:text-indigo-600 rounded-md transition-colors"
                                   title={n.pinned ? "Unpin" : "Pin"}
                                 >
                                   <Pin className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => archiveNotification({ id: n._id, archived: !n.archived })}
-                                  className="p-1 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-405 hover:text-amber-500 rounded-md transition-colors"
+                                  className="p-1 hover:bg-accent text-muted-foreground hover:text-amber-500 rounded-md transition-colors"
                                   title="Archive"
                                 >
                                   <Archive className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => dismiss({ id: n._id })}
-                                  className="p-1 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-405 hover:text-rose-500 rounded-md transition-colors"
+                                  className="p-1 hover:bg-accent text-muted-foreground hover:text-rose-500 rounded-md transition-colors"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />

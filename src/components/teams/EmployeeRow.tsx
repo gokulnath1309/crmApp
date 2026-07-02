@@ -114,10 +114,10 @@ export function EmployeeRow({
   return (
     <div
       className={cn(
-        "flex flex-col sm:grid gap-4 p-5 sm:p-6 rounded-2xl max-sm:rounded-[20px] border transition-all duration-200 bg-white dark:bg-slate-800",
-        "border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600",
-        "min-h-[84px] max-sm:min-h-0",
-        "sm:grid-cols-[72px_minmax(200px,1fr)_120px_100px] lg:grid-cols-[72px_minmax(260px,1fr)_140px_180px_120px_100px]",
+        "flex flex-col sm:grid gap-4 sm:gap-6 px-6 py-[18px] rounded-2xl max-sm:rounded-[20px] border transition-all duration-200 bg-white dark:bg-slate-800",
+        "border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600 hover:-translate-y-0.5",
+        "min-h-[92px] max-sm:min-h-0",
+        "sm:grid-cols-[72px_minmax(200px,1fr)_140px_120px] lg:grid-cols-[72px_minmax(280px,1fr)_160px_180px_140px_120px]",
         "items-start sm:items-center",
         isInactive &&
           "border-red-100 dark:border-red-950/20 opacity-75"
@@ -152,17 +152,21 @@ export function EmployeeRow({
 
       {/* Desktop: Avatar */}
       <div className="hidden sm:flex items-center justify-start">
-        {user.avatarUrl ? (
-          <img
-            src={user.avatarUrl}
-            alt={user.name}
-            className="w-[52px] h-[52px] rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700 shrink-0"
-          />
-        ) : (
-          <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-slate-100 dark:ring-slate-700 shrink-0">
-            {initials}
-          </div>
-        )}
+        <div className="relative shrink-0 w-[52px] h-[52px]">
+          {user.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.name}
+              className="w-[52px] h-[52px] rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
+            />
+          ) : (
+            <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-slate-100 dark:ring-slate-700">
+              {initials}
+            </div>
+          )}
+          {/* Online indicator */}
+          <span className="absolute bottom-0 right-0 block h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800" />
+        </div>
       </div>
 
       {/* Desktop: Name & Email */}
@@ -177,7 +181,7 @@ export function EmployeeRow({
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">
           {user.email}
         </p>
       </div>
@@ -347,7 +351,7 @@ export function EmployeeRow({
       <div className="hidden sm:flex items-center justify-center">
         <span
           className={cn(
-            "inline-flex items-center px-3 py-0.5 rounded-full text-[13px] font-semibold min-w-[72px] justify-center",
+            "inline-flex items-center px-3 py-0.5 rounded-full text-[13px] font-semibold w-fit justify-center",
             roleCfg.className
           )}
         >
@@ -357,9 +361,10 @@ export function EmployeeRow({
 
       {/* Desktop: Department */}
       <div className="hidden lg:flex items-center justify-center">
-        {deptDisplay ? (
-          <span className="text-sm font-medium text-slate-600 dark:text-slate-400 truncate">
-            {deptDisplay}
+        {user.department ? (
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 truncate">
+            <span className="shrink-0">{departmentIcons[user.department] || "📋"}</span>
+            <span className="truncate">{user.department}</span>
           </span>
         ) : (
           <span className="text-sm text-slate-400">—</span>
@@ -382,13 +387,13 @@ export function EmployeeRow({
       </div>
 
       {/* Desktop: Actions */}
-      <div className="hidden sm:flex items-center justify-end gap-3">
+      <div className="hidden sm:flex items-center justify-end gap-4">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onEdit(user);
           }}
-          className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500"
+          className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500"
           title="Edit employee"
         >
           <Edit2 className="w-4 h-4" />
@@ -401,7 +406,7 @@ export function EmployeeRow({
             }}
             title={isInactive ? "Activate" : "Deactivate"}
             className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500",
+              "w-9 h-9 flex items-center justify-center rounded-full transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500",
               isInactive
                 ? "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                 : "text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
@@ -421,7 +426,7 @@ export function EmployeeRow({
                 e.stopPropagation();
                 setShowDropdown(!showDropdown);
               }}
-              className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500"
+              className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500"
               title="More options"
             >
               <MoreHorizontal className="w-4 h-4" />

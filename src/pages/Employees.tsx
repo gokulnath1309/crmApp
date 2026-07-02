@@ -512,7 +512,7 @@ export function EmployeesPage() {
 
   const tabsContent = {
     members: (
-      <div className="space-y-3 max-sm:space-y-4">
+      <div className="space-y-4">
         {filteredUsers.length === 0 ? (
           renderEmpty(
             <Users className="w-7 h-7 text-slate-400" />,
@@ -534,7 +534,7 @@ export function EmployeesPage() {
     ),
 
     pending: (
-      <div className="space-y-3 max-sm:space-y-4">
+      <div className="space-y-4">
         {filteredPending.length === 0 ? (
           renderEmpty(
             <Inbox className="w-7 h-7 text-slate-400" />,
@@ -558,7 +558,7 @@ export function EmployeesPage() {
     ),
 
     archived: (
-      <div className="space-y-3 max-sm:space-y-4">
+      <div className="space-y-4">
         {filteredArchived.length > 0 && (currentUser?.role === "super_admin" || currentUser?.role === "admin") && (
           <div className="flex justify-end">
             <button
@@ -600,7 +600,7 @@ export function EmployeesPage() {
     >
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-sm:gap-3 [&>*]:h-full">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-sm:gap-3 [&>*]:h-full mt-2">
         {[
           { label: "Active Members", value: metrics?.activeEmployees ?? totalCount - deactivatedCount, icon: UserCheck, bg: "bg-emerald-500" },
           { label: "Pending Invites", value: (metrics?.pendingInvites ?? 0) + emailSentInvites, icon: Mail, bg: "bg-indigo-500" },
@@ -620,7 +620,7 @@ export function EmployeesPage() {
       </div>
 
       {/* Tabs + Search + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-sm:mt-5 max-sm:mb-5">
+      <div className="mt-8 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center border-b border-slate-100 dark:border-slate-700/60 w-full sm:w-auto justify-between sm:justify-start gap-4 sm:gap-6">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;

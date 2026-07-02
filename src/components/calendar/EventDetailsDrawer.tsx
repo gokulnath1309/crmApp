@@ -175,8 +175,8 @@ export function EventDetailsDrawer({ event, users, onClose, onEdit, onDelete, on
             <div className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
               <Clock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
               <div>
-                <p>{formatDate(event.start)}{event.allDay ? " (All day)" : `, ${formatTime(event.start)}`}</p>
-                <p>to {formatDate(event.end)}{!event.allDay && `, ${formatTime(event.end)}`}</p>
+                <p>{formatDate(event.start || event.startTime)}{event.allDay ? " (All day)" : `, ${formatTime(event.start || event.startTime)}`}</p>
+                <p>to {formatDate(event.end || event.endTime)}{!event.allDay && `, ${formatTime(event.end || event.endTime)}`}</p>
               </div>
             </div>
 
@@ -270,11 +270,11 @@ export function EventDetailsDrawer({ event, users, onClose, onEdit, onDelete, on
           <div className="border-t border-slate-100 dark:border-slate-700/70 pt-4 grid grid-cols-2 gap-2 text-xs text-slate-400">
             <div>
               <span className="block">Created</span>
-              <span>{event.createdAt ? formatDate(event.createdAt) : "-"}</span>
+              <span>{event.createdAt || event._creationTime ? formatDate(event.createdAt || event._creationTime) : "-"}</span>
             </div>
             <div>
               <span className="block">Updated</span>
-              <span>{event.updatedAt ? formatDate(event.updatedAt) : "-"}</span>
+              <span>{event.updatedAt || event._creationTime || event.createdAt ? formatDate(event.updatedAt || event._creationTime || event.createdAt) : "-"}</span>
             </div>
           </div>
 

@@ -50,17 +50,17 @@ export function TeamsPage() {
 
   if (teamsData === undefined) {
     return (
-      <div className="px-4 pt-4 pb-6 space-y-5">
+      <div className="px-5 md:px-6 lg:px-8 py-5 md:py-6 lg:py-8 space-y-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-4 w-72" />
           </div>
-          <Skeleton className="h-10 w-36" />
+          <Skeleton className="h-11 w-40 rounded-xl" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-2xl" />
+            <Skeleton key={i} className="h-44 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -76,7 +76,7 @@ export function TeamsPage() {
       subtitle="Organize employees into teams for collaboration and CRM ownership"
       actions={
         permissions.canCreateTeam ? (
-          <Button onClick={() => setShowCreate(true)}>
+          <Button onClick={() => setShowCreate(true)} className="h-11 px-5 py-2.5 gap-2 rounded-xl">
             <Plus className="w-4 h-4" />
             Create Team
           </Button>
@@ -85,23 +85,23 @@ export function TeamsPage() {
     >
 
       {/* Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="mt-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teams..."
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-outline-variant bg-surface-alt text-sm text-on-surface placeholder:text-outline/70 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full h-11 pl-11 pr-4 rounded-xl border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
         <button
           onClick={() => setShowArchived(!showArchived)}
-          className={`inline-flex items-center gap-2 px-4 h-10 rounded-xl border text-sm font-medium transition-all ${
+          className={`inline-flex items-center gap-2.5 px-4 h-11 rounded-xl border text-sm font-medium transition-all ${
             showArchived
-              ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
-              : "border-outline-variant text-on-surface-variant hover:bg-surface-container-low"
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:bg-accent"
           }`}
         >
           <Archive className="w-4 h-4" />
@@ -111,30 +111,37 @@ export function TeamsPage() {
 
       {/* Empty State */}
       {teamsData.length === 0 && (
-        <EmptyState
-          icon={<Users className="w-8 h-8 text-indigo-500" />}
-          title="No Teams Yet"
-          description="Create your first team to organize employees and assign CRM ownership."
-          action={
-            permissions.canCreateTeam ? (
-              <Button onClick={() => setShowCreate(true)}>
-                <Plus className="w-4 h-4" />
-                Create Team
-              </Button>
-            ) : undefined
-          }
-        />
+        <div className="mt-8">
+          <EmptyState
+            icon={<Users className="w-10 h-10 text-primary" />}
+            title="No Teams Yet"
+            description="Create your first team to organize employees and assign CRM ownership."
+            action={
+              permissions.canCreateTeam ? (
+                <Button onClick={() => setShowCreate(true)} className="h-11 px-5 py-2.5 gap-2 rounded-xl">
+                  <Plus className="w-4 h-4" />
+                  Create Team
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
       )}
 
       {/* Active Teams */}
       {teamsData.length > 0 && (
-        <div className="space-y-6">
+        <div className="mt-8 space-y-10">
           {activeTeams.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                Active Teams ({activeTeams.length})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Active Teams
+                </h2>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground leading-none">
+                  {activeTeams.length} {activeTeams.length === 1 ? "Team" : "Teams"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {activeTeams.map((team: any) => (
                   <TeamCard key={team._id} team={team} />
                 ))}
@@ -144,10 +151,15 @@ export function TeamsPage() {
 
           {archivedTeams.length > 0 && showArchived && (
             <div>
-              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                Archived Teams ({archivedTeams.length})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-70">
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Archived Teams
+                </h2>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground leading-none">
+                  {archivedTeams.length} {archivedTeams.length === 1 ? "Team" : "Teams"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 opacity-70">
                 {archivedTeams.map((team: any) => (
                   <TeamCard key={team._id} team={team} />
                 ))}

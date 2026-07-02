@@ -16,8 +16,8 @@ export function QuickFilters({ currentFilter, onChangeFilter, counts }: QuickFil
   ];
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs">
-      <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-3">
+    <div className="bg-card border border-border rounded-2xl p-5 shadow-xs">
+      <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-3">
         Quick Filters
       </h4>
       <div className="space-y-1">
@@ -31,11 +31,11 @@ export function QuickFilters({ currentFilter, onChangeFilter, counts }: QuickFil
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                 isActive
                   ? "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                  : "text-muted-foreground hover:bg-accent"
               }`}
             >
               <span className="flex items-center gap-2.5">
-                <Icon className={`w-4 h-4 ${isActive ? "text-indigo-600" : "text-slate-400"}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-indigo-600" : "text-muted-foreground"}`} />
                 {item.label}
               </span>
               <div className="flex items-center gap-1">
@@ -44,7 +44,7 @@ export function QuickFilters({ currentFilter, onChangeFilter, counts }: QuickFil
                     {item.count}
                   </span>
                 )}
-                <ChevronRight className="w-3.5 h-3.5 text-slate-350 dark:text-slate-550" />
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
               </div>
             </button>
           );

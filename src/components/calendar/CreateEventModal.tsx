@@ -113,19 +113,23 @@ const TIMEZONES = [
 
 function toDateStr(ts: number) {
   const d = new Date(ts);
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const date = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${date}`;
 }
 
 function toTimeStr(ts: number) {
   const d = new Date(ts);
-  return d.toTimeString().split(":").slice(0, 2).join(":");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
 }
 
 function toTimestamp(dateStr: string, timeStr: string) {
   const [hours, minutes] = timeStr.split(":").map(Number);
-  const d = new Date(dateStr);
-  d.setHours(hours, minutes, 0, 0);
-  return d.getTime();
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
 }
 
 function getDefaultTime(offsetHours: number) {
@@ -257,10 +261,12 @@ export function CreateEventModal({ open, onClose, onSave, event, defaultDate, us
       setRelatedType(event.relatedType || "");
       setRelatedId(event.relatedId || "");
       setAssignedTo(event.assignedTo || "");
-      setStartDate(toDateStr(event.start));
-      setStartTime(toTimeStr(event.start));
-      setEndDate(toDateStr(event.end));
-      setEndTime(toTimeStr(event.end));
+      const startTimestamp = event.start || event.startTime;
+      const endTimestamp = event.end || event.endTime;
+      setStartDate(toDateStr(startTimestamp));
+      setStartTime(toTimeStr(startTimestamp));
+      setEndDate(toDateStr(endTimestamp));
+      setEndTime(toTimeStr(endTimestamp));
       setAllDay(event.allDay || false);
       setLocation(event.location || "");
       setLocationType(event.locationType || "");

@@ -651,6 +651,7 @@ function LeadsPageContent() {
             leadId={selectedLead._id}
             onBack={() => { setIsDetailsOpen(false); setSelectedLead(null); }}
             onLeadDelete={() => { setIsDetailsOpen(false); setSelectedLead(null); }}
+            onEdit={handleEditLead}
           />
         </React.Suspense>
       </ErrorBoundary>
@@ -658,7 +659,7 @@ function LeadsPageContent() {
   }
 
   return (
-    <div className="space-y-5 max-w-7xl pb-6 px-4 pt-4">
+    <div className="space-y-6 w-full max-w-none pb-6 p-6">
       {/* Title & Action Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

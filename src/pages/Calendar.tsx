@@ -132,11 +132,171 @@ function CalendarPage() {
 
   const calendarData = useQuery(api.calendar.getEvents, { startDate: monthStart, endDate: monthEnd });
   const users = useQuery(api.users.list);
-  const upcoming = useQuery(api.events.getUpcoming, { limit: 10 });
+  const upcoming = useQuery(api.calendar.getUpcoming, { limit: 10 });
 
   const meetings = calendarData?.meetings ?? [];
   const tasks = calendarData?.tasks ?? [];
   const events = calendarData?.events ?? [];
+
+  const filteredEvents = useMemo(() => {
+    let list = events;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(e => 
+        e.title.toLowerCase().includes(q) || 
+        e.description?.toLowerCase().includes(q)
+      );
+    }
+
+    if (filterType) {
+      list = list.filter(e => e.eventType === filterType);
+    }
+
+    if (filterOwner) {
+      list = list.filter(e => e.ownerId === filterOwner || e.assignedTo === filterOwner || e.createdBy === filterOwner);
+    }
+
+    if (filterPriority) {
+      list = list.filter(e => e.priority === filterPriority);
+    }
+
+    if (filterStatus) {
+      list = list.filter(e => e.status === filterStatus);
+    }
+
+    if (quickFilter) {
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      if (quickFilter === "today") {
+        list = list.filter(e => isSameDay(e.start, todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()));
+      } else if (quickFilter === "week") {
+        const dayOfWeek = todayDate.getDay();
+        const startOfWeek = new Date(todayDate);
+        startOfWeek.setDate(todayDate.getDate() - dayOfWeek);
+        startOfWeek.setHours(0,0,0,0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23,59,59,999);
+        list = list.filter(e => e.start >= startOfWeek.getTime() && e.start <= endOfWeek.getTime());
+      } else if (quickFilter === "month") {
+        const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).getTime();
+        const endOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+        list = list.filter(e => e.start >= startOfMonth && e.start <= endOfMonth);
+      }
+    }
+
+    return list;
+  }, [events, searchQuery, filterType, filterOwner, filterPriority, filterStatus, quickFilter, year, month]);
+
+  const filteredMeetings = useMemo(() => {
+    let list = meetings;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(m => 
+        m.title.toLowerCase().includes(q) || 
+        m.description?.toLowerCase().includes(q)
+      );
+    }
+
+    if (filterType) {
+      if (filterType !== "Meeting") {
+        return [];
+      }
+    }
+
+    if (filterOwner) {
+      list = list.filter((m: any) => m.ownerId === filterOwner || m.createdBy === filterOwner || m.assignedTo === filterOwner);
+    }
+
+    if (filterPriority) {
+      return [];
+    }
+
+    if (filterStatus) {
+      return [];
+    }
+
+    if (quickFilter) {
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      if (quickFilter === "today") {
+        list = list.filter(m => isSameDay(m.startTime, todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()));
+      } else if (quickFilter === "week") {
+        const dayOfWeek = todayDate.getDay();
+        const startOfWeek = new Date(todayDate);
+        startOfWeek.setDate(todayDate.getDate() - dayOfWeek);
+        startOfWeek.setHours(0,0,0,0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23,59,59,999);
+        list = list.filter(m => m.startTime >= startOfWeek.getTime() && m.startTime <= endOfWeek.getTime());
+      } else if (quickFilter === "month") {
+        const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).getTime();
+        const endOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+        list = list.filter(m => m.startTime >= startOfMonth && m.startTime <= endOfMonth);
+      }
+    }
+
+    return list;
+  }, [meetings, searchQuery, filterType, filterOwner, filterPriority, filterStatus, quickFilter, year, month]);
+
+  const filteredTasks = useMemo(() => {
+    let list = tasks;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(t => 
+        t.title.toLowerCase().includes(q) || 
+        t.description?.toLowerCase().includes(q)
+      );
+    }
+
+    if (filterType) {
+      if (filterType !== "Task") {
+        return [];
+      }
+    }
+
+    if (filterOwner) {
+      list = list.filter((t: any) => t.ownerId === filterOwner || t.createdBy === filterOwner || t.assignedTo === filterOwner);
+    }
+
+    if (filterPriority) {
+      list = list.filter(t => t.priority === filterPriority);
+    }
+
+    if (filterStatus) {
+      list = list.filter(t => t.status === filterStatus);
+    }
+
+    if (quickFilter) {
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      if (quickFilter === "today") {
+        list = list.filter(t => isSameDay(t.startTime, todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()));
+      } else if (quickFilter === "week") {
+        const dayOfWeek = todayDate.getDay();
+        const startOfWeek = new Date(todayDate);
+        startOfWeek.setDate(todayDate.getDate() - dayOfWeek);
+        startOfWeek.setHours(0,0,0,0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23,59,59,999);
+        list = list.filter(t => t.startTime >= startOfWeek.getTime() && t.startTime <= endOfWeek.getTime());
+      } else if (quickFilter === "month") {
+        const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).getTime();
+        const endOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+        list = list.filter(t => t.startTime >= startOfMonth && t.startTime <= endOfMonth);
+      }
+    }
+
+    return list;
+  }, [tasks, searchQuery, filterType, filterOwner, filterPriority, filterStatus, quickFilter, year, month]);
 
   const days = useMemo(() => getMonthDays(year, month), [year, month]);
 
@@ -276,7 +436,9 @@ function CalendarPage() {
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-1.5 px-3 h-9 rounded-xl text-xs font-semibold border transition-colors ${
-            showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            showFilters
+              ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-400"
+              : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
@@ -288,8 +450,8 @@ function CalendarPage() {
             onClick={() => setQuickFilter(quickFilter === f.value ? "" : f.value)}
             className={`px-3 h-9 rounded-xl text-xs font-semibold border transition-colors ${
               quickFilter === f.value
-                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-400"
+                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >
             {f.label}
@@ -353,9 +515,9 @@ function CalendarPage() {
               const isTodayDay = day !== null && isToday(year, month, day);
 
               const dayEvents = [
-                ...events.filter((e: any) => isSameDay(e.start, year, month, day!)),
-                ...meetings.filter((m: any) => isSameDay(m.startTime, year, month, day!)),
-                ...tasks.filter((t: any) => isSameDay(t.startTime, year, month, day!)),
+                ...filteredEvents.filter((e: any) => isSameDay(e.start, year, month, day!)),
+                ...filteredMeetings.filter((m: any) => isSameDay(m.startTime, year, month, day!)),
+                ...filteredTasks.filter((t: any) => isSameDay(t.startTime, year, month, day!)),
               ];
 
               const isDragOver = dragOverDay === day && day !== null;
@@ -400,7 +562,7 @@ function CalendarPage() {
                                 <Icon className="w-2.5 h-2.5 shrink-0 opacity-80" />
                                 <span className="text-[10px] leading-tight truncate flex-1">{ev.title}</span>
                                 {startTime && !ev.allDay && (
-                                  <span className="text-[9px] opacity-80 shrink-0">{formatTimeShort(startTime)}</span>
+                                  <span className="text-[9px] opacity-80 shrink-0 hidden sm:inline">{formatTimeShort(startTime)}</span>
                                 )}
                               </div>
                             </div>
@@ -446,10 +608,15 @@ function CalendarPage() {
               </div>
             ) : (
               filteredUpcoming.map((ev: any, idx: number) => {
-                const config = EVENT_TYPE_CONFIG[ev.eventType] || EVENT_TYPE_CONFIG.Other;
+                const config = ev.eventType
+                  ? (EVENT_TYPE_CONFIG[ev.eventType] || EVENT_TYPE_CONFIG.Other)
+                  : ev.type === "meeting"
+                    ? { icon: Users, color: "#4F46E5" }
+                    : { icon: CheckSquare, color: "#D97706" };
                 const Icon = config.icon;
                 const color = ev.color || config.color;
-                const owner = userMap[ev.ownerId];
+                const owner = userMap[ev.ownerId] || userMap[ev.assignedTo] || userMap[ev.createdBy];
+                const startTimestamp = ev.start || ev.startTime;
 
                 return (
                   <div
@@ -468,7 +635,7 @@ function CalendarPage() {
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="flex items-center gap-1 text-[11px] text-slate-400">
                           <Clock className="w-3 h-3" />
-                          {ev.allDay ? formatDate(ev.start) : formatTime(ev.start)}
+                          {ev.allDay ? formatDate(startTimestamp) : formatTime(startTimestamp)}
                         </span>
                         {ev.relatedType && (
                           <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
@@ -485,7 +652,7 @@ function CalendarPage() {
                         className="text-[10px] font-semibold mt-1"
                         style={{ color }}
                       >
-                        {ev.eventType}
+                        {ev.eventType || (ev.type === "meeting" ? "Meeting" : "Task")}
                       </div>
                     </div>
                   </div>

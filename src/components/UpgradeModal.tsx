@@ -141,7 +141,7 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
                       </div>
                       <h3 className="text-lg font-bold text-slate-900">Professional</h3>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-2xl font-extrabold text-slate-900">$29</span>
+                        <span className="text-2xl font-extrabold text-slate-900">₹499</span>
                         <span className="text-sm text-slate-500">/month per workspace</span>
                       </div>
                     </div>

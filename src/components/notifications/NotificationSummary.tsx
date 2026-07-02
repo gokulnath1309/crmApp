@@ -19,9 +19,9 @@ interface NotificationSummaryProps {
 export function NotificationSummary({ counts }: NotificationSummaryProps) {
   if (!counts) {
     return (
-      <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs animate-pulse space-y-4">
-        <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded-sm w-1/3" />
-        <div className="h-32 bg-slate-150 dark:bg-slate-700 rounded-full w-32 mx-auto" />
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-xs animate-pulse space-y-4">
+        <div className="h-4 bg-muted rounded-sm w-1/3" />
+        <div className="h-32 bg-muted rounded-full w-32 mx-auto" />
       </div>
     );
   }
@@ -48,8 +48,8 @@ export function NotificationSummary({ counts }: NotificationSummaryProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs">
-      <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-4">
+    <div className="bg-card border border-border rounded-2xl p-5 shadow-xs">
+      <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-4">
         Notification Summary
       </h4>
 
@@ -87,33 +87,33 @@ export function NotificationSummary({ counts }: NotificationSummaryProps) {
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-lg font-black text-slate-800 dark:text-slate-100">{all}</span>
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-extrabold uppercase">Total</span>
+            <span className="text-lg font-black text-foreground">{all}</span>
+            <span className="text-[9px] text-muted-foreground font-extrabold uppercase">Total</span>
           </div>
         </div>
 
         {/* Statistics list */}
         <div className="flex-1 w-full space-y-2.5">
-          <div className="flex items-center justify-between text-xs border-b border-slate-50 dark:border-slate-700/50 pb-1.5">
-            <span className="text-slate-450 dark:text-slate-400 font-bold">Unread Feed</span>
+          <div className="flex items-center justify-between text-xs border-b border-border pb-1.5">
+            <span className="text-muted-foreground font-bold">Unread Feed</span>
             <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{unread}</span>
           </div>
-          <div className="flex items-center justify-between text-xs border-b border-slate-50 dark:border-slate-700/50 pb-1.5">
-            <span className="text-slate-450 dark:text-slate-400 font-bold">Read Feed</span>
-            <span className="font-extrabold text-slate-600 dark:text-slate-350">{read}</span>
+          <div className="flex items-center justify-between text-xs border-b border-border pb-1.5">
+            <span className="text-muted-foreground font-bold">Read Feed</span>
+            <span className="font-extrabold text-foreground">{read}</span>
           </div>
 
           {/* Categories Legend */}
           <div className="pt-2">
-            <p className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">By Category</p>
+            <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider mb-2">By Category</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {categoryData.map(item => (
                 <div key={item.name} className="flex items-center justify-between text-[10px]">
-                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold truncate">
+                  <span className="flex items-center gap-1.5 text-muted-foreground font-bold truncate">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                     {item.name}
                   </span>
-                  <span className="font-black text-slate-700 dark:text-slate-300">{item.value}</span>
+                  <span className="font-black text-foreground">{item.value}</span>
                 </div>
               ))}
             </div>

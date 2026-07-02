@@ -20,13 +20,13 @@ export function PageLayout({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4">
         <div className="min-w-0 flex-1">
           <h1
-            className="text-lg max-sm:text-[24px] max-sm:font-semibold text-slate-900 dark:text-white truncate"
+            className="text-lg max-sm:text-[24px] max-sm:font-semibold text-foreground truncate"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm max-sm:text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-sm max-sm:text-[13px] text-muted-foreground mt-0.5">
               {subtitle}
             </p>
           )}

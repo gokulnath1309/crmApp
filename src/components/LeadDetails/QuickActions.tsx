@@ -237,16 +237,16 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs">
-      <h3 className="font-bold text-slate-850 dark:text-white text-sm pb-2.5 border-b border-slate-100 dark:border-slate-800/40 mb-3 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-indigo-505" /> Workspace Quick Actions
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs">
+      <h3 className="font-bold text-slate-800 dark:text-white text-sm pb-2.5 border-b border-slate-100 dark:border-slate-800/40 mb-3 flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-500" /> Workspace Quick Actions
       </h3>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
         {/* Phone Call */}
         <button
           onClick={() => setActiveModal("call")}
-          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-905 hover:bg-indigo-50 hover:text-indigo-650 dark:hover:bg-indigo-950/20 dark:hover:text-indigo-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
+          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
         >
           <Phone className="w-3.5 h-3.5 text-emerald-500" /> Log Phone Call
         </button>
@@ -254,7 +254,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
         {/* WhatsApp */}
         <button
           onClick={handleWhatsAppClick}
-          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-905 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/20 dark:hover:text-emerald-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
+          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
         >
           <MessageSquare className="w-3.5 h-3.5 text-emerald-500" /> WhatsApp Chat
         </button>
@@ -262,7 +262,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
         {/* Email */}
         <button
           onClick={() => setActiveModal("email")}
-          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-905 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/20 dark:hover:text-blue-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
+          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
         >
           <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
         </button>
@@ -270,7 +270,7 @@ Transition to Won stage will trigger onboarding tasks and service contract initi
         {/* Meeting */}
         <button
           onClick={() => setActiveModal("meeting")}
-          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-905 hover:bg-amber-50 hover:text-amber-705 dark:hover:bg-amber-955/20 dark:hover:text-amber-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
+          className="h-10 px-3.5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 dark:hover:text-amber-400 border border-slate-100 dark:border-slate-800 rounded-xl font-bold flex items-center gap-2 transition-all cursor-pointer"
         >
           <Video className="w-3.5 h-3.5 text-amber-500" /> Schedule Meeting
         </button>

@@ -56,16 +56,16 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(15,23,42,0.55)]">
-      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700/60 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-card rounded-3xl border border-border shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700/50 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+        <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-muted">
           <div>
-            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
               <Bell className="w-5 h-5 text-indigo-600" /> Notification Settings
             </h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">Customize your notification and subscription preferences.</p>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">Customize your notification and subscription preferences.</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-accent text-muted-foreground transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -74,7 +74,7 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
           {/* Channels */}
           <div>
-            <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Delivery Channels</h4>
+            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider mb-3">Delivery Channels</h4>
             <div className="space-y-3">
               {[
                 { key: "desktopNotifications", label: "Desktop Notifications", desc: "Show system banners on your screen", icon: Bell },
@@ -83,21 +83,21 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
               ].map(item => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.key} className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-900/10 border border-slate-100/60 dark:border-slate-700/30 rounded-2xl">
+                  <div key={item.key} className="flex items-center justify-between p-3 bg-muted border border-border rounded-2xl">
                     <div className="flex items-start gap-3">
                       <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 mt-0.5">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-750 dark:text-slate-200">{item.label}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{item.desc}</p>
+                        <p className="text-xs font-bold text-foreground">{item.label}</p>
+                        <p className="text-[10px] text-muted-foreground font-medium">{item.desc}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => toggle(item.key)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"}`}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-muted-foreground/20"}`}
                     >
-                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-card shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
                     </button>
                   </div>
                 );
@@ -107,7 +107,7 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
 
           {/* Categories */}
           <div>
-            <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Topic Categories</h4>
+            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider mb-3">Topic Categories</h4>
             <div className="space-y-3">
               {[
                 { key: "taskNotifications", label: "Tasks & Assignments", desc: "When tasks are assigned, completed, or overdue", icon: CheckSquare },
@@ -117,21 +117,21 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
               ].map(item => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.key} className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-900/10 border border-slate-100/60 dark:border-slate-700/30 rounded-2xl">
+                  <div key={item.key} className="flex items-center justify-between p-3 bg-muted border border-border rounded-2xl">
                     <div className="flex items-start gap-3">
                       <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 mt-0.5">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-750 dark:text-slate-200">{item.label}</p>
-                        <p className="text-[10px] text-slate-405 dark:text-slate-500 font-medium">{item.desc}</p>
+                        <p className="text-xs font-bold text-foreground">{item.label}</p>
+                        <p className="text-[10px] text-muted-foreground font-medium">{item.desc}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => toggle(item.key)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"}`}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-muted-foreground/20"}`}
                     >
-                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-card shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
                     </button>
                   </div>
                 );
@@ -141,22 +141,22 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
 
           {/* Digests */}
           <div>
-            <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Email Digest Frequency</h4>
+            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider mb-3">Email Digest Frequency</h4>
             <div className="space-y-3">
               {[
                 { key: "weeklySummary", label: "Weekly Summary", desc: "Full breakdown of team performance and pipeline metrics every Monday" },
                 { key: "dailyDigest", label: "Daily Summary", desc: "A brief summary of tasks and calendar events every morning" },
               ].map(item => (
-                <div key={item.key} className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-900/10 border border-slate-100/60 dark:border-slate-700/30 rounded-2xl">
+                <div key={item.key} className="flex items-center justify-between p-3 bg-muted border border-border rounded-2xl">
                   <div>
-                    <p className="text-xs font-bold text-slate-750 dark:text-slate-200">{item.label}</p>
-                    <p className="text-[10px] text-slate-405 dark:text-slate-500 font-medium">{item.desc}</p>
+                    <p className="text-xs font-bold text-foreground">{item.label}</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">{item.desc}</p>
                   </div>
                   <button
                     onClick={() => toggle(item.key)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"}`}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${settings[item.key] ? "bg-indigo-600" : "bg-muted-foreground/20"}`}
                   >
-                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-card shadow-sm ring-0 transition duration-200 ease-in-out ${settings[item.key] ? "translate-x-4" : "translate-x-0"}`} />
                   </button>
                 </div>
               ))}
@@ -165,10 +165,10 @@ export function NotificationSettingsModal({ isOpen, onClose, currentUser }: Noti
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/50 flex justify-end gap-3">
+        <div className="px-6 py-4 bg-muted border-t border-border flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"
+            className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-all"
           >
             Cancel
           </button>

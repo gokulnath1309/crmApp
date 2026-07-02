@@ -167,7 +167,7 @@ export function AppLayout() {
         and the element stayed on bg-white/80 even in dark mode.
         Fixed by using the same theme pattern as TopNavbar: bg-white/80 dark:bg-slate-900/80.
       */}
-      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 max-sm:h-[72px] lg:hidden px-4 max-sm:px-2 max-sm:pt-2 pb-[env(safe-area-inset-bottom)] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 shadow-lg">
+      <nav className="fixed bottom-0 left-0 w-full z-30 flex justify-around items-center h-16 max-sm:h-[72px] lg:hidden px-4 max-sm:px-2 max-sm:pt-2 pb-[env(safe-area-inset-bottom)] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 shadow-lg">
         <NavLink
           to="/dashboard"
           end

@@ -322,7 +322,7 @@ export function ReportsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-150 dark:border-slate-800/80 pb-0.5">
+      <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none border-b border-slate-150 dark:border-slate-800/80 pb-0.5">
         {[
           { id: "revenue", label: "Revenue & Forecasts", icon: DollarSign },
           { id: "stages", label: "Pipeline Stage Analysis", icon: Layers },
@@ -332,7 +332,7 @@ export function ReportsPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-1.5 px-5 py-3 text-xs font-bold transition-all relative border-b-2 cursor-pointer ${
+            className={`flex items-center gap-1.5 px-5 py-3 text-xs font-bold transition-all relative border-b-2 cursor-pointer flex-shrink-0 ${
               activeTab === tab.id
                 ? "border-indigo-650 text-indigo-650 dark:border-indigo-455 dark:text-indigo-400"
                 : "border-transparent text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"

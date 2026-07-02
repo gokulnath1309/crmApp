@@ -124,24 +124,24 @@ export function LeadHeader({ lead, onEdit, onDelete, onStatusChangeClick }: Lead
           {canModify && (
             <button
               onClick={onEdit}
-              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-705 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-805 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
             >
               <Edit className="w-4 h-4" /> Edit
             </button>
           )}
-
+ 
           {canModify && permissions.canViewAllData && (
             <button
               onClick={onDelete}
-              className="h-10 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-650 dark:bg-rose-950/15 dark:hover:bg-rose-955/25 dark:text-rose-400 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/15 dark:hover:bg-rose-900/30 dark:text-rose-450 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
-
+ 
           <button
             onClick={handleShare}
-            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-705 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-805 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
+            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 font-bold text-sm transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
           >
             {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />} Share
           </button>

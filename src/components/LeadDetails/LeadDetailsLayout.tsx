@@ -32,9 +32,10 @@ interface LeadDetailsLayoutProps {
   leadId: string;
   onBack: () => void;
   onLeadDelete?: () => void;
+  onEdit: (lead: any) => void;
 }
 
-export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsLayoutProps) {
+export function LeadDetailsLayout({ leadId, onBack, onLeadDelete, onEdit }: LeadDetailsLayoutProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -265,7 +266,7 @@ export function LeadDetailsLayout({ leadId, onBack, onLeadDelete }: LeadDetailsL
       {/* ─── Lead Identity Header ─── */}
       <LeadHeader 
         lead={lead} 
-        onEdit={() => {}} // Edit handled from Leads.tsx
+        onEdit={() => onEdit(lead)}
         onDelete={handleDeleteLead}
         onStatusChangeClick={() => {}}
       />

@@ -852,7 +852,7 @@ export function DealsPage() {
   const isLoading = localDeals === null;
 
   return (
-    <div className="space-y-6 max-w-8xl pb-6 p-6">
+    <div className="space-y-6 w-full max-w-none pb-6 p-6">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -1305,7 +1305,7 @@ export function DealsPage() {
             ))}
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin select-none">
+          <div className="flex gap-4 pb-4 select-none">
             {dealStageOptions.map(col => {
               const columnDeals = filteredDeals?.filter(d => d.stage === col.value) || [];
               const colTotals = getStageTotal(col.value);
@@ -1315,7 +1315,7 @@ export function DealsPage() {
                   key={col.value}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => handleDrop(e, col.value)}
-                  className="flex-shrink-0 w-72 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 p-3.5 flex flex-col min-h-[500px]"
+                  className="flex-1 min-w-0 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 p-3.5 flex flex-col min-h-[500px]"
                 >
                   {/* Column Header */}
                   <div className="flex items-start justify-between mb-3 px-1">
